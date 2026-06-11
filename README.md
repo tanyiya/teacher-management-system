@@ -1,2 +1,2 @@
-# teacher-management-system
+# Teacher Management System
 
