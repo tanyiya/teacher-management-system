@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 # teacher_management
+=======
+# Teacher Management System
+>>>>>>> 1fb35053e696d91f608c68c49b0b5ade75334910
 
 A new Flutter project.
 
