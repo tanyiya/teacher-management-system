@@ -1,0 +1,49 @@
+name: teacher_management
+description: Teacher Management System
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # Firebase Core & Firestore
+  firebase_core: ^2.24.2
+  cloud_firestore: ^4.13.6
+  
+  # State Management & DI
+  provider: ^6.1.1
+  
+  # Routing & Transitions
+  go_router: ^12.1.1
+  
+  # Elegant Animations
+  flutter_animate: ^4.2.0+1
+  
+  # Aesthetic Charts (KPI Trends)
+  fl_chart: ^0.65.0
+  
+  # PDF document compilation
+  pdf: ^3.10.4
+  printing: ^5.11.1
+  
+  # Image uploads & camera access (Duty Checklists & Reports)
+  image_picker: ^1.0.4
+  file_picker: ^6.1.1
+  
+  # Interactive icons
+  lucide_icons: 0.257.0
+  
+  # Caching and local persistence
+  shared_preferences: ^2.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true

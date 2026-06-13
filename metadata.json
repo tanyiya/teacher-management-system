@@ -1,8 +1,0 @@
-{
-  "name": "Remix: Remix: Remix: Remix: Remix: Remix: Remix: Teacher Management System",
-  "description": "A professional school staff management app with role-based dashboards for Principals and Teachers, featuring task management, leave tracking, and performance recording with a clean iOS-inspired aesthetic.",
-  "requestFramePermissions": [
-    "camera"
-  ],
-  "majorCapabilities": []
-}
