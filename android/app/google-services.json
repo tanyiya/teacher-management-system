@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "828187567117",
+    "project_id": "teacher-management-syste-f8043",
+    "storage_bucket": "teacher-management-syste-f8043.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:828187567117:android:2fa18e0e43bd98a15f6144",
+        "android_client_info": {
+          "package_name": "com.example.teacher_management"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAjpR3cYDp8M1JHpujHcEZebtjJd6ifvaE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

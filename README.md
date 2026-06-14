@@ -1,21 +1,65 @@
-<<<<<<< HEAD
-# teacher_management
-=======
 # Teacher Management System
->>>>>>> 1fb35053e696d91f608c68c49b0b5ade75334910
 
-A new Flutter project.
-
-## Getting Started
-
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Follow the following file structure when implementing
+```
+lib/
+├── main.dart
+├── app_theme.dart
+├── routes.dart
+│
+├── core/                          # Shared across all modules
+│   ├── constants/
+│   │   ├── app_constants.dart
+│   │   └── firestore_constants.dart
+│   ├── utils/
+│   │   ├── date_utils.dart
+│   │   └── validators.dart
+│   ├── widgets/                   # Reusable UI components
+│   │   ├── loading_spinner.dart
+│   │   └── error_message.dart
+│   └── services/
+│       ├── auth_service.dart
+│       └── database_seeder.dart
+│
+├── providers/                     # Global app state
+│   ├── app_state_provider.dart
+│   └── auth_provider.dart
+│
+└── modules/
+    ├── auth/                      # Member A owns this
+    │   ├── models/
+    │   ├── providers/
+    │   ├── services/
+    │   └── screens/
+    │
+    ├── duty/                      # Member B owns this
+    │   ├── models/
+    │   │   ├── duty.dart
+    │   │   └── duty_location.dart
+    │   ├── providers/
+    │   │   └── duty_provider.dart
+    │   ├── services/
+    │   │   └── duty_service.dart
+    │   └── screens/
+    │       ├── duty_list_screen.dart
+    │       └── duty_detail_screen.dart
+    │
+    ├── training/                  # Member C owns this
+    │   ├── models/
+    │   ├── providers/
+    │   ├── services/
+    │   └── screens/
+    │
+    ├── teacher/                   # Member D owns this
+    │   ├── models/
+    │   │   └── teacher.dart
+    │   ├── providers/
+    │   ├── services/
+    │   └── screens/
+    │
+    └── dashboard/                 # Member E owns this
+        ├── models/
+        ├── providers/
+        ├── services/
+        └── screens/
+```

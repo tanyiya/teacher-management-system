@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/teacher.dart';
-import '../services/database_service.dart';
+import '../modules/teachers/models/teacher.dart';
+import '../modules/teachers/services/teacher_service.dart';
 
 class AppStateProvider extends ChangeNotifier {
-  final DatabaseService _dbService = DatabaseService();
+  final TeacherService _teacherService = TeacherService();
   
   TeacherRecord? _currentUser;
   bool _isLoading = true;
@@ -21,8 +21,7 @@ class AppStateProvider extends ChangeNotifier {
     final userId = prefs.getString('current_user_id');
     
     if (userId != null) {
-      // In a real app, fetch from Firestore. Mocking direct assignment for now
-      // Or use a stream subscription.
+      _currentUser = await _teacherService.getTeacherById(userId); // ← fetch user
     }
     _isLoading = false;
     notifyListeners();

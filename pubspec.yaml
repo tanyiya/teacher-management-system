@@ -11,8 +11,8 @@ dependencies:
     sdk: flutter
   
   # Firebase Core & Firestore
-  firebase_core: ^2.24.2
-  cloud_firestore: ^4.13.6
+  firebase_core: ^4.10.0
+  cloud_firestore: ^6.5.0
   
   # State Management & DI
   provider: ^6.1.1
@@ -39,6 +39,7 @@ dependencies:
   
   # Caching and local persistence
   shared_preferences: ^2.2.2
+  firebase_auth: ^6.5.2
 
 dev_dependencies:
   flutter_test:
