@@ -58,7 +58,7 @@ class TrainingPost {
       commentsCount: data['commentsCount']?.toInt() ?? 0,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       fontStyle: _stringValue(data['fontStyle'], fallback: 'sans'),
-      isTraining: data['isTraining'] ?? false,
+      isTraining: _boolValue(data['isTraining']),
       trainingTitle: _nullableStringValue(data['trainingTitle']),
       trainingDescription: _nullableStringValue(data['trainingDescription']),
       maxTrainees: data['maxTrainees']?.toInt(),
@@ -196,4 +196,11 @@ List<String> _stringListValue(Object? value) {
     return value.map((item) => _stringValue(item)).toList();
   }
   return const [];
+}
+
+bool _boolValue(Object? value) {
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  if (value is String) return value.toLowerCase() == 'true';
+  return false;
 }

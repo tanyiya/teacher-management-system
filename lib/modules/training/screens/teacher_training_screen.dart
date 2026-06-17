@@ -1,10 +1,10 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app_theme.dart';
 import '../../teachers/models/teacher.dart';
@@ -369,7 +369,7 @@ class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
 
             return Column(
               children: comments
-                  .map((comment) => ListTile(
+                    .map((comment) => ListTile(
                         dense: true,
                         contentPadding: EdgeInsets.zero,
                         leading: CircleAvatar(
@@ -378,17 +378,18 @@ class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
                         title: Text(comment.authorName,
                             style: const TextStyle(
                                 fontWeight: FontWeight.w600, fontSize: 13)),
-                        subtitle: RichText(
-                          text: TextSpan(
-                            style: const TextStyle(
-                                color: AppTheme.textColor, height: 1.3),
-                            children: _linkSpans(
-                              comment.text,
-                              const TextStyle(
+                          subtitle: RichText(
+                            text: TextSpan(
+                              style: const TextStyle(
                                   color: AppTheme.textColor, height: 1.3),
+                              children: _linkSpans(
+                                context,
+                                comment.text,
+                                const TextStyle(
+                                    color: AppTheme.textColor, height: 1.3),
+                              ),
                             ),
                           ),
-                        ),
                       ))
                   .toList(),
             );
@@ -432,7 +433,7 @@ class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: lines.map((line) {
+                children: lines.map((line) {
         final trimmed = line.trimLeft();
         if (trimmed.startsWith('- ')) {
           return Padding(
@@ -446,7 +447,7 @@ class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
                         text: TextSpan(
                             style: style,
                             children:
-                                _linkSpans(trimmed.substring(2), style)))),
+                                _linkSpans(context, trimmed.substring(2), style)))),
               ],
             ),
           );
@@ -455,7 +456,7 @@ class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
         return Padding(
           padding: const EdgeInsets.only(bottom: 4),
           child: RichText(
-              text: TextSpan(style: style, children: _linkSpans(line, style))),
+              text: TextSpan(style: style, children: _linkSpans(context, line, style))),
         );
       }).toList(),
     );
@@ -489,8 +490,8 @@ class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
     }
   }
 
-  List<TextSpan> _linkSpans(String text, TextStyle style) {
-    final regex = RegExp(r'(https?:\/\/[^\s]+)');
+  List<TextSpan> _linkSpans(BuildContext context, String text, TextStyle style) {
+    final regex = RegExp(r'((?:https?:\/\/)?(?:www\.)?[^\s]+\.[^\s]{2,})');
     final spans = <TextSpan>[];
     var index = 0;
     for (final match in regex.allMatches(text)) {
@@ -502,7 +503,8 @@ class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
         text: url,
         style: style.copyWith(
             color: Colors.blue, decoration: TextDecoration.underline),
-        recognizer: TapGestureRecognizer()..onTap = () => _showLink(url),
+        recognizer: TapGestureRecognizer()
+          ..onTap = () => context.read<TrainingProvider>().openUrl(url),
       ));
       index = match.end;
     }
@@ -702,6 +704,17 @@ class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
             label: Text(_selectedImage == null ? 'Add image' : 'Change image'),
           ),
           const SizedBox(width: 12),
+          if (_selectedImage != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.file(
+                File(_selectedImage!.path),
+                width: 96,
+                height: 72,
+                fit: BoxFit.cover,
+              ),
+            ),
+          if (_selectedImage != null) const SizedBox(width: 12),
           Expanded(
             child: Text(
               _selectedImage?.name ?? 'No image selected',
@@ -730,14 +743,7 @@ class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
     setState(() => _selectedImage = image);
   }
 
-  Future<void> _showLink(String url) async {
-    final uri = Uri.parse(url);
-    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!opened && mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Could not open $url')));
-    }
-  }
+  
 
   String _profileValue(Object? value) => (value ?? '').toString().trim();
 

@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'dart:io';
 
 import '../../teachers/models/teacher.dart';
 import '../models/training.dart';
@@ -37,11 +39,51 @@ class TrainingService {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final ref = _storage.ref().child('$folder/$authorId/$timestamp.$extension');
     final bytes = await image.readAsBytes();
-    final metadata =
-        SettableMetadata(contentType: image.mimeType ?? 'image/jpeg');
+    final metadata = SettableMetadata(contentType: image.mimeType ?? 'image/jpeg');
 
     await ref.putData(bytes, metadata);
     return ref.getDownloadURL();
+  }
+
+  /// Convenience: accept a local [File] and upload it. Returns public download URL.
+  Future<String> uploadFileToStorage(
+    File imageFile, {
+    required String authorId,
+    String folder = 'training_posts',
+  }) async {
+    final extension = imageFile.path.contains('.')
+        ? imageFile.path.split('.').last.toLowerCase()
+        : 'jpg';
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final ref = _storage.ref().child('$folder/$authorId/$timestamp.$extension');
+    final bytes = await imageFile.readAsBytes();
+    final metadata = SettableMetadata(contentType: _mimeTypeForExtension(extension));
+
+    await ref.putData(bytes, metadata);
+    return ref.getDownloadURL();
+  }
+
+  String _mimeTypeForExtension(String ext) {
+    switch (ext.toLowerCase()) {
+      case 'png':
+        return 'image/png';
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      default:
+        return 'image/jpeg';
+    }
+  }
+
+  /// Open a URL in external browser. Returns true if opened.
+  Future<bool> openUrl(String url) async {
+    var uriString = url.trim();
+    if (!uriString.startsWith(RegExp(r'https?:\/\/'))) {
+      uriString = 'https://$uriString';
+    }
+    final uri = Uri.tryParse(uriString);
+    if (uri == null) return false;
+    return launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   Stream<List<TrainingPost>> streamPosts({bool trainingOnly = false}) {
@@ -51,11 +93,15 @@ class TrainingService {
       query = query.where('isTraining', isEqualTo: true);
     }
 
-    return query.snapshots().map(
-          (snapshot) => snapshot.docs
-              .map((doc) => TrainingPost.fromMap(doc.id, doc.data()))
-              .toList(),
-        );
+    return query.snapshots().map((snapshot) {
+      final posts = snapshot.docs
+          .map((doc) => TrainingPost.fromMap(doc.id, doc.data()))
+          .toList();
+      try {
+        print('[TrainingService] streamPosts -> received ${posts.length} posts');
+      } catch (_) {}
+      return posts;
+    });
   }
 
   Stream<List<TrainingPost>> getTrainingPosts() => streamPosts();

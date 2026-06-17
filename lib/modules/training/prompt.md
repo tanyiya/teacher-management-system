@@ -1,6 +1,6 @@
 You are working inside an existing Flutter + Firebase CPD Training module.
 
-Current architecture already exists:
+Existing architecture (DO NOT CHANGE STRUCTURE):
 - models/training.dart
 - services/training_service.dart
 - providers/training_provider.dart
@@ -8,225 +8,160 @@ Current architecture already exists:
 - screens/teacher_training.dart
 
 Firebase is already configured and working.
-Do NOT refactor the project structure. Only extend and fix existing code.
+
+Your task is to FIX bugs and IMPLEMENT missing features without breaking existing functionality.
 
 ---
 
-# 🎯 TASK OVERVIEW
+# 🎯 TASK 1 — FIX IMAGE UPLOAD (CRITICAL)
 
-You must implement feature enhancements + UI bug fixes for the CPD Training Social Feed module.
+Implement full working image upload flow for posts.
 
----
+## Requirements:
 
-# 🧩 PART 1 — CRITICAL UI BUG FIXES
+When user creates a post (teacher or admin):
 
-## 1. Admin screen right overflow (63px issue)
+1. User selects image using:
+   - image_picker package
 
-Fix horizontal overflow in admin interface.
+2. Upload image to:
+   - Firebase Storage
 
-Requirements:
-- Ensure all Row widgets use:
-  - Expanded
-  - Flexible
-  - or SingleChildScrollView (horizontal if needed)
-- Prevent any widget from exceeding screen width
-- Ensure responsive layout for:
-  - form inputs
-  - buttons
-  - application lists
+3. Get download URL from Storage
 
-NO hardcoded widths allowed.
+4. Save URL into Firestore:
+   - TrainingPost.photoUrl (String field)
 
 ---
 
-## 2. Keyboard bottom overflow (46px issue)
+## Implementation rules:
 
-Fix bottom overflow when keyboard appears.
+All logic MUST be inside:
+- services/training_service.dart
 
-Requirements:
-- Wrap main admin layout with:
-  - SingleChildScrollView OR
-  - SafeArea + ResizeToAvoidBottomInset
-- Ensure form fields remain visible when keyboard opens
-- Add proper padding using MediaQuery viewInsets
-
-Must fully eliminate overflow warnings.
-
----
-
-# 🧩 PART 2 — POST INTERACTION ENHANCEMENTS
-
-## 3. Image upload from local storage
-
-When user (teacher or principal) creates a post:
-
-Add ability to:
-- click image upload button inside post composer
-- pick image from device storage
-- upload to Firebase Storage
-- store returned image URL in Firestore (photoUrl field)
-
-Requirements:
-- Use image_picker package
-- Create reusable function in training_service:
-  uploadImageToStorage()
-
-- Must support:
-  - admin post
-  - teacher post
-  - training post
-
----
-
-## 4. Clickable links inside posts
-
-Enable hyperlink detection in post content.
-
-Requirements:
-- Detect URLs inside post content
-- Render them as clickable links
-- On tap:
-  - open in external browser using url_launcher
+Add or fix function:
+- uploadImageToStorage(File imageFile) → returns download URL
 
 Ensure:
-- links work inside feed
-- links work inside comments if present
+- supports jpg/png
+- unique file naming
+- returns valid public download URL
 
 ---
 
-## 5. Search posts (teacher + principal)
+## UI integration:
 
-Add search functionality in feed.
+In:
+- teacher_training.dart
+- admin_training_screen.dart
 
-Requirements:
-- Add search bar in teacher_training.dart and admin_training_screen.dart
-- Search by:
-  - trainingTitle
-  - content
-  - authorName
-
-Implementation:
-- Use Firestore query OR local filtering from provider stream
-- Must update results in real-time as user types
+Add:
+- image picker button in post composer
+- preview selected image before upload
+- ensure post only saves AFTER upload completes
 
 ---
 
-## 6. Profile view (Facebook-style post owner profile)
+# 🎯 TASK 2 — FIX MISSING POSTS IN FEED (CRITICAL BUG)
 
-When clicking on post author avatar:
+## Problem:
+- Some posts do NOT appear in main feed
+- But appear AFTER using search
 
-Open profile page/modal showing:
-
-Required:
-- authorName
-- authorRole
-- all posts created by that user
-
-Feed requirements:
-- Display posts in chronological order
-- Same UI style as main feed
-- Allow:
-  - like posts
-  - comment on posts
-
-Data source:
-- Filter TrainingPost where authorId == selected userId
+## Root cause to investigate:
+- incorrect Firestore query filtering
+- provider filtering logic
+- isTraining flag filtering
+- stream vs cached list mismatch
 
 ---
 
-# 🧩 PART 3 — SOCIAL INTERACTIONS
+## Requirements:
 
-Ensure existing features remain functional:
-- like system
-- comments system
-- trainee application system
+Fix feed so that:
 
-BUT extend them to:
-- support real-time UI updates
-- reflect changes instantly in feed and profile view
+- ALL posts appear in teacher feed (unless explicitly filtered)
+- training posts AND normal posts show correctly
+- no posts are hidden due to local filtering bug
+- real-time Firestore stream is always source of truth
 
 ---
 
-# 🧠 SERVICE LAYER RULES (STRICT)
+## Implementation rules:
 
-All Firebase logic MUST be inside:
-services/training_service.dart
+In:
+- training_provider.dart
 
-Add or extend functions:
+Ensure:
+- Stream<List<TrainingPost>> is used as primary data source
+- remove incorrect client-side filtering that hides posts
+- ensure isTraining is NOT accidentally filtering out normal posts
 
-- uploadImageToStorage()
-- searchPosts(query)
-- getPostsByAuthor(authorId)
-- openLink(url handling is UI but detection helper can be here if needed)
-
-NO Firestore calls inside UI or provider directly.
-
----
-
-# 📦 PROVIDER RULES
-
-training_provider.dart must:
-
-- expose search state
-- manage filtered post list
-- maintain full post stream
-- support profile post filtering state
-- ensure real-time sync with Firestore
+Add debug logging if needed:
+- print number of posts received from Firestore stream
 
 ---
 
-# 📱 UI REQUIREMENTS
+# 🎯 TASK 3 — FIX LINK CLICKING (URL LAUNCH ISSUE)
 
-## teacher_training.dart
-Must include:
-- feed
-- search bar
-- image upload post composer
-- clickable links in posts
-- profile navigation on avatar click
+## Problem:
+Links inside post content cannot be opened.
 
 ---
 
-## admin_training_screen.dart
-Must include:
-- fixed layout (no overflow)
-- post creation with image upload
-- search bar
-- application approval system
-- profile navigation support
+## Requirements:
+
+1. Detect URLs inside:
+   - TrainingPost.content
+
+2. Render them as clickable links in UI
+
+3. On tap:
+   - open link using url_launcher
+   - must open external browser
 
 ---
 
-## profile view (new or modal)
-Must show:
-- user info header
-- list of all their posts
-- interactive feed behavior
+## Implementation rules:
+
+- Use url_launcher package
+- Create helper function:
+  openUrl(String url)
+
+- Ensure URL is validated before launching:
+  - must start with http or https
+  - if missing, auto prepend https://
+
+---
+
+## UI requirements:
+
+In post widget:
+- links must be tappable
+- must be visually distinguishable (blue / underline style)
 
 ---
 
 # ⚠️ CONSTRAINTS
 
-- Do NOT change project structure
+- Do NOT change folder structure
 - Do NOT remove existing models
-- Do NOT break Firestore schema
-- Must use existing TrainingPost / TrainingComment / TrainingApplication models
+- Do NOT duplicate Firestore logic outside service layer
 - Must maintain null safety
-- Must ensure responsive UI on mobile screens
-- Must not introduce duplicated service logic
+- Must preserve real-time updates
+- Must NOT break existing training application workflow
 
 ---
 
 # 🎯 FINAL EXPECTATION
 
-After implementation:
+After fixes:
 
-1. Admin UI has no overflow issues
-2. Keyboard no longer causes bottom overflow
-3. Users can upload images to posts
-4. Links in posts are clickable and open browser
-5. Search works in both admin and teacher feeds
-6. Clicking profile shows all past posts (Facebook-style)
-7. System remains fully real-time with Firebase
+1. Image upload works end-to-end:
+   picker → storage → URL → Firestore → UI display
 
-Build this as production-quality Flutter code.
+2. All posts reliably appear in feed (no missing posts bug)
+
+3. Links inside posts are clickable and open browser
+
+System must remain fully real-time and production-ready.

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -35,6 +36,12 @@ class TrainingProvider extends ChangeNotifier {
     _postsSubscription = _trainingService.streamPosts().listen(
       (postsList) {
         _posts = postsList;
+        // Debug: log received posts
+        try {
+          print('[TrainingProvider] received ${_posts.length} posts');
+          // print IDs for easier debugging
+          print('[TrainingProvider] ids: ${_posts.map((p) => p.id).toList()}');
+        } catch (_) {}
         _applySearch();
         _isLoading = false;
         _errorMessage = null;
@@ -73,6 +80,11 @@ class TrainingProvider extends ChangeNotifier {
 
   Future<String> uploadImageToStorage(XFile image, String authorId) =>
       _trainingService.uploadImageToStorage(image, authorId: authorId);
+
+    Future<String> uploadFileToStorage(File imageFile, String authorId) =>
+      _trainingService.uploadFileToStorage(imageFile, authorId: authorId);
+
+    Future<bool> openUrl(String url) => _trainingService.openUrl(url);
 
   Future<String> createPost(TrainingPost post) async {
     _errorMessage = null;
