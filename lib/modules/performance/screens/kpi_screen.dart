@@ -1,15 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:provider/provider.dart';
 
-import '../../teachers/services/teacher_service.dart';
+import '../../providers/app_state_provider.dart';
+import '../providers/performance_provider.dart';
 import '../../../app_theme.dart';
 
-class KpiScreen extends StatelessWidget {
+class KpiScreen extends StatefulWidget {
   const KpiScreen({Key? key}) : super(key: key);
 
   @override
+  State<KpiScreen> createState() => _KpiScreenState();
+}
+
+class _KpiScreenState extends State<KpiScreen> {
+  bool _hasFetched = false;
+
+  @override
   Widget build(BuildContext context) {
-    final TeacherService _teacherService = TeacherService();
+    final appState = Provider.of<AppStateProvider>(context);
+    final performanceProvider = Provider.of<PerformanceProvider>(context);
+    final user = appState.currentUser;
+
+    if (user != null && !_hasFetched) {
+      performanceProvider.fetchTeacherPerformance(user.id);
+      _hasFetched = true;
+    }
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
