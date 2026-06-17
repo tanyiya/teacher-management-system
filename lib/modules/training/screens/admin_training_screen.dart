@@ -34,7 +34,7 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen> {
   bool _isUploadingImage = false;
   bool _isCpd = true;
   String _enrollmentMode = 'open_volunteer';
-  String _fontStyle = 'sans';
+  
 
   @override
   void dispose() {
@@ -53,25 +53,28 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<TrainingProvider>();
 
-    return SafeArea(
-      child: AnimatedPadding(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        padding:
-            EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _buildSearchBar(provider),
-            const SizedBox(height: 16),
-            _buildCreatePanel(provider),
-            const SizedBox(height: 16),
-            _buildFeedPanel(provider),
-            const SizedBox(height: 16),
-            _buildApplicationsPanel(provider),
-            const SizedBox(height: 16),
-            _buildAssignmentPanel(provider),
-          ],
+    return Scaffold(
+      resizeToAvoidBottomInset: true,
+      body: SafeArea(
+        child: AnimatedPadding(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding:
+              EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _buildSearchBar(provider),
+              const SizedBox(height: 16),
+              _buildCreatePanel(provider),
+              const SizedBox(height: 16),
+              _buildFeedPanel(provider),
+              const SizedBox(height: 16),
+              _buildApplicationsPanel(provider),
+              const SizedBox(height: 16),
+              _buildAssignmentPanel(provider),
+            ],
+          ),
         ),
       ),
     );
@@ -124,24 +127,7 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen> {
                   const Expanded(child: Text('Training/CPD Session')),
                 ],
               ),
-              DropdownButtonFormField<String>(
-                  key: ValueKey(_fontStyle),
-                  initialValue: _fontStyle,
-                  items: const [
-                    DropdownMenuItem(value: 'sans', child: Text('Default')),
-                    DropdownMenuItem(
-                        value: 'console_mono', child: Text('Console Mono')),
-                    DropdownMenuItem(
-                        value: 'book_serif', child: Text('Book Serif')),
-                    DropdownMenuItem(
-                        value: 'playful_blue', child: Text('Playful Blue')),
-                    DropdownMenuItem(
-                        value: 'warm_gold', child: Text('Warm Gold')),
-                  ],
-                  onChanged: (value) =>
-                      setState(() => _fontStyle = value ?? 'sans'),
-                  decoration: const InputDecoration(
-                      border: OutlineInputBorder(), isDense: true)),
+                const SizedBox.shrink(),
             ],
           ),
           if (_isCpd) ...[
@@ -603,7 +589,7 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen> {
         likes: const [],
         commentsCount: 0,
         createdAt: DateTime.now(),
-        fontStyle: _fontStyle,
+        fontStyle: 'sans',
         isTraining: _isCpd,
         trainingTitle: _isCpd ? _titleController.text.trim() : null,
         trainingDescription: _isCpd ? _descriptionController.text.trim() : null,
@@ -624,7 +610,6 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen> {
         _selectedImage = null;
         _isCpd = true;
         _enrollmentMode = 'open_volunteer';
-        _fontStyle = 'sans';
       });
     } catch (error) {
       if (!mounted) return;
@@ -662,13 +647,16 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen> {
           ),
           const SizedBox(width: 12),
           if (_selectedImage != null)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.file(
-                File(_selectedImage!.path),
-                width: 96,
-                height: 72,
-                fit: BoxFit.cover,
+            Flexible(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: AspectRatio(
+                  aspectRatio: 4 / 3,
+                  child: Image.file(
+                    File(_selectedImage!.path),
+                    fit: BoxFit.cover,
+                  ),
+                ),
               ),
             ),
           if (_selectedImage != null) const SizedBox(width: 12),

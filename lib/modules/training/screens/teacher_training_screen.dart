@@ -27,7 +27,6 @@ class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
   XFile? _selectedImage;
   bool _isCreatorExpanded = false;
   bool _isUploadingImage = false;
-  String _fontStyle = 'sans';
 
   @override
   void dispose() {
@@ -44,55 +43,65 @@ class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
     final provider = context.watch<TrainingProvider>();
     final posts = provider.teacherPosts();
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: TextField(
-            controller: _searchController,
-            onChanged: provider.updateSearchQuery,
-            decoration: InputDecoration(
-              hintText: 'Search posts, training, authors...',
-              prefixIcon: const Icon(LucideIcons.search),
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none),
-              contentPadding: const EdgeInsets.symmetric(vertical: 0),
-            ),
-          ),
-        ),
-        _buildCreator(provider),
-        Expanded(
-          child: StreamBuilder<List<TrainingApplication>>(
-            stream: provider.applicationsForTeacher(widget.user.id),
-            builder: (context, applicationSnapshot) {
-              final applications = applicationSnapshot.data ?? [];
-              final appByPost = {
-                for (final app in applications) app.postId: app,
-              };
-
-              if (provider.isLoading) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (posts.isEmpty) {
-                return const Center(child: Text('No posts yet.'));
-              }
-
-              return ListView.builder(
+    return Scaffold(
+      resizeToAvoidBottomInset: true,
+      body: SafeArea(
+        child: AnimatedPadding(
+          duration: const Duration(milliseconds: 180),
+          padding:
+              EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+          child: Column(
+            children: [
+              Padding(
                 padding: const EdgeInsets.all(16),
-                itemCount: posts.length,
-                itemBuilder: (context, index) => _buildPostCard(
-                  provider,
-                  posts[index],
-                  appByPost[posts[index].id],
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: provider.updateSearchQuery,
+                  decoration: InputDecoration(
+                    hintText: 'Search posts, training, authors...',
+                    prefixIcon: const Icon(LucideIcons.search),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                  ),
                 ),
-              );
-            },
+              ),
+              _buildCreator(provider),
+              Expanded(
+                child: StreamBuilder<List<TrainingApplication>>(
+                  stream: provider.applicationsForTeacher(widget.user.id),
+                  builder: (context, applicationSnapshot) {
+                    final applications = applicationSnapshot.data ?? [];
+                    final appByPost = {
+                      for (final app in applications) app.postId: app,
+                    };
+
+                    if (provider.isLoading) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (posts.isEmpty) {
+                      return const Center(child: Text('No posts yet.'));
+                    }
+
+                    return ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: posts.length,
+                      itemBuilder: (context, index) => _buildPostCard(
+                        provider,
+                        posts[index],
+                        appByPost[posts[index].id],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -151,28 +160,8 @@ class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
                     onPressed: () => _contentController.text =
                         '${_contentController.text} https://',
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      key: ValueKey(_fontStyle),
-                      initialValue: _fontStyle,
-                      items: const [
-                        DropdownMenuItem(value: 'sans', child: Text('Default')),
-                        DropdownMenuItem(
-                            value: 'console_mono', child: Text('Console Mono')),
-                        DropdownMenuItem(
-                            value: 'book_serif', child: Text('Book Serif')),
-                        DropdownMenuItem(
-                            value: 'playful_blue', child: Text('Playful Blue')),
-                        DropdownMenuItem(
-                            value: 'warm_gold', child: Text('Warm Gold')),
-                      ],
-                      onChanged: (value) =>
-                          setState(() => _fontStyle = value ?? 'sans'),
-                      decoration: const InputDecoration(
-                          border: OutlineInputBorder(), isDense: true),
-                    ),
-                  ),
+                    const SizedBox(width: 8),
+                    const Spacer(),
                   const SizedBox(width: 8),
                   ElevatedButton.icon(
                     onPressed: _isUploadingImage
@@ -533,7 +522,7 @@ class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
         likes: const [],
         commentsCount: 0,
         createdAt: DateTime.now(),
-        fontStyle: _fontStyle,
+        fontStyle: 'sans',
         isTraining: false,
         traineeIds: const [],
       ));
@@ -705,13 +694,16 @@ class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
           ),
           const SizedBox(width: 12),
           if (_selectedImage != null)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.file(
-                File(_selectedImage!.path),
-                width: 96,
-                height: 72,
-                fit: BoxFit.cover,
+            Flexible(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: AspectRatio(
+                  aspectRatio: 4 / 3,
+                  child: Image.file(
+                    File(_selectedImage!.path),
+                    fit: BoxFit.cover,
+                  ),
+                ),
               ),
             ),
           if (_selectedImage != null) const SizedBox(width: 12),
