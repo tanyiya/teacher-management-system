@@ -8,6 +8,7 @@ import 'firebase_options.dart';
 import 'routes.dart';
 import 'providers/app_state_provider.dart';
 import 'modules/duty/providers/duty_provider.dart';
+import 'modules/performance/providers/performance_provider.dart';
 import 'modules/training/providers/training_provider.dart';
 import 'core/services/database_seeder.dart';
 
@@ -21,6 +22,7 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => AppStateProvider()),
         ChangeNotifierProvider(create: (_) => DutyProvider()),
+        ChangeNotifierProvider(create: (_) => PerformanceProvider()),
         ChangeNotifierProvider(create: (_) => TrainingProvider()),
       ],
       child: const TeacherManagementApp(),
