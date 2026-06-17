@@ -1,12 +1,11 @@
-You are working inside an existing Flutter + Firebase project.
+You are working inside an existing Flutter + Firebase CPD Training module.
 
-⚠️ STRICT SCOPE RULE:
-You are ONLY allowed to modify files inside:
-- lib/modules/training/**
+You MUST focus ONLY on debugging and fixing issues. Do NOT refactor architecture or rewrite unrelated code.
 
-DO NOT touch any other modules, folders, or global app features.
+Allowed scope:
+- lib/modules/training/** only
 
-Existing training module structure:
+Existing structure:
 - models/training.dart
 - services/training_service.dart
 - providers/training_provider.dart
@@ -17,137 +16,154 @@ Firebase is already configured and working.
 
 ---
 
-# 🎯 TASK 1 — FIX FIREBASE STORAGE IMAGE UPLOAD
+# 🎯 TASK 1 — FIX APPLY ERROR (CRITICAL)
+
+## Error:
+dart exception thrown from converted future
+Use properties 'error' and 'stack' to debug
+
+---
+
+## REQUIREMENTS:
+
+When a user applies for training:
+
+- Locate applyTraining / application submission logic
+- Wrap ALL async Firestore calls in proper try-catch
+- Ensure errors are NOT swallowed or converted incorrectly
+- Log and return actual Firebase error message and stack trace
+
+---
+
+## MUST FIX:
+
+- incorrect Future conversion
+- missing await handling
+- improper async chain in provider/service
+- null or invalid postId / teacherId submissions
+
+---
+
+## EXPECTED RESULT:
+
+- Teacher can apply successfully
+- If error occurs, it must show real Firebase error (not generic Dart exception wrapper)
+
+---
+
+# 🎯 TASK 2 — FIX USER PROFILE LOAD FAILURE
 
 ## Problem:
+
+Clicking on user avatar does NOT load profile or past posts.
+
+---
+
+## REQUIREMENTS:
+
+Fix user profile system so that:
+
+- Clicking author avatar opens profile view
+- Profile fetches ALL posts by that user (authorId match)
+- Uses Firestore query:
+  where('authorId', isEqualTo: selectedUserId)
+
+---
+
+## MUST IMPLEMENT:
+
+- Ensure query is correct and indexed
+- Ensure provider updates state properly
+- Ensure UI rebuilds when data is received
+- Handle empty state properly (no posts)
+
+---
+
+## EXPECTED RESULT:
+
+- Facebook-style profile view
+- Shows all historical posts of selected user
+- Real-time or streamed updates preferred
+
+---
+
+# 🎯 TASK 3 — FIX FIREBASE STORAGE ERROR (CRITICAL)
+
+## Error:
 [firebase_storage/object-not-found] No object exists at the desired reference
 
 ---
 
-## REQUIRED FIX:
+## REQUIREMENTS:
 
-In:
-services/training_service.dart
+In training_service.dart:
 
-Fix uploadImageToStorage():
-
-- Ensure Firebase Storage reference is correctly created
-- Use a unique filename (timestamp or UUID)
-- Upload file FIRST, then only call getDownloadURL()
-- DO NOT manually construct download URLs
-- MUST use same reference for upload and download
+- Fix uploadImageToStorage logic
+- Ensure correct Storage reference path
+- Ensure upload completes BEFORE getDownloadURL()
+- Do NOT manually construct download URLs
+- Ensure same reference is used for upload and retrieval
 
 ---
 
-## FLOW MUST BE:
+## MUST ENSURE:
 
-1. Pick image
-2. Upload to Firebase Storage
-3. WAIT for upload completion
-4. Get download URL from same reference
-5. Save URL into Firestore (photoUrl)
+- Unique file naming (timestamp or UUID)
+- await uploadTask completion
+- correct Firebase Storage bucket path
 
 ---
 
-# 🎯 TASK 2 — REMOVE FONT CUSTOMISATION (TRAINING MODULE ONLY)
+# 🎯 TASK 4 — FIX UI OVERFLOW ISSUES
 
-## IMPORTANT SCOPE:
-
-Remove font customization ONLY inside training module posting system.
-
-DO NOT touch any other app features.
+## Problems:
+- Right overflow in image preview (~35px)
+- Bottom overflow when keyboard appears (~49px)
 
 ---
 
-## REMOVE FROM TRAINING MODULE ONLY:
+## REQUIREMENTS:
 
-Inside:
-- admin_training_screen.dart
-- teacher_training.dart
-- training provider logic (if related)
-
-Remove:
-- fontStyle selection UI
-- dropdowns for font selection
-- any font preset logic used ONLY for post creation
-- any UI controls that let users choose fonts when posting
+### Image preview fix:
+- Use Flexible / Expanded / ConstrainedBox
+- Ensure no fixed width usage
+- Use BoxFit.cover or contain properly
 
 ---
 
-## RULE:
-
-- DO NOT modify TrainingPost model globally
-- DO NOT affect other modules using fontStyle (if any exist)
-- Only remove font customization from POSTING UI
-
----
-
-## RESULT:
-
-All training posts use default system text style only.
-
----
-
-# 🎯 TASK 3 — FIX IMAGE PREVIEW OVERFLOW (35px RIGHT OVERFLOW)
-
-## Problem:
-
-Image preview in post composer overflows on the right side.
-
----
-
-## FIX REQUIREMENTS:
-
-In training screens:
-
-- Wrap image preview in Flexible / Expanded / ConstrainedBox
-- Ensure image uses BoxFit.cover or BoxFit.contain
-- NEVER use fixed width values
-- Ensure responsiveness across all screen sizes
-
----
-
-# 🎯 TASK 4 — FIX KEYBOARD BOTTOM OVERFLOW (49px)
-
-## Problem:
-
-When keyboard opens during posting, bottom overflow occurs.
-
----
-
-## FIX REQUIREMENTS:
-
-Wrap training screens with:
-
-- SafeArea
-- Scaffold(resizeToAvoidBottomInset: true)
-- SingleChildScrollView OR proper scroll handling
-
-Also:
-
+### Keyboard overflow fix:
+- Wrap screen with SafeArea
+- Use Scaffold(resizeToAvoidBottomInset: true)
+- Use SingleChildScrollView where needed
 - Add padding using MediaQuery.viewInsets.bottom
-- Ensure input fields remain visible above keyboard
 
 ---
 
-# ⚠️ CONSTRAINTS (VERY IMPORTANT)
+## EXPECTED RESULT:
 
-- ONLY modify files inside lib/modules/training/**
-- DO NOT touch other modules or global providers
-- DO NOT refactor unrelated code
-- DO NOT change app-wide UI systems
-- MUST preserve Firestore schema
-- MUST preserve real-time feed functionality
-- MUST NOT break existing training application workflow
+- No RenderFlex overflow errors
+- Fully responsive UI on all screen sizes
+- Works with keyboard open/close
+
+---
+
+# ⚠️ CONSTRAINTS
+
+- DO NOT modify files outside lib/modules/training/**
+- DO NOT refactor entire architecture
+- DO NOT change Firestore schema
+- DO NOT remove existing features
+- DO NOT introduce new state management libraries
+- MUST preserve real-time feed behavior
 
 ---
 
 # 🎯 FINAL EXPECTATION
 
-After implementation:
+After fixes:
 
-1. Firebase Storage upload works without object-not-found error
-2. Font customization is removed ONLY from training posting UI
-3. Image preview no longer overflows horizontally
-4. Keyboard no longer causes bottom overflow
-5. Training module remains fully functional and isolated from rest of app
+1. Training application works without Dart Future conversion error
+2. User profile loads all past posts correctly
+3. Firebase Storage upload works without object-not-found error
+4. UI has no overflow issues anywhere in training module
+5. System remains stable, real-time, and production-ready
