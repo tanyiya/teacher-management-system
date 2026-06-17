@@ -32,7 +32,7 @@ dependencies:
   
   # Image uploads & camera access (Duty Checklists & Reports)
   image_picker: ^1.0.4
-  file_picker: ^6.1.1
+  file_picker: ^8.1.2
   
   # Interactive icons
   lucide_icons: 0.257.0
@@ -40,7 +40,7 @@ dependencies:
   # Caching and local persistence
   shared_preferences: ^2.2.2
   firebase_auth: ^6.5.2
-  intl: ^0.18.1
+  intl: ^0.19.0
 
 dev_dependencies:
   flutter_test:
