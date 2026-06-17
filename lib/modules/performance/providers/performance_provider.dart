@@ -22,8 +22,17 @@ class PerformanceProvider extends ChangeNotifier {
   Map<int, double> _monthlyScores = {};
   YearlyKpiRecord? _yearlyKpi;
   String? _selectedTeacherId;
-  bool _isLoading = true;
+
+  // Separate loading flags to avoid false "still loading" states
+  bool _teachersLoading = false;
+  bool _logsLoading = false;
   String? _error;
+
+  int _monthFilter = 0;
+  String _severityFilter = 'All';
+  String _categoryFilter = 'All';
+
+  // ─── Getters ────────────────────────────────────────────────────────────────
 
   List<PerformanceLog> get performanceLogs => _performanceLogs;
   List<WarningRecord> get warnings => _warnings;
@@ -32,77 +41,170 @@ class PerformanceProvider extends ChangeNotifier {
   Map<int, double> get monthlyScores => _monthlyScores;
   YearlyKpiRecord? get yearlyKpi => _yearlyKpi;
   String? get selectedTeacherId => _selectedTeacherId;
-  TeacherRecord? get selectedTeacher {
-    for (final teacher in _teachers) {
-      if (teacher.id == _selectedTeacherId) return teacher;
-    }
-    return null;
-  }
-  bool get isLoading => _isLoading;
+
+  // isLoading is true only when we have no teachers yet OR actively loading logs
+  bool get isLoading => _teachersLoading || _logsLoading;
   String? get error => _error;
 
-  double scoreForSeverity(String severity, {required bool isPositive}) {
-    return _performanceService.scoreForSeverity(
-      severity,
-      isPositive: isPositive,
-    );
+  TeacherRecord? get selectedTeacher {
+    if (_selectedTeacherId == null || _teachers.isEmpty) return null;
+    try {
+      return _teachers.firstWhere((t) => t.id == _selectedTeacherId);
+    } catch (_) {
+      return null;
+    }
   }
 
+  List<PerformanceLog> get filteredPerformanceLogs {
+    return _performanceLogs.where((log) {
+      if (_monthFilter > 0 && log.timestamp.month != _monthFilter) return false;
+      if (_severityFilter != 'All' && log.severity != _severityFilter) return false;
+      if (_categoryFilter != 'All' && log.category != _categoryFilter) return false;
+      return true;
+    }).toList();
+  }
+
+  List<String> get severityOptions =>
+      const ['All', 'Minor', 'Normal', 'Major', 'Critical'];
+
+  List<String> get categoryOptions {
+    final categories = _performanceLogs.map((l) => l.category).toSet().toList()
+      ..sort();
+    return ['All', ...categories];
+  }
+
+  List<String> get monthNames => const [
+        'All', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      ];
+
+  int get selectedMonthFilter => _monthFilter;
+  String get selectedSeverityFilter => _severityFilter;
+  String get selectedCategoryFilter => _categoryFilter;
+
+  int get totalTeachers => _teachers.length;
+
+  double get averageTeacherScore {
+    if (_teachers.isEmpty) return 0;
+    return _teachers.fold<double>(0, (s, t) => s + t.currentScore) /
+        _teachers.length;
+  }
+
+  TeacherRecord? get highestPerformingTeacher {
+    if (_teachers.isEmpty) return null;
+    return _teachers.reduce((a, b) => a.currentScore >= b.currentScore ? a : b);
+  }
+
+  TeacherRecord? get lowestPerformingTeacher {
+    if (_teachers.isEmpty) return null;
+    return _teachers.reduce((a, b) => a.currentScore <= b.currentScore ? a : b);
+  }
+
+  double scoreForSeverity(String severity, {required bool isPositive}) =>
+      _performanceService.scoreForSeverity(severity, isPositive: isPositive);
+
+  // ─── Teacher loading ─────────────────────────────────────────────────────────
+
+  /// Starts listening to the teachers collection.
+  /// Auto-selects the first teacher if none is selected yet.
   void fetchTeachers() {
-    _isLoading = true;
+    _teachersLoading = true;
     _error = null;
     notifyListeners();
+
     _teachersSubscription?.cancel();
-    _teachersSubscription = _performanceService.fetchAllTeachers().listen((teachers) {
+    _teachersSubscription =
+        _performanceService.fetchAllTeachers().listen((teachers) {
       _teachers = teachers;
+      _teachersLoading = false;
+
+      // Auto-select first teacher only on initial load
       if (_selectedTeacherId == null && teachers.isNotEmpty) {
         _selectedTeacherId = teachers.first.id;
+        _subscribeToTeacherData(_selectedTeacherId!);
+      } else {
+        notifyListeners();
       }
-      _isLoading = false;
-      notifyListeners();
     }, onError: (e) {
-      _error = 'Failed to fetch teachers: $e';
-      _isLoading = false;
+      _error = 'Failed to load teachers: $e';
+      _teachersLoading = false;
       notifyListeners();
     });
   }
 
+  /// Switches the selected teacher and reloads their data.
   void selectTeacher(String teacherId) {
     if (_selectedTeacherId == teacherId) return;
     _selectedTeacherId = teacherId;
-    fetchTeacherPerformance(teacherId);
+    clearFilters();
+    _subscribeToTeacherData(teacherId);
   }
 
+  /// Reloads everything. Safe to call repeatedly.
+  Future<void> refreshAll() async {
+    _error = null;
+
+    // Re-subscribe to teachers (keeps existing selection)
+    _teachersSubscription?.cancel();
+    _teachersLoading = true;
+    notifyListeners();
+
+    _teachersSubscription =
+        _performanceService.fetchAllTeachers().listen((teachers) {
+      _teachers = teachers;
+      _teachersLoading = false;
+      notifyListeners();
+    }, onError: (e) {
+      _error = 'Failed to refresh teachers: $e';
+      _teachersLoading = false;
+      notifyListeners();
+    });
+
+    // Reload performance data for the currently selected teacher
+    if (_selectedTeacherId != null) {
+      _subscribeToTeacherData(_selectedTeacherId!);
+    }
+  }
+
+  // ─── Teacher performance subscriptions ──────────────────────────────────────
+
+  /// Cancels old subscriptions and opens fresh ones for [teacherId].
   void fetchTeacherPerformance(String teacherId) {
     _selectedTeacherId = teacherId;
-    _isLoading = true;
+    _subscribeToTeacherData(teacherId);
+  }
+
+  void _subscribeToTeacherData(String teacherId) {
+    _logsLoading = true;
     _error = null;
     notifyListeners();
 
+    // Cancel previous subscriptions before opening new ones
     _logsSubscription?.cancel();
     _warningsSubscription?.cancel();
     _kpiSubscription?.cancel();
     _notificationsSubscription?.cancel();
 
-    _logsSubscription =
-        _performanceService.getPerformanceLogsForTeacher(teacherId).listen((logs) {
+    _logsSubscription = _performanceService
+        .getPerformanceLogsForTeacher(teacherId)
+        .listen((logs) {
       _performanceLogs = logs;
-      _isLoading = false;
+      _monthlyScores = _buildMonthlyScores(logs, DateTime.now().year);
+      _logsLoading = false;
       notifyListeners();
     }, onError: (e) {
-      _error = 'Failed to fetch performance logs: $e';
-      _isLoading = false;
+      _error = 'Failed to load logs: $e';
+      _logsLoading = false;
       notifyListeners();
     });
 
-    _warningsSubscription =
-        _performanceService.getWarningsForTeacher(teacherId).listen((warnings) {
+    _warningsSubscription = _performanceService
+        .getWarningsForTeacher(teacherId)
+        .listen((warnings) {
       _warnings = warnings;
-      _isLoading = false;
       notifyListeners();
     }, onError: (e) {
-      _error = 'Failed to fetch warnings: $e';
-      _isLoading = false;
+      _error = 'Failed to load warnings: $e';
       notifyListeners();
     });
 
@@ -110,44 +212,31 @@ class PerformanceProvider extends ChangeNotifier {
         .getNotificationsForTeacher(teacherId)
         .listen((notifications) {
       _notifications = notifications;
-      _isLoading = false;
       notifyListeners();
     }, onError: (e) {
-      _error = 'Failed to fetch notifications: $e';
-      _isLoading = false;
+      _error = 'Failed to load notifications: $e';
       notifyListeners();
     });
 
-    _kpiSubscription =
-        _performanceService.getYearlyKpi(teacherId, DateTime.now().year).listen((kpi) {
+    _kpiSubscription = _performanceService
+        .getYearlyKpi(teacherId, DateTime.now().year)
+        .listen((kpi) {
       _yearlyKpi = kpi;
-      _isLoading = false;
       notifyListeners();
     }, onError: (e) {
-      _error = 'Failed to fetch yearly KPI: $e';
-      _isLoading = false;
-      notifyListeners();
-    });
-
-    _performanceService
-        .calculateMonthlyScores(teacherId, DateTime.now().year)
-        .then((scores) {
-      if (_selectedTeacherId != teacherId) return;
-      _monthlyScores = scores;
-      notifyListeners();
-    }).catchError((e) {
-      if (_selectedTeacherId != teacherId) return;
-      _error = 'Failed to calculate monthly scores: $e';
+      _error = 'Failed to load yearly KPI: $e';
       notifyListeners();
     });
   }
 
+  // ─── Write operations ────────────────────────────────────────────────────────
+
   Future<void> addPerformanceLog(PerformanceLog log) async {
     try {
       await _performanceService.addPerformanceLog(log);
-      notifyListeners();
+      // Streams auto-update; no manual refresh needed
     } catch (e) {
-      _error = 'Failed to add performance log: $e';
+      _error = 'Failed to add log: $e';
       notifyListeners();
       rethrow;
     }
@@ -156,7 +245,6 @@ class PerformanceProvider extends ChangeNotifier {
   Future<void> addWarningRecord(WarningRecord warning) async {
     try {
       await _performanceService.addWarningRecord(warning);
-      notifyListeners();
     } catch (e) {
       _error = 'Failed to add warning: $e';
       notifyListeners();
@@ -189,28 +277,64 @@ class PerformanceProvider extends ChangeNotifier {
 
   Future<void> runAllKPIForYear(int year, String principalId) async {
     try {
-      _isLoading = true;
+      _logsLoading = true;
       notifyListeners();
       await _performanceService.runAllKPIForYear(year, principalId);
-      _isLoading = false;
-      notifyListeners();
+      // Refresh selected teacher's KPI after batch run
+      if (_selectedTeacherId != null) {
+        _subscribeToTeacherData(_selectedTeacherId!);
+      }
     } catch (e) {
-      _error = 'Failed to run KPI calculation: $e';
-      _isLoading = false;
-      notifyListeners();
+      _error = 'Failed to run KPI: $e';
       rethrow;
+    } finally {
+      _logsLoading = false;
+      notifyListeners();
     }
   }
 
   Future<void> updateTeacherScore(String teacherId, double newScore) async {
     try {
       await _performanceService.updateTeacherScore(teacherId, newScore);
-      notifyListeners();
     } catch (e) {
-      _error = 'Failed to update teacher score: $e';
+      _error = 'Failed to update score: $e';
       notifyListeners();
       rethrow;
     }
+  }
+
+  Future<void> seedDummyPerformanceData() async {
+    try {
+      _logsLoading = true;
+      _error = null;
+      notifyListeners();
+      await _performanceService.seedDummyPerformanceData();
+      if (_selectedTeacherId != null) {
+        _subscribeToTeacherData(_selectedTeacherId!);
+      }
+    } catch (e) {
+      _error = 'Failed to seed data: $e';
+      rethrow;
+    } finally {
+      _logsLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // ─── Filters ─────────────────────────────────────────────────────────────────
+
+  void updateFilters({int? month, String? severity, String? category}) {
+    if (month != null) _monthFilter = month;
+    if (severity != null) _severityFilter = severity;
+    if (category != null) _categoryFilter = category;
+    notifyListeners();
+  }
+
+  void clearFilters() {
+    _monthFilter = 0;
+    _severityFilter = 'All';
+    _categoryFilter = 'All';
+    notifyListeners();
   }
 
   void clearError() {
@@ -218,24 +342,16 @@ class PerformanceProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> seedDummyPerformanceData() async {
-    try {
-      _isLoading = true;
-      _error = null;
-      notifyListeners();
-      await _performanceService.seedDummyPerformanceData();
-      if (_selectedTeacherId != null) {
-        fetchTeacherPerformance(_selectedTeacherId!);
-      } else {
-        _isLoading = false;
-        notifyListeners();
-      }
-    } catch (e) {
-      _error = 'Failed to seed dummy performance data: $e';
-      _isLoading = false;
-      notifyListeners();
-      rethrow;
+  // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+  Map<int, double> _buildMonthlyScores(List<PerformanceLog> logs, int year) {
+    final scores = {for (var m = 1; m <= 12; m++) m: 0.0};
+    for (final log in logs) {
+      if (log.timestamp.year != year) continue;
+      scores[log.timestamp.month] =
+          (scores[log.timestamp.month] ?? 0.0) + log.amount;
     }
+    return scores;
   }
 
   @override

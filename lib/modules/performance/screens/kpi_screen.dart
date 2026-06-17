@@ -24,8 +24,6 @@ class _KpiScreenState extends State<KpiScreen> {
   bool _hasBootstrapped = false;
   bool _isPositive = true;
   String _severity = 'Normal';
-  String _severityFilter = 'All';
-  String? _selectedTeacherId;
 
   @override
   void dispose() {
@@ -41,6 +39,7 @@ class _KpiScreenState extends State<KpiScreen> {
     final provider = Provider.of<PerformanceProvider>(context);
     final user = appState.currentUser;
 
+    // Bootstrap once after first frame so provider is already listening
     if (user != null && !_hasBootstrapped) {
       _hasBootstrapped = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -59,24 +58,33 @@ class _KpiScreenState extends State<KpiScreen> {
 
     final isPrincipal = user.role.toLowerCase() == 'principal';
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            isPrincipal ? 'Performance KPI Controls' : 'My KPI Dashboard',
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+    return LayoutBuilder(builder: (context, constraints) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minWidth: constraints.maxWidth),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                isPrincipal ? 'Performance KPI Controls' : 'My KPI Dashboard',
+                style:
+                    const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              if (provider.error != null) _buildErrorBanner(provider.error!),
+              if (isPrincipal)
+                _buildPrincipalView(context, provider, user)
+              else
+                _buildTeacherView(provider),
+            ],
           ),
-          const SizedBox(height: 16),
-          if (isPrincipal)
-            _buildPrincipalView(context, provider, user)
-          else
-            _buildTeacherView(provider),
-        ],
-      ),
-    );
+        ),
+      );
+    });
   }
+
+  // ─── Principal view ──────────────────────────────────────────────────────────
 
   Widget _buildPrincipalView(
     BuildContext context,
@@ -84,33 +92,21 @@ class _KpiScreenState extends State<KpiScreen> {
     TeacherRecord principal,
   ) {
     final teachers = provider.teachers;
-    TeacherRecord? selectedTeacher = provider.selectedTeacher;
-    for (final teacher in teachers) {
-      if (selectedTeacher == null && teacher.id == _selectedTeacherId) {
-        selectedTeacher = teacher;
-        break;
-      }
-    }
-
-    if (provider.selectedTeacherId == null && teachers.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || provider.selectedTeacherId != null) return;
-        setState(() => _selectedTeacherId = teachers.first.id);
-        provider.selectTeacher(teachers.first.id);
-      });
-    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildTeacherSelector(provider, teachers),
+        // Teacher selector + refresh on same row, but wrapped safely
+        _buildSelectorRow(provider, teachers),
         const SizedBox(height: 16),
+
         if (provider.isLoading && teachers.isEmpty)
           const Center(child: CircularProgressIndicator())
         else if (teachers.isEmpty)
-          const Text('No teachers found.', style: TextStyle(color: Colors.grey))
+          const Text('No teachers found.',
+              style: TextStyle(color: Colors.grey))
         else ...[
-          _buildAdminSummary(selectedTeacher, provider),
+          _buildAdminSummaryCards(provider),
           const SizedBox(height: 16),
           _buildAddLogForm(context, provider, principal),
           const SizedBox(height: 16),
@@ -124,62 +120,147 @@ class _KpiScreenState extends State<KpiScreen> {
     );
   }
 
-  Widget _buildTeacherView(PerformanceProvider provider) {
-    if (provider.isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    return Column(
+  /// Selector row: dropdown expands, refresh button fixed width — no overflow.
+  Widget _buildSelectorRow(
+      PerformanceProvider provider, List<TeacherRecord> teachers) {
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildTopSummary(provider, null),
-        const SizedBox(height: 16),
-        _buildMonthlyChart(provider),
-        const SizedBox(height: 16),
-        _buildYearlyKpiSection(provider),
-        const SizedBox(height: 16),
-        _buildPerformanceLogsSection(provider),
-        const SizedBox(height: 16),
-        _buildNotificationsSection(provider),
-        const SizedBox(height: 16),
-        _buildWarningsSection(provider),
+        Expanded(child: _buildTeacherSelector(provider, teachers)),
+        const SizedBox(width: 8),
+        // Fixed-width refresh button avoids overflow
+        SizedBox(
+          height: 56,
+          child: _buildRefreshButton(provider),
+        ),
       ],
     );
   }
 
+  // ─── Teacher selector ─────────────────────────────────────────────────────────
+
   Widget _buildTeacherSelector(
-    PerformanceProvider provider,
-    List<TeacherRecord> teachers,
-  ) {
+      PerformanceProvider provider, List<TeacherRecord> teachers) {
+    // Use provider.teachers directly — do NOT use a separate StreamBuilder.
+    // A StreamBuilder here creates a second Firestore listener whose data races
+    // against the provider list, causing "value not in items" assertion failures.
+    if (teachers.isEmpty) {
+      return _panel(
+        child: const Text('Loading teachers…',
+            style: TextStyle(color: Colors.grey)),
+      );
+    }
+
+    // Guarantee the selected ID is actually in the list
+    final currentId = teachers.any((t) => t.id == provider.selectedTeacherId)
+        ? provider.selectedTeacherId
+        : teachers.first.id;
+
     return _panel(
-      child: DropdownButtonFormField<String>(
-        initialValue: provider.selectedTeacherId ?? _selectedTeacherId,
-        decoration: const InputDecoration(
-          labelText: 'Teacher',
-          border: OutlineInputBorder(),
-          prefixIcon: Icon(LucideIcons.user),
-        ),
-        items: teachers
-            .map((teacher) => DropdownMenuItem(
-                  value: teacher.id,
-                  child: Text(teacher.fullName.isEmpty ? teacher.username : teacher.fullName),
-                ))
-            .toList(),
-        onChanged: (teacherId) {
-          if (teacherId == null) return;
-          setState(() => _selectedTeacherId = teacherId);
-          provider.selectTeacher(teacherId);
-        },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Teacher',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            value: currentId,
+            isExpanded: true, // prevents text overflow inside dropdown
+            decoration: const InputDecoration(
+              labelText: 'Select Teacher',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(LucideIcons.user),
+            ),
+            items: teachers
+                .map((t) => DropdownMenuItem(
+                      value: t.id,
+                      child: Text(
+                        t.fullName.isNotEmpty ? t.fullName : t.username,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ))
+                .toList(),
+            onChanged: (id) {
+              if (id == null) return;
+              provider.selectTeacher(id);
+            },
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildAdminSummary(
-    TeacherRecord? teacher,
-    PerformanceProvider provider,
-  ) {
-    return _buildTopSummary(provider, teacher);
+  Widget _buildRefreshButton(PerformanceProvider provider) {
+    return FilledButton.icon(
+      icon: provider.isLoading
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                  strokeWidth: 2, color: Colors.white))
+          : const Icon(LucideIcons.refreshCcw),
+      label: const Text('Refresh'),
+      onPressed: provider.isLoading ? null : () => provider.refreshAll(),
+    );
   }
+
+  // ─── Summary cards (principal) ────────────────────────────────────────────────
+
+  Widget _buildAdminSummaryCards(PerformanceProvider provider) {
+    final teacher = provider.selectedTeacher;
+    final score = teacher?.currentScore ?? 0;
+    final trendFactor = provider.yearlyKpi?.trendFactor ?? 1.0;
+
+    // Use a Row with fixed-width cards instead of Expanded inside Wrap.
+    // Expanded inside Wrap causes RenderFlex overflow crashes.
+    return LayoutBuilder(builder: (context, constraints) {
+      final cardWidth = (constraints.maxWidth - 36) / 4;
+      return Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        children: [
+          _summaryCard('Score', score.toString(), LucideIcons.barChart2,
+              _scoreColor(score), cardWidth),
+          _summaryCard('Logs', provider.performanceLogs.length.toString(),
+              LucideIcons.list, AppTheme.primaryColor, cardWidth),
+          _summaryCard('Warnings', provider.warnings.length.toString(),
+              LucideIcons.alertTriangle, Colors.orange, cardWidth),
+          _summaryCard(_trendLabel(trendFactor), _trendValue(trendFactor),
+              _trendIcon(trendFactor), _trendColor(trendFactor), cardWidth),
+        ],
+      );
+    });
+  }
+
+  Widget _summaryCard(
+      String title, String value, IconData icon, Color color, double width) {
+    return SizedBox(
+      width: width,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppTheme.subtleGrayBoundary),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(height: 8),
+            Text(title,
+                style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 4),
+            Text(value,
+                style: const TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── Add log form ─────────────────────────────────────────────────────────────
 
   Widget _buildAddLogForm(
     BuildContext context,
@@ -198,6 +279,7 @@ class _KpiScreenState extends State<KpiScreen> {
             decoration: const InputDecoration(
               labelText: 'Reason',
               border: OutlineInputBorder(),
+              hintText: 'e.g. Excellent lesson delivery',
             ),
           ),
           const SizedBox(height: 12),
@@ -209,6 +291,7 @@ class _KpiScreenState extends State<KpiScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Category',
                     border: OutlineInputBorder(),
+                    hintText: 'e.g. Academic',
                   ),
                 ),
               ),
@@ -219,6 +302,7 @@ class _KpiScreenState extends State<KpiScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Criterion',
                     border: OutlineInputBorder(),
+                    hintText: 'e.g. Punctuality',
                   ),
                 ),
               ),
@@ -229,7 +313,7 @@ class _KpiScreenState extends State<KpiScreen> {
             children: [
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  initialValue: _severity,
+                  value: _severity,
                   decoration: const InputDecoration(
                     labelText: 'Severity',
                     border: OutlineInputBorder(),
@@ -238,9 +322,10 @@ class _KpiScreenState extends State<KpiScreen> {
                     DropdownMenuItem(value: 'Minor', child: Text('Minor')),
                     DropdownMenuItem(value: 'Normal', child: Text('Normal')),
                     DropdownMenuItem(value: 'Major', child: Text('Major')),
-                    DropdownMenuItem(value: 'Critical', child: Text('Critical')),
+                    DropdownMenuItem(
+                        value: 'Critical', child: Text('Critical')),
                   ],
-                  onChanged: (value) => setState(() => _severity = value ?? 'Normal'),
+                  onChanged: (v) => setState(() => _severity = v ?? 'Normal'),
                 ),
               ),
               const SizedBox(width: 12),
@@ -255,25 +340,27 @@ class _KpiScreenState extends State<KpiScreen> {
                     ButtonSegment(
                       value: false,
                       icon: Icon(LucideIcons.x),
-                      label: Text('Deduction'),
+                      label: Text('Deduct'),
                     ),
                   ],
                   selected: {_isPositive},
-                  onSelectionChanged: (values) {
-                    setState(() => _isPositive = values.first);
-                  },
+                  onSelectionChanged: (v) =>
+                      setState(() => _isPositive = v.first),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: (provider.selectedTeacherId ?? _selectedTeacherId) == null
-                ? null
-                : () => _submitPerformanceLog(context, provider, principal),
-            icon: const Icon(LucideIcons.check),
-            label: Text(
-              'Save ${provider.scoreForSeverity(_severity, isPositive: _isPositive).toStringAsFixed(0)} pts',
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: provider.selectedTeacherId == null
+                  ? null
+                  : () => _submitPerformanceLog(context, provider, principal),
+              icon: const Icon(LucideIcons.check),
+              label: Text(
+                'Save ${provider.scoreForSeverity(_severity, isPositive: _isPositive).toStringAsFixed(0)} pts',
+              ),
             ),
           ),
         ],
@@ -286,24 +373,25 @@ class _KpiScreenState extends State<KpiScreen> {
     PerformanceProvider provider,
     TeacherRecord principal,
   ) async {
-    if (_reasonController.text.trim().isEmpty ||
-        _categoryController.text.trim().isEmpty ||
-        _criterionController.text.trim().isEmpty ||
-        (provider.selectedTeacherId ?? _selectedTeacherId) == null) {
+    final reason = _reasonController.text.trim();
+    final category = _categoryController.text.trim();
+    final criterion = _criterionController.text.trim();
+
+    if (reason.isEmpty || category.isEmpty || criterion.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please complete all log fields.')),
+        const SnackBar(content: Text('Please complete all fields.')),
       );
       return;
     }
 
     final log = PerformanceLog(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
-      teacherId: provider.selectedTeacherId ?? _selectedTeacherId!,
+      teacherId: provider.selectedTeacherId!,
       principalId: principal.id,
       amount: provider.scoreForSeverity(_severity, isPositive: _isPositive),
-      reason: _reasonController.text.trim(),
-      category: _categoryController.text.trim(),
-      criterion: _criterionController.text.trim(),
+      reason: reason,
+      category: category,
+      criterion: criterion,
       severity: _severity,
       timestamp: DateTime.now(),
     );
@@ -321,13 +409,15 @@ class _KpiScreenState extends State<KpiScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Performance log saved.')),
       );
-    } catch (error) {
+    } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $error')),
+        SnackBar(content: Text('Error: $e')),
       );
     }
   }
+
+  // ─── Run KPI panel ────────────────────────────────────────────────────────────
 
   Widget _buildRunKpiPanel(
     BuildContext context,
@@ -337,20 +427,27 @@ class _KpiScreenState extends State<KpiScreen> {
     final currentYear = DateTime.now().year;
 
     return _panel(
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Expanded(
-            child: Text(
-              'Run yearly KPI calculation for all teachers',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
+          const Text('Yearly KPI Calculation',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          const Text(
+            'Aggregates all performance logs for every teacher and writes yearly KPI records.',
+            style: TextStyle(color: Colors.grey, fontSize: 13),
           ),
-          FilledButton.icon(
-            onPressed: provider.isLoading
-                ? null
-                : () => _runKpiCalculation(context, provider, principal, currentYear),
-            icon: const Icon(LucideIcons.barChart2),
-            label: Text('$currentYear'),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: provider.isLoading
+                  ? null
+                  : () => _runKpiCalculation(
+                      context, provider, principal, currentYear),
+              icon: const Icon(LucideIcons.barChart2),
+              label: Text('Calculate KPI for $currentYear'),
+            ),
           ),
         ],
       ),
@@ -369,213 +466,267 @@ class _KpiScreenState extends State<KpiScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('KPI calculation completed for $year.')),
       );
-      if (_selectedTeacherId != null) {
-        provider.fetchTeacherPerformance(_selectedTeacherId!);
-      }
-    } catch (error) {
+    } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $error')),
+        SnackBar(content: Text('Error: $e')),
       );
     }
   }
 
+  // ─── Teacher overview dashboard ───────────────────────────────────────────────
+
   Widget _buildTeacherOverviewDashboard(PerformanceProvider provider) {
     final teacher = provider.selectedTeacher;
+    final kpi = provider.yearlyKpi;
 
     return _panel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Teacher Overview', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text('Selected Teacher Overview',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
           if (teacher == null)
-            const Text('Select a teacher to view performance details.', style: TextStyle(color: Colors.grey))
+            const Text('Select a teacher above.',
+                style: TextStyle(color: Colors.grey))
           else ...[
-            Text(
-              teacher.fullName.isNotEmpty ? teacher.fullName : teacher.username,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            Text('Current score: ${teacher.currentScore}', style: const TextStyle(color: Colors.grey)),
-            const SizedBox(height: 16),
             Row(
               children: [
-                _metric('Logs', provider.performanceLogs.length.toString()),
-                _metric('Warnings', provider.warnings.length.toString()),
-                _metric('Notes', provider.notifications.length.toString()),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
+                const Icon(LucideIcons.user, size: 18),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Rating: ${provider.yearlyKpi?.rating ?? 'Pending'}',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                ),
-                Expanded(
-                  child: Text(
-                    'Status: ${provider.yearlyKpi?.status ?? 'Pending'}',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                    teacher.fullName.isNotEmpty
+                        ? teacher.fullName
+                        : teacher.username,
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                 ),
               ],
             ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAuditLogs(PerformanceProvider provider) {
-    final logs = _severityFilter == 'All'
-        ? provider.performanceLogs
-        : provider.performanceLogs
-            .where((log) => log.severity == _severityFilter)
-            .toList();
-
-    return _panel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text('Audit Logs',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              ),
-              SizedBox(
-                width: 160,
-                child: DropdownButtonFormField<String>(
-                  initialValue: _severityFilter,
-                  decoration: const InputDecoration(
-                    labelText: 'Severity',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'All', child: Text('All')),
-                    DropdownMenuItem(value: 'Minor', child: Text('Minor')),
-                    DropdownMenuItem(value: 'Normal', child: Text('Normal')),
-                    DropdownMenuItem(value: 'Major', child: Text('Major')),
-                    DropdownMenuItem(value: 'Critical', child: Text('Critical')),
-                  ],
-                  onChanged: (value) => setState(() => _severityFilter = value ?? 'All'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _buildLogList(logs, limit: 12),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTopSummary(PerformanceProvider provider, TeacherRecord? teacher) {
-    final currentScore = teacher?.currentScore ??
-        provider.performanceLogs.fold<double>(0, (sum, log) => sum + log.amount).round();
-    final trendFactor = provider.yearlyKpi?.trendFactor ?? 1;
-
-    return Row(
-      children: [
-        _summaryTile('Score', currentScore.toString(), LucideIcons.barChart2, _scoreColor(currentScore)),
-        const SizedBox(width: 12),
-        _summaryTile('Logs', provider.performanceLogs.length.toString(), LucideIcons.list, AppTheme.primaryColor),
-        const SizedBox(width: 12),
-        _summaryTile('Warnings', provider.warnings.length.toString(), LucideIcons.alertTriangle, Colors.orange),
-        const SizedBox(width: 12),
-        _summaryTile(_trendLabel(trendFactor), _trendValue(trendFactor), _trendIcon(trendFactor), _trendColor(trendFactor)),
-      ],
-    );
-  }
-
-  Widget _summaryTile(String title, String value, IconData icon, Color color) {
-    return Expanded(
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 104),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppTheme.subtleGrayBoundary),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: color, size: 22),
-            const Spacer(),
-            Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey)),
             const SizedBox(height: 4),
-            Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            Text('Current score: ${teacher.currentScore}',
+                style: const TextStyle(color: Colors.grey)),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                _infoCard(
+                    'Logs', provider.performanceLogs.length.toString()),
+                _infoCard(
+                    'Warnings', provider.warnings.length.toString()),
+                _infoCard(
+                    'Notifications', provider.notifications.length.toString()),
+                _infoCard('KPI Rating', kpi?.rating ?? '—'),
+                _infoCard('KPI Status', kpi?.status ?? 'Pending'),
+                if (kpi != null)
+                  _infoCard(
+                      'Final Score', kpi.finalScore.toStringAsFixed(1)),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildMonthlyChart(provider),
           ],
-        ),
+        ],
       ),
     );
   }
 
   Widget _buildMonthlyChart(PerformanceProvider provider) {
     final spots = provider.monthlyScores.entries
-        .map((entry) => FlSpot(entry.key.toDouble(), entry.value))
+        .map((e) => FlSpot(e.key.toDouble(), e.value))
         .toList();
 
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Monthly Score Trend',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 220,
+          child: LineChart(
+            LineChartData(
+              minX: 1,
+              maxX: 12,
+              gridData: const FlGridData(show: true),
+              borderData: FlBorderData(show: false),
+              titlesData: FlTitlesData(
+                rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false)),
+                topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false)),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 24,
+                    interval: 1,
+                    getTitlesWidget: (v, _) => Text(
+                      v.toInt().toString(),
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                  ),
+                ),
+              ),
+              lineBarsData: [
+                LineChartBarData(
+                  spots: spots.isEmpty
+                      ? const [FlSpot(1, 0), FlSpot(12, 0)]
+                      : spots,
+                  isCurved: true,
+                  color: AppTheme.primaryColor,
+                  barWidth: 3,
+                  dotData: const FlDotData(show: true),
+                  belowBarData: BarAreaData(
+                    show: true,
+                    color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─── Audit logs ───────────────────────────────────────────────────────────────
+
+  Widget _buildAuditLogs(PerformanceProvider provider) {
     return _panel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Monthly KPI Trend',
+          const Text('Audit Logs',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 240,
-            child: LineChart(
-              LineChartData(
-                minX: 1,
-                maxX: 12,
-                gridData: const FlGridData(show: true),
-                borderData: FlBorderData(show: false),
-                titlesData: FlTitlesData(
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 28,
-                      interval: 1,
-                      getTitlesWidget: (value, meta) => Text(
-                        value.toInt().toString(),
-                        style: const TextStyle(fontSize: 11),
-                      ),
-                    ),
-                  ),
+          const SizedBox(height: 12),
+          // Filters in a horizontal scroll to avoid overflow on narrow screens
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _filterDropdown<int>(
+                  label: 'Month',
+                  value: provider.selectedMonthFilter,
+                  items: provider.monthNames.asMap().entries.map((e) {
+                    return DropdownMenuItem(
+                        value: e.key, child: Text(e.value));
+                  }).toList(),
+                  onChanged: (v) => provider.updateFilters(month: v),
                 ),
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: spots.isEmpty ? const [FlSpot(1, 0), FlSpot(12, 0)] : spots,
-                    isCurved: true,
-                    color: AppTheme.primaryColor,
-                    barWidth: 3,
-                    dotData: const FlDotData(show: true),
-                    belowBarData: BarAreaData(
-                      show: true,
-                      color: AppTheme.primaryColor.withValues(alpha: 0.08),
-                    ),
-                  ),
-                ],
-              ),
+                const SizedBox(width: 12),
+                _filterDropdown<String>(
+                  label: 'Severity',
+                  value: provider.selectedSeverityFilter,
+                  items: provider.severityOptions
+                      .map((s) =>
+                          DropdownMenuItem(value: s, child: Text(s)))
+                      .toList(),
+                  onChanged: (v) => provider.updateFilters(severity: v),
+                ),
+                const SizedBox(width: 12),
+                _filterDropdown<String>(
+                  label: 'Category',
+                  value: provider.selectedCategoryFilter,
+                  items: provider.categoryOptions
+                      .map((c) =>
+                          DropdownMenuItem(value: c, child: Text(c)))
+                      .toList(),
+                  onChanged: (v) => provider.updateFilters(category: v),
+                ),
+              ],
             ),
           ),
+          const SizedBox(height: 12),
+          _buildLogList(provider.filteredPerformanceLogs, limit: 12),
         ],
       ),
     );
+  }
+
+  Widget _filterDropdown<T>({
+    required String label,
+    required T value,
+    required List<DropdownMenuItem<T>> items,
+    required ValueChanged<T?> onChanged,
+  }) {
+    return SizedBox(
+      width: 160,
+      child: DropdownButtonFormField<T>(
+        value: value,
+        isExpanded: true,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+          isDense: true,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        ),
+        items: items,
+        onChanged: onChanged,
+      ),
+    );
+  }
+
+  // ─── Teacher (non-principal) view ─────────────────────────────────────────────
+
+  Widget _buildTeacherView(PerformanceProvider provider) {
+    if (provider.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildTeacherSummaryCards(provider),
+        const SizedBox(height: 16),
+        _panel(child: _buildMonthlyChart(provider)),
+        const SizedBox(height: 16),
+        _buildYearlyKpiSection(provider),
+        const SizedBox(height: 16),
+        _buildPerformanceLogsSection(provider),
+        const SizedBox(height: 16),
+        _buildNotificationsSection(provider),
+        const SizedBox(height: 16),
+        _buildWarningsSection(provider),
+      ],
+    );
+  }
+
+  Widget _buildTeacherSummaryCards(PerformanceProvider provider) {
+    final score = provider.performanceLogs
+        .fold<double>(0, (s, l) => s + l.amount)
+        .round();
+    final trendFactor = provider.yearlyKpi?.trendFactor ?? 1.0;
+
+    return LayoutBuilder(builder: (context, constraints) {
+      final cardWidth = (constraints.maxWidth - 36) / 4;
+      return Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        children: [
+          _summaryCard('Score', score.toString(), LucideIcons.barChart2,
+              _scoreColor(score), cardWidth),
+          _summaryCard('Logs', provider.performanceLogs.length.toString(),
+              LucideIcons.list, AppTheme.primaryColor, cardWidth),
+          _summaryCard('Warnings', provider.warnings.length.toString(),
+              LucideIcons.alertTriangle, Colors.orange, cardWidth),
+          _summaryCard(_trendLabel(trendFactor), _trendValue(trendFactor),
+              _trendIcon(trendFactor), _trendColor(trendFactor), cardWidth),
+        ],
+      );
+    });
   }
 
   Widget _buildYearlyKpiSection(PerformanceProvider provider) {
     final kpi = provider.yearlyKpi;
     if (kpi == null) {
       return _panel(
-        child: const Text('No yearly KPI has been calculated for this year.'),
+        child: const Text('No yearly KPI calculated yet for this year.',
+            style: TextStyle(color: Colors.grey)),
       );
     }
 
@@ -587,48 +738,35 @@ class _KpiScreenState extends State<KpiScreen> {
             children: [
               const Expanded(
                 child: Text('Yearly KPI',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    style: TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold)),
               ),
               Chip(
                 backgroundColor: _ratingColor(kpi.rating),
                 label: Text(kpi.rating,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold)),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          Row(
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
             children: [
-              _metric('Final', kpi.finalScore.toStringAsFixed(2)),
-              _metric('Average', kpi.averageMonthlyScore.toStringAsFixed(2)),
-              _metric('Status', kpi.status),
+              _infoCard('Final', kpi.finalScore.toStringAsFixed(2)),
+              _infoCard(
+                  'Average', kpi.averageMonthlyScore.toStringAsFixed(2)),
+              _infoCard('Status', kpi.status),
             ],
           ),
           if (kpi.notes.isNotEmpty) ...[
             const SizedBox(height: 12),
-            Text(kpi.notes, style: const TextStyle(color: Colors.grey)),
+            Text(kpi.notes,
+                style: const TextStyle(color: Colors.grey, fontSize: 13)),
           ],
         ],
-      ),
-    );
-  }
-
-  Widget _metric(String label, String value) {
-    return Expanded(
-      child: Container(
-        margin: const EdgeInsets.only(right: 8),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppTheme.ambientOffWhite,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          children: [
-            Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            const SizedBox(height: 6),
-            Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
-          ],
-        ),
       ),
     );
   }
@@ -638,7 +776,7 @@ class _KpiScreenState extends State<KpiScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Performance Logs',
+          const Text('My Performance Logs',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
           _buildLogList(provider.performanceLogs, limit: 6),
@@ -649,20 +787,27 @@ class _KpiScreenState extends State<KpiScreen> {
 
   Widget _buildLogList(List<PerformanceLog> logs, {required int limit}) {
     if (logs.isEmpty) {
-      return const Text('No performance logs yet.', style: TextStyle(color: Colors.grey));
+      return const Text('No performance logs yet.',
+          style: TextStyle(color: Colors.grey));
     }
 
     return Column(
       children: logs.take(limit).map((log) {
-        final color = log.amount >= 0 ? Colors.green : Colors.red;
+        final isPositive = log.amount >= 0;
+        final color = isPositive ? Colors.green : Colors.red;
         return ListTile(
           contentPadding: EdgeInsets.zero,
-          leading: Icon(log.amount >= 0 ? LucideIcons.plusCircle : LucideIcons.x, color: color),
-          title: Text(log.reason, style: const TextStyle(fontWeight: FontWeight.w600)),
-          subtitle: Text('${log.category} • ${log.criterion} • ${log.severity}'),
+          leading: Icon(
+              isPositive ? LucideIcons.plusCircle : LucideIcons.minusCircle,
+              color: color),
+          title: Text(log.reason,
+              style: const TextStyle(fontWeight: FontWeight.w600)),
+          subtitle: Text(
+              '${log.category} · ${log.criterion} · ${log.severity}'),
           trailing: Text(
             '${log.amount > 0 ? '+' : ''}${log.amount.toStringAsFixed(0)}',
-            style: TextStyle(color: color, fontWeight: FontWeight.bold),
+            style:
+                TextStyle(color: color, fontWeight: FontWeight.bold),
           ),
         );
       }).toList(),
@@ -675,12 +820,13 @@ class _KpiScreenState extends State<KpiScreen> {
       emptyText: 'No notifications yet.',
       items: provider.notifications
           .take(5)
-          .map((notification) => ListTile(
+          .map((n) => ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(LucideIcons.bell, color: AppTheme.primaryColor),
-                title: Text(notification.title,
+                leading: const Icon(LucideIcons.bell,
+                    color: AppTheme.primaryColor),
+                title: Text(n.title,
                     style: const TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: Text(notification.message),
+                subtitle: Text(n.message),
               ))
           .toList(),
     );
@@ -689,15 +835,16 @@ class _KpiScreenState extends State<KpiScreen> {
   Widget _buildWarningsSection(PerformanceProvider provider) {
     return _recordList(
       title: 'Warnings',
-      emptyText: 'No warnings recorded yet.',
+      emptyText: 'No warnings recorded.',
       items: provider.warnings
           .take(5)
-          .map((warning) => ListTile(
+          .map((w) => ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(LucideIcons.alertTriangle, color: Colors.orange),
-                title: Text(warning.message,
+                leading: const Icon(LucideIcons.alertTriangle,
+                    color: Colors.orange),
+                title: Text(w.message,
                     style: const TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: Text('${warning.issuedBy} • ${warning.severity}'),
+                subtitle: Text('${w.issuedBy} · ${w.severity}'),
               ))
           .toList(),
     );
@@ -712,7 +859,9 @@ class _KpiScreenState extends State<KpiScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Text(title,
+              style: const TextStyle(
+                  fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
           if (items.isEmpty)
             Text(emptyText, style: const TextStyle(color: Colors.grey))
@@ -722,6 +871,8 @@ class _KpiScreenState extends State<KpiScreen> {
       ),
     );
   }
+
+  // ─── Shared widgets ───────────────────────────────────────────────────────────
 
   Widget _panel({required Widget child}) {
     return Container(
@@ -736,46 +887,91 @@ class _KpiScreenState extends State<KpiScreen> {
     );
   }
 
+  Widget _infoCard(String label, String value) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 100),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppTheme.ambientOffWhite,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          const SizedBox(height: 6),
+          Text(value,
+              style: const TextStyle(fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorBanner(String message) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.red.shade200),
+      ),
+      child: Row(
+        children: [
+          const Icon(LucideIcons.alertTriangle, color: Colors.red),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(message,
+                style: const TextStyle(
+                    color: Colors.red, fontWeight: FontWeight.w600)),
+          ),
+          IconButton(
+            icon: const Icon(LucideIcons.x, size: 18, color: Colors.red),
+            onPressed: () =>
+                Provider.of<PerformanceProvider>(context, listen: false)
+                    .clearError(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── Helpers ──────────────────────────────────────────────────────────────────
+
   Color _scoreColor(int score) {
     if (score >= 70) return Colors.green;
     if (score >= 40) return Colors.amber;
     return Colors.red;
   }
 
-  Color _trendColor(double trendFactor) {
-    if (trendFactor > 1.05) return Colors.green;
-    if (trendFactor < 0.95) return Colors.red;
+  Color _trendColor(double f) {
+    if (f > 1.05) return Colors.green;
+    if (f < 0.95) return Colors.red;
     return Colors.amber;
   }
 
-  IconData _trendIcon(double trendFactor) {
-    if (trendFactor > 1.05) return LucideIcons.barChart2;
-    if (trendFactor < 0.95) return LucideIcons.alertTriangle;
-    return LucideIcons.check;
+  IconData _trendIcon(double f) {
+    if (f > 1.05) return LucideIcons.trendingUp;
+    if (f < 0.95) return LucideIcons.trendingDown;
+    return LucideIcons.minus;
   }
 
-  String _trendLabel(double trendFactor) {
-    if (trendFactor > 1.05) return 'Improving';
-    if (trendFactor < 0.95) return 'Declining';
+  String _trendLabel(double f) {
+    if (f > 1.05) return 'Improving';
+    if (f < 0.95) return 'Declining';
     return 'Stable';
   }
 
-  String _trendValue(double trendFactor) {
-    return '${trendFactor.toStringAsFixed(1)}x';
-  }
+  String _trendValue(double f) => '${f.toStringAsFixed(1)}x';
 
   Color _ratingColor(String rating) {
     switch (rating) {
-      case 'A':
-        return Colors.green;
-      case 'B':
-        return Colors.lightGreen;
-      case 'C':
-        return Colors.amber;
-      case 'D':
-        return Colors.orange;
-      default:
-        return Colors.red;
+      case 'A': return Colors.green;
+      case 'B': return Colors.lightGreen;
+      case 'C': return Colors.amber;
+      case 'D': return Colors.orange;
+      default:  return Colors.red;
     }
   }
 }
