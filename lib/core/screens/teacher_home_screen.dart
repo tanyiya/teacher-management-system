@@ -3,10 +3,10 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
-import '../models/duty.dart';
-import '../services/duty_service.dart';
-import '../../teachers/models/teacher.dart';
-import '../../../app_theme.dart';
+import '../../modules/duty/models/duty.dart';
+import '../../modules/duty/services/duty_service.dart';
+import '../../modules/teachers/models/teacher.dart';
+import '../../app_theme.dart';
 
 class TeacherHomeScreen extends StatelessWidget {
   final TeacherRecord user;

@@ -6,7 +6,7 @@ import '../../providers/app_state_provider.dart';
 import '../models/notification.dart';
 import '../services/notification_service.dart';
 import '../../app_theme.dart';
-import '../../modules/duty/screens/teacher_home_screen.dart';
+import 'teacher_home_screen.dart';
 import '../../modules/training/screens/teacher_training_screen.dart';
 import '../../modules/performance/screens/performance_screen.dart';
 import 'alerts_screen.dart';
