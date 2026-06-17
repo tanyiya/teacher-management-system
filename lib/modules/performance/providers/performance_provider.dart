@@ -14,6 +14,8 @@ class PerformanceProvider extends ChangeNotifier {
   StreamSubscription<YearlyKpiRecord?>? _kpiSubscription;
   StreamSubscription<List<KpiNotification>>? _notificationsSubscription;
   StreamSubscription<List<TeacherRecord>>? _teachersSubscription;
+  StreamSubscription<TeacherRecord?>? _selectedTeacherSubscription;
+  StreamSubscription<List<YearlyKpiRecord>>? _yearlyKpisSubscription;
 
   List<PerformanceLog> _performanceLogs = [];
   List<WarningRecord> _warnings = [];
@@ -21,6 +23,8 @@ class PerformanceProvider extends ChangeNotifier {
   List<TeacherRecord> _teachers = [];
   Map<int, double> _monthlyScores = {};
   YearlyKpiRecord? _yearlyKpi;
+  List<YearlyKpiRecord> _yearlyKpis = [];
+  TeacherRecord? _selectedTeacherRecord;
   String? _selectedTeacherId;
 
   // Separate loading flags to avoid false "still loading" states
@@ -40,6 +44,8 @@ class PerformanceProvider extends ChangeNotifier {
   List<TeacherRecord> get teachers => _teachers;
   Map<int, double> get monthlyScores => _monthlyScores;
   YearlyKpiRecord? get yearlyKpi => _yearlyKpi;
+  List<YearlyKpiRecord> get yearlyKpis => _yearlyKpis;
+  TeacherRecord? get selectedTeacherRecord => _selectedTeacherRecord;
   String? get selectedTeacherId => _selectedTeacherId;
 
   // isLoading is true only when we have no teachers yet OR actively loading logs
@@ -125,6 +131,8 @@ class PerformanceProvider extends ChangeNotifier {
       } else {
         notifyListeners();
       }
+
+      fetchYearlyKpisForYear(DateTime.now().year);
     }, onError: (e) {
       _error = 'Failed to load teachers: $e';
       _teachersLoading = false;
@@ -154,6 +162,7 @@ class PerformanceProvider extends ChangeNotifier {
       _teachers = teachers;
       _teachersLoading = false;
       notifyListeners();
+      fetchYearlyKpisForYear(DateTime.now().year);
     }, onError: (e) {
       _error = 'Failed to refresh teachers: $e';
       _teachersLoading = false;
@@ -184,6 +193,7 @@ class PerformanceProvider extends ChangeNotifier {
     _warningsSubscription?.cancel();
     _kpiSubscription?.cancel();
     _notificationsSubscription?.cancel();
+    _selectedTeacherSubscription?.cancel();
 
     _logsSubscription = _performanceService
         .getPerformanceLogsForTeacher(teacherId)
@@ -225,6 +235,16 @@ class PerformanceProvider extends ChangeNotifier {
       notifyListeners();
     }, onError: (e) {
       _error = 'Failed to load yearly KPI: $e';
+      notifyListeners();
+    });
+
+    _selectedTeacherSubscription = _performanceService
+        .getTeacherRecord(teacherId)
+        .listen((teacher) {
+      _selectedTeacherRecord = teacher;
+      notifyListeners();
+    }, onError: (e) {
+      _error = 'Failed to load teacher record: $e';
       notifyListeners();
     });
   }
@@ -321,6 +341,18 @@ class PerformanceProvider extends ChangeNotifier {
     }
   }
 
+  void fetchYearlyKpisForYear(int year) {
+    _yearlyKpisSubscription?.cancel();
+    _yearlyKpisSubscription =
+        _performanceService.getYearlyKpisForYear(year).listen((records) {
+      _yearlyKpis = records;
+      notifyListeners();
+    }, onError: (e) {
+      _error = 'Failed to load yearly KPIs: $e';
+      notifyListeners();
+    });
+  }
+
   // ─── Filters ─────────────────────────────────────────────────────────────────
 
   void updateFilters({int? month, String? severity, String? category}) {
@@ -359,6 +391,7 @@ class PerformanceProvider extends ChangeNotifier {
     _logsSubscription?.cancel();
     _warningsSubscription?.cancel();
     _kpiSubscription?.cancel();
+    _yearlyKpisSubscription?.cancel();
     _notificationsSubscription?.cancel();
     _teachersSubscription?.cancel();
     super.dispose();

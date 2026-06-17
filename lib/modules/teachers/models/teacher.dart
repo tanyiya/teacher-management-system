@@ -170,7 +170,7 @@ class TeacherRecord {
       maritalStatus: data['maritalStatus'] ?? '',
       emergencyContactName: data['emergencyContactName'] ?? '',
       emergencyContactNumber: data['emergencyContactNumber'] ?? '',
-      currentScore: int.tryParse(data['currentScore']?.toString() ?? '') ?? 0,
+      currentScore: int.tryParse(data['currentScore']?.toString() ?? '') ?? 100,
       yearlyKpi: int.tryParse(data['yearlyKpi']?.toString() ?? '') ?? 0,
       status: data['status'] ?? 'active',
       verificationStatus: data['verificationStatus'] ?? 'pending',

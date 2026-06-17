@@ -8,6 +8,7 @@ import '../../../providers/app_state_provider.dart';
 import '../../teachers/models/teacher.dart';
 import '../models/performance.dart';
 import '../providers/performance_provider.dart';
+import '../utils/performance_constants.dart';
 
 class KpiScreen extends StatefulWidget {
   const KpiScreen({Key? key}) : super(key: key);
@@ -18,6 +19,9 @@ class KpiScreen extends StatefulWidget {
 
 class _KpiScreenState extends State<KpiScreen> {
   final _reasonController = TextEditingController();
+  final _warningReasonController = TextEditingController();
+  final _warningNotesController = TextEditingController();
+  String _warningType = warningTypes.first;
 
   static const Map<String, List<String>> _categoryCriteria = {
     'Attendance and Punctuality': [
@@ -106,6 +110,8 @@ class _KpiScreenState extends State<KpiScreen> {
   @override
   void dispose() {
     _reasonController.dispose();
+    _warningReasonController.dispose();
+    _warningNotesController.dispose();
     super.dispose();
   }
 
@@ -194,7 +200,11 @@ class _KpiScreenState extends State<KpiScreen> {
           const SizedBox(height: 16),
           _buildAddLogForm(context, provider, principal),
           const SizedBox(height: 16),
+          _buildWarningIssuancePanel(context, provider, principal),
+          const SizedBox(height: 16),
           _buildRunKpiPanel(context, provider, principal),
+          const SizedBox(height: 16),
+          _buildKpiLeaderboard(provider),
           const SizedBox(height: 16),
           _buildTeacherOverviewDashboard(provider),
           const SizedBox(height: 16),
@@ -430,7 +440,7 @@ class _KpiScreenState extends State<KpiScreen> {
                     backgroundColor: _isPositive ? AppTheme.primaryColor : Colors.grey[200],
                     foregroundColor: _isPositive ? Colors.white : Colors.black,
                   ),
-                  child: const Text('Add Merit'),
+                  child: const Text('Merit'),
                 ),
               ),
               const SizedBox(width: 12),
@@ -441,7 +451,7 @@ class _KpiScreenState extends State<KpiScreen> {
                     backgroundColor: !_isPositive ? AppTheme.primaryColor : Colors.grey[200],
                     foregroundColor: !_isPositive ? Colors.white : Colors.black,
                   ),
-                  child: const Text('Add Deduction'),
+                  child: const Text('Deduction'),
                 ),
               ),
             ],
@@ -793,7 +803,7 @@ class _KpiScreenState extends State<KpiScreen> {
   }
 
   Widget _buildTeacherSummaryCards(PerformanceProvider provider) {
-    final score = provider.performanceLogs
+    final score = provider.selectedTeacherRecord?.currentScore ?? provider.performanceLogs
         .fold<double>(0, (s, l) => s + l.amount)
         .round();
     final trendFactor = provider.yearlyKpi?.trendFactor ?? 1.0;
@@ -938,9 +948,9 @@ class _KpiScreenState extends State<KpiScreen> {
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(LucideIcons.alertTriangle,
                     color: Colors.orange),
-                title: Text(w.message,
+                title: Text(w.warningType,
                     style: const TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: Text('${w.issuedBy} · ${w.severity}'),
+                subtitle: Text('${w.issuedBy} · ${w.message}'),
               ))
           .toList(),
     );
@@ -963,6 +973,176 @@ class _KpiScreenState extends State<KpiScreen> {
             Text(emptyText, style: const TextStyle(color: Colors.grey))
           else
             Column(children: items),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWarningIssuancePanel(
+    BuildContext context,
+    PerformanceProvider provider,
+    TeacherRecord principal,
+  ) {
+    return _panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Issue Manual Warning',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            value: _warningType,
+            decoration: const InputDecoration(
+              labelText: 'Warning Type',
+              border: OutlineInputBorder(),
+            ),
+            items: warningTypes
+                .map((type) => DropdownMenuItem(value: type, child: Text(type)))
+                .toList(),
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() => _warningType = value);
+            },
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _warningReasonController,
+            maxLines: 2,
+            decoration: const InputDecoration(
+              labelText: 'Reason',
+              border: OutlineInputBorder(),
+              hintText: 'Describe why the warning is issued',
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _warningNotesController,
+            maxLines: 2,
+            decoration: const InputDecoration(
+              labelText: 'Notes',
+              border: OutlineInputBorder(),
+              hintText: 'Optional details for the teacher record',
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              icon: const Icon(LucideIcons.alertTriangle),
+              label: const Text('Issue Warning'),
+              onPressed: provider.selectedTeacherId == null
+                  ? null
+                  : () => _issueWarning(context, provider, principal),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _issueWarning(
+    BuildContext context,
+    PerformanceProvider provider,
+    TeacherRecord principal,
+  ) async {
+    if (_warningReasonController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please provide a warning reason.')),
+      );
+      return;
+    }
+
+    final warning = WarningRecord(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      teacherId: provider.selectedTeacherId!,
+      issuedBy: principal.id,
+      createdAt: DateTime.now(),
+      warningType: _warningType,
+      reason: _warningReasonController.text.trim(),
+      notes: _warningNotesController.text.trim(),
+    );
+
+    try {
+      await provider.addWarningRecord(warning);
+      if (!context.mounted) return;
+      _warningReasonController.clear();
+      _warningNotesController.clear();
+      setState(() {
+        _warningType = warningTypes.first;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Warning issued successfully.')),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error issuing warning: $e')),
+      );
+    }
+  }
+
+  Widget _buildKpiLeaderboard(PerformanceProvider provider) {
+    final records = provider.yearlyKpis;
+    if (records.isEmpty) {
+      return _panel(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            Text('KPI Leaderboard',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            SizedBox(height: 12),
+            Text('No KPI records available for this year yet.',
+                style: TextStyle(color: Colors.grey)),
+          ],
+        ),
+      );
+    }
+
+    return _panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('KPI Leaderboard',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          Column(
+            children: records.take(5).map((record) {
+              final teacherName = provider.teachers
+                      .firstWhere(
+                          (t) => t.id == record.teacherId,
+                          orElse: () => TeacherRecord(
+                                id: record.teacherId,
+                                username: record.teacherId,
+                                email: '',
+                                fullName: record.teacherId,
+                                role: 'teacher',
+                                icNumber: '',
+                                gender: '',
+                                dob: '',
+                                address: '',
+                                phoneNumber: '',
+                                maritalStatus: '',
+                                emergencyContactName: '',
+                                emergencyContactNumber: '',
+                                currentScore: 100,
+                                yearlyKpi: 0,
+                                status: 'active',
+                                documents: {},
+                              ))
+                      .fullName ??
+                  record.teacherId;
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(
+                  backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
+                  child: Text(record.rating),
+                ),
+                title: Text(teacherName,
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text('Score: ${record.finalScore.toStringAsFixed(1)}'),
+              );
+            }).toList(),
+          ),
         ],
       ),
     );

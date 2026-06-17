@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../teachers/models/teacher.dart';
 import '../models/performance.dart';
+import '../utils/performance_constants.dart';
 
 class PerformanceService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -43,6 +44,13 @@ class PerformanceService {
     return getTeachers();
   }
 
+  Stream<TeacherRecord?> getTeacherRecord(String teacherId) {
+    return _db.collection('teachers').doc(teacherId).snapshots().map((snapshot) {
+      if (!snapshot.exists) return null;
+      return TeacherRecord.fromMap(snapshot.id, snapshot.data() ?? {});
+    });
+  }
+
   Stream<List<PerformanceLog>> getPerformanceLogsForTeacher(String teacherId) {
     return _db
         .collection('performance_logs')
@@ -73,7 +81,7 @@ class PerformanceService {
           final warnings = snapshot.docs
               .map((doc) => WarningRecord.fromMap(doc.id, doc.data()))
               .toList();
-          warnings.sort((a, b) => b.issueDate.compareTo(a.issueDate));
+          warnings.sort((a, b) => b.createdAt.compareTo(a.createdAt));
           return warnings;
         });
   }
@@ -115,7 +123,8 @@ class PerformanceService {
     await _db.runTransaction((transaction) async {
       final teacherSnapshot = await transaction.get(teacherRef);
       final currentScore =
-          ((teacherSnapshot.data()?['currentScore'] ?? 100) as num).toDouble();
+          ((teacherSnapshot.data()?['currentScore'] ?? kpiBaselineScore) as num)
+              .toDouble();
       final newScore = currentScore + log.amount;
 
       transaction.set(logRef, log.toMap());
@@ -128,6 +137,68 @@ class PerformanceService {
 
   Future<void> addWarningRecord(WarningRecord warning) async {
     await _db.collection('warnings').doc(warning.id).set(warning.toMap());
+    await _createNotification(
+      warning.teacherId,
+      'Warning issued: ${warning.warningType}',
+      warning.reason.isNotEmpty ? warning.reason : warning.notes,
+    );
+  }
+
+  Stream<List<WarningRecord>> getAllWarnings() {
+    return _db.collection('warnings').snapshots().map((snapshot) {
+      final warnings = snapshot.docs
+          .map((doc) => WarningRecord.fromMap(doc.id, doc.data()))
+          .toList();
+      warnings.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return warnings;
+    });
+  }
+
+  Future<List<WarningRecord>> fetchAllWarningsOnce() async {
+    final snapshot = await _db.collection('warnings').get();
+    final warnings = snapshot.docs
+        .map((doc) => WarningRecord.fromMap(doc.id, doc.data()))
+        .toList();
+    warnings.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return warnings;
+  }
+
+  Stream<List<YearlyKpiRecord>> getYearlyKpisForYear(int year) {
+    return _db
+        .collection('yearly_kpis')
+        .where('year', isEqualTo: year)
+        .snapshots()
+        .map((snapshot) {
+      final records = snapshot.docs
+          .map((doc) => YearlyKpiRecord.fromMap(doc.id, doc.data()))
+          .toList();
+      records.sort((a, b) => b.finalScore.compareTo(a.finalScore));
+      return records;
+    });
+  }
+
+  Future<List<YearlyKpiRecord>> fetchYearlyKpisForYearOnce(int year) async {
+    final snapshot = await _db
+        .collection('yearly_kpis')
+        .where('year', isEqualTo: year)
+        .get();
+    final records = snapshot.docs
+        .map((doc) => YearlyKpiRecord.fromMap(doc.id, doc.data()))
+        .toList();
+    records.sort((a, b) => b.finalScore.compareTo(a.finalScore));
+    return records;
+  }
+
+  Future<List<TeacherRecord>> fetchAllTeachersOnce() async {
+    final snapshot = await _db
+        .collection('teachers')
+        .where('role', isEqualTo: 'teacher')
+        .get();
+    final teachers = snapshot.docs
+        .map((doc) => TeacherRecord.fromMap(doc.id, doc.data()))
+        .toList();
+    teachers.sort((a, b) => a.fullName.compareTo(b.fullName));
+    return teachers;
   }
 
   Future<List<PerformanceLog>> fetchTeacherLogs(
@@ -219,7 +290,7 @@ class PerformanceService {
     final average =
         monthlyScores.values.isEmpty ? 0.0 : monthlyScores.values.reduce((a, b) => a + b) / 12;
     final trend = await _calculateTrendFactor(teacherId, year, monthlyScores);
-    final finalScore = average * trend;
+    final finalScore = kpiBaselineScore + (average * trend);
     final rating = _calculateRating(finalScore);
 
     final kpiRecord = YearlyKpiRecord(
@@ -311,20 +382,32 @@ class PerformanceService {
     }
   }
 
+  String _warningTypeForScore(double score) {
+    if (score < 50) return 'Critical Alert';
+    if (score < 60) return 'Final Warning';
+    if (score < 70) return 'Written Warning';
+    if (score < 80) return 'Verbal Warning';
+    return '';
+  }
+
   Future<void> triggerWarnings(PerformanceLog log) async {
     final teacher = await _db.collection('teachers').doc(log.teacherId).get();
-    final currentScore = ((teacher.data()?['currentScore'] ?? 0) as num).toDouble();
+    final currentScore =
+        ((teacher.data()?['currentScore'] ?? kpiBaselineScore) as num)
+            .toDouble();
 
-    if (currentScore >= -30) return;
+    final warningType = _warningTypeForScore(currentScore);
+    if (warningType.isEmpty) return;
 
     final id = '${log.teacherId}-${DateTime.now().millisecondsSinceEpoch}';
     await addWarningRecord(WarningRecord(
       id: id,
       teacherId: log.teacherId,
       issuedBy: log.principalId,
-      issueDate: DateTime.now(),
-      message: 'Score Threshold Alert: ${await _getTeacherName(log.teacherId)}',
-      severity: log.severity,
+      createdAt: DateTime.now(),
+      warningType: warningType,
+      reason: 'Performance score dropped to ${currentScore.toStringAsFixed(0)}',
+      notes: 'Auto-generated warning based on KPI threshold',
     ));
   }
 
@@ -418,7 +501,9 @@ class PerformanceService {
     }
 
     for (final teacher in teachers.docs) {
-      final currentScore = ((teacher.data()['currentScore'] ?? 0) as num).toDouble();
+      final currentScore =
+          ((teacher.data()['currentScore'] ?? kpiBaselineScore) as num)
+              .toDouble();
       final delta = scoreDeltas[teacher.id] ?? 0.0;
       batch.update(
         _db.collection('teachers').doc(teacher.id),

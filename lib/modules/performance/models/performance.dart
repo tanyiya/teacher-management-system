@@ -61,27 +61,34 @@ class WarningRecord {
   final String id;
   final String teacherId;
   final String issuedBy;
-  final DateTime issueDate;
-  final String message;
-  final String severity;
+  final DateTime createdAt;
+  final String warningType;
+  final String reason;
+  final String notes;
 
   WarningRecord({
     required this.id,
     required this.teacherId,
     required this.issuedBy,
-    required this.issueDate,
-    required this.message,
-    required this.severity,
+    required this.createdAt,
+    required this.warningType,
+    required this.reason,
+    required this.notes,
   });
+
+  String get message => reason.isNotEmpty ? reason : notes;
+  String get severity => warningType;
+  DateTime get issueDate => createdAt;
 
   factory WarningRecord.fromMap(String id, Map<String, dynamic> data) {
     return WarningRecord(
       id: id,
       teacherId: data['teacherId'] ?? '',
       issuedBy: data['issuedBy'] ?? '',
-      issueDate: (data['issueDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      message: data['message'] ?? '',
-      severity: data['severity'] ?? 'Verbal',
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      warningType: data['warningType'] ?? data['severity'] ?? 'Verbal Warning',
+      reason: data['reason'] ?? '',
+      notes: data['notes'] ?? '',
     );
   }
 
@@ -93,9 +100,10 @@ class WarningRecord {
     return {
       'teacherId': teacherId,
       'issuedBy': issuedBy,
-      'issueDate': Timestamp.fromDate(issueDate),
-      'message': message,
-      'severity': severity,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'warningType': warningType,
+      'reason': reason,
+      'notes': notes,
     };
   }
 
