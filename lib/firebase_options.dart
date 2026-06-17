@@ -56,7 +56,6 @@ class DefaultFirebaseOptions {
     projectId: 'teacher-management-syste-f8043',
     storageBucket: 'teacher-management-syste-f8043.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyA-kWHG3Vyi4HfAlr4J6rgLfZhYOt9QqMQ',
     appId: '1:828187567117:ios:a47bdd5b8a7a08da5f6144',
@@ -65,7 +64,6 @@ class DefaultFirebaseOptions {
     storageBucket: 'teacher-management-syste-f8043.firebasestorage.app',
     iosBundleId: 'com.example.teacherManagement',
   );
-
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyA-kWHG3Vyi4HfAlr4J6rgLfZhYOt9QqMQ',
     appId: '1:828187567117:ios:a47bdd5b8a7a08da5f6144',

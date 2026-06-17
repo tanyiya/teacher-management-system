@@ -12,6 +12,7 @@ import '../../modules/training/screens/teacher_training_screen.dart';
 import '../../modules/performance/screens/performance_screen.dart';
 import 'alerts_screen.dart';
 import '../../modules/teachers/screens/profile_screen.dart';
+import '../../modules/report/screens/teacher_report_screen.dart';
 
 class TeacherDashboard extends StatefulWidget {
   const TeacherDashboard({Key? key}) : super(key: key);
@@ -54,6 +55,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
           PerformanceScreen(user: user),
           AlertsScreen(user: user),
           ProfileScreen(user: user),
+          TeacherReportScreen(user: user),
         ],
       ),
       bottomNavigationBar: Container(
@@ -77,6 +79,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
             const BottomNavigationBarItem(icon: Icon(LucideIcons.home), label: 'Home'),
             const BottomNavigationBarItem(icon: Icon(LucideIcons.bookOpen), label: 'Training'),
             const BottomNavigationBarItem(icon: Icon(LucideIcons.barChart), label: 'Performance'),
+            const BottomNavigationBarItem(icon: Icon(LucideIcons.clipboardList),label: 'Reports'),
             BottomNavigationBarItem(
               icon: StreamBuilder<List<AlertNotification>>(
                 stream: _notificationService.getNotifications(user.id),

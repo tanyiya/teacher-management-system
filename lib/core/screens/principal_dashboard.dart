@@ -46,7 +46,7 @@ class _PrincipalDashboardState extends State<PrincipalDashboard> {
       const DutyScheduleScreen(),
       const KpiScreen(),
       const _AdminLeaveManagementScreen(),
-      const ReportScreen(),
+      const ReportScreen(), 
     ];
 
     return LayoutBuilder(

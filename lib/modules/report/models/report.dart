@@ -19,13 +19,15 @@ class FacilityReport {
     required this.teacherName,
     required this.category,
     required this.description,
-    required this.photoUrl,
-    required this.status,
-    required this.priority,
-    required this.managementNotes,
+    this.photoUrl = '',
+    this.status = 'Submitted',
+    this.priority = 'Low',
+    this.managementNotes = '',
     required this.createdAt,
     required this.lastUpdated,
   });
+
+  String get reportedByName => teacherName;
 
   factory FacilityReport.fromMap(String id, Map<String, dynamic> data) {
     return FacilityReport(
@@ -39,25 +41,42 @@ class FacilityReport {
       priority: data['priority'] ?? 'Low',
       managementNotes: data['managementNotes'] ?? '',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      lastUpdated: (data['lastUpdated'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      lastUpdated:
+          (data['lastUpdated'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 
-  Map<String, dynamic> toMap() {
-    return {
-      'teacherId': teacherId,
-      'teacherName': teacherName,
-      'category': category,
-      'description': description,
-      'photoUrl': photoUrl,
-      'status': status,
-      'priority': priority,
-      'managementNotes': managementNotes,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'lastUpdated': Timestamp.fromDate(lastUpdated),
-    };
-  }
+  Map<String, dynamic> toMap() => {
+        'teacherId': teacherId,
+        'teacherName': teacherName,
+        'category': category,
+        'description': description,
+        'photoUrl': photoUrl,
+        'status': status,
+        'priority': priority,
+        'managementNotes': managementNotes,
+        'createdAt': Timestamp.fromDate(createdAt),
+        'lastUpdated': Timestamp.fromDate(lastUpdated),
+      };
 
-  // Backwards-compatible alias used in some screens
-  String get reportedByName => teacherName;
+  FacilityReport copyWith({
+    String? status,
+    String? managementNotes,
+    String? priority,
+    DateTime? lastUpdated,
+  }) {
+    return FacilityReport(
+      id: id,
+      teacherId: teacherId,
+      teacherName: teacherName,
+      category: category,
+      description: description,
+      photoUrl: photoUrl,
+      status: status ?? this.status,
+      priority: priority ?? this.priority,
+      managementNotes: managementNotes ?? this.managementNotes,
+      createdAt: createdAt,
+      lastUpdated: lastUpdated ?? this.lastUpdated,
+    );
+  }
 }
