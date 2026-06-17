@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../teachers/models/teacher.dart';
 import '../models/training.dart';
@@ -15,12 +16,16 @@ class TrainingProvider extends ChangeNotifier {
   final TrainingService _trainingService;
 
   List<TrainingPost> _posts = [];
+  List<TrainingPost> _filteredPosts = [];
+  String _searchQuery = '';
   bool _isLoading = true;
   String? _errorMessage;
   final Set<String> _busyPostIds = {};
   StreamSubscription<List<TrainingPost>>? _postsSubscription;
 
   List<TrainingPost> get posts => _posts;
+  List<TrainingPost> get filteredPosts => _filteredPosts;
+  String get searchQuery => _searchQuery;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   Stream<List<TrainingApplication>> get pendingApplications =>
@@ -30,6 +35,7 @@ class TrainingProvider extends ChangeNotifier {
     _postsSubscription = _trainingService.streamPosts().listen(
       (postsList) {
         _posts = postsList;
+        _applySearch();
         _isLoading = false;
         _errorMessage = null;
         notifyListeners();
@@ -52,6 +58,21 @@ class TrainingProvider extends ChangeNotifier {
       _trainingService.streamApplications(postId: postId);
 
   bool isPostBusy(String postId) => _busyPostIds.contains(postId);
+
+  void updateSearchQuery(String query) {
+    _searchQuery = query;
+    _applySearch();
+    notifyListeners();
+  }
+
+  Stream<List<TrainingPost>> searchPosts(String query) =>
+      _trainingService.searchPosts(query);
+
+  Stream<List<TrainingPost>> getPostsByAuthor(String authorId) =>
+      _trainingService.getPostsByAuthor(authorId);
+
+  Future<String> uploadImageToStorage(XFile image, String authorId) =>
+      _trainingService.uploadImageToStorage(image, authorId: authorId);
 
   Future<String> createPost(TrainingPost post) async {
     _errorMessage = null;
@@ -93,6 +114,7 @@ class TrainingProvider extends ChangeNotifier {
               )
             : item)
         .toList();
+    _applySearch();
     notifyListeners();
 
     try {
@@ -160,10 +182,24 @@ class TrainingProvider extends ChangeNotifier {
   Future<TeacherRecord?> getFacultyProfile(String authorId) =>
       _trainingService.getFacultyProfile(authorId);
 
-  List<TrainingPost> teacherPosts() => _posts;
+  List<TrainingPost> teacherPosts() => _filteredPosts;
 
   List<TrainingPost> adminTrainingPosts() =>
-      _posts.where((post) => post.isTraining).toList();
+      _filteredPosts.where((post) => post.isTraining).toList();
+
+  void _applySearch() {
+    final normalized = _searchQuery.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      _filteredPosts = List<TrainingPost>.from(_posts);
+      return;
+    }
+
+    _filteredPosts = _posts.where((post) {
+      return post.content.toLowerCase().contains(normalized) ||
+          post.authorName.toLowerCase().contains(normalized) ||
+          (post.trainingTitle ?? '').toLowerCase().contains(normalized);
+    }).toList();
+  }
 
   void _setPostBusy(String postId, bool busy) {
     if (busy) {

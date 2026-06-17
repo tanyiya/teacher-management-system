@@ -1,3 +1,4 @@
 {
-    "cmake.sourceDirectory": "C:/Users/Teh/Documents/GitHub/teacher-management-system/windows"
+    "cmake.sourceDirectory": "C:/Users/Teh/Documents/GitHub/teacher-management-system/windows",
+    "cmake.ignoreCMakeListsMissing": true
 }

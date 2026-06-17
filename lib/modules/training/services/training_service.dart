@@ -1,13 +1,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../teachers/models/teacher.dart';
 import '../models/training.dart';
 
 class TrainingService {
-  TrainingService({FirebaseFirestore? firestore})
-      : _db = firestore ?? FirebaseFirestore.instance;
+  TrainingService({FirebaseFirestore? firestore, FirebaseStorage? storage})
+      : _db = firestore ?? FirebaseFirestore.instance,
+        _storage = storage ?? FirebaseStorage.instance;
 
   final FirebaseFirestore _db;
+  final FirebaseStorage _storage;
 
   CollectionReference<Map<String, dynamic>> get _posts =>
       _db.collection('training_posts');
@@ -20,6 +24,24 @@ class TrainingService {
     final doc = post.id.isEmpty ? _posts.doc() : _posts.doc(post.id);
     await doc.set(post.toMap());
     return doc.id;
+  }
+
+  Future<String> uploadImageToStorage(
+    XFile image, {
+    required String authorId,
+    String folder = 'training_posts',
+  }) async {
+    final extension = image.name.contains('.')
+        ? image.name.split('.').last.toLowerCase()
+        : 'jpg';
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final ref = _storage.ref().child('$folder/$authorId/$timestamp.$extension');
+    final bytes = await image.readAsBytes();
+    final metadata =
+        SettableMetadata(contentType: image.mimeType ?? 'image/jpeg');
+
+    await ref.putData(bytes, metadata);
+    return ref.getDownloadURL();
   }
 
   Stream<List<TrainingPost>> streamPosts({bool trainingOnly = false}) {
@@ -37,6 +59,28 @@ class TrainingService {
   }
 
   Stream<List<TrainingPost>> getTrainingPosts() => streamPosts();
+
+  Stream<List<TrainingPost>> searchPosts(String query) {
+    final normalized = query.trim().toLowerCase();
+    return streamPosts().map((posts) {
+      if (normalized.isEmpty) return posts;
+      return posts.where((post) {
+        return post.content.toLowerCase().contains(normalized) ||
+            post.authorName.toLowerCase().contains(normalized) ||
+            (post.trainingTitle ?? '').toLowerCase().contains(normalized);
+      }).toList();
+    });
+  }
+
+  Stream<List<TrainingPost>> getPostsByAuthor(String authorId) {
+    return _posts
+        .where('authorId', isEqualTo: authorId)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => TrainingPost.fromMap(doc.id, doc.data()))
+            .toList());
+  }
 
   Future<void> toggleLike(String postId, String userId) async {
     final ref = _posts.doc(postId);

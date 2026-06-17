@@ -1,214 +1,232 @@
-You are working inside an existing Flutter + Firebase project.
+You are working inside an existing Flutter + Firebase CPD Training module.
 
-You MUST use and extend the existing codebase without restructuring the project unnecessarily.
-
-Existing architecture:
-- models/training.dart (already implemented: TrainingPost, TrainingComment, TrainingApplication)
+Current architecture already exists:
+- models/training.dart
+- services/training_service.dart
 - providers/training_provider.dart
 - screens/admin_training_screen.dart
 - screens/teacher_training.dart
-- services/training_service.dart
 
-Firebase is already configured and initialized. Cloud Firestore is the backend.
-
----
-
-## 🎯 GOAL
-Build a fully functional “CPD Training Social Feed Module” with LinkedIn-style interaction + training workflow system for teachers and principals.
-
-This is NOT a mock UI. It must be fully functional with Firestore read/write + real-time updates.
+Firebase is already configured and working.
+Do NOT refactor the project structure. Only extend and fix existing code.
 
 ---
 
-# 🧠 CORE FEATURE REQUIREMENTS
+# 🎯 TASK OVERVIEW
 
-## 1. Social Feed System (LinkedIn-style CPD feed)
-
-Implement a real-time feed using Firestore snapshots:
-
-Each TrainingPost should support:
-- authorId, authorName, authorRole
-- content (rich formatted text)
-- photoUrl (optional media)
-- likes (array of userIds)
-- comments subcollection
-- createdAt (timestamp)
-- fontStyle presets (Console Mono, Book Serif, Playful Blue, Warm Gold)
-- isTraining flag
-
-UI requirements:
-- real-time stream feed (StreamBuilder or provider stream)
-- like button toggle (optimistic UI allowed)
-- comment section per post
-- display formatting styles visually
+You must implement feature enhancements + UI bug fixes for the CPD Training Social Feed module.
 
 ---
 
-## 2. Rich Post Formatting System
+# 🧩 PART 1 — CRITICAL UI BUG FIXES
 
-Extend posting system to support:
-- bullet points formatting (store as markdown-like text or structured string)
-- clickable links
-- typography presets:
-  - Console Mono
-  - Book Serif
-  - Playful Blue
-  - Warm Gold
+## 1. Admin screen right overflow (63px issue)
 
-Ensure formatting renders correctly in UI using Flutter widgets (RichText or markdown renderer if needed).
+Fix horizontal overflow in admin interface.
 
----
+Requirements:
+- Ensure all Row widgets use:
+  - Expanded
+  - Flexible
+  - or SingleChildScrollView (horizontal if needed)
+- Prevent any widget from exceeding screen width
+- Ensure responsive layout for:
+  - form inputs
+  - buttons
+  - application lists
 
-## 3. Training Post System (Principal/Admin Side)
-
-Admins can create training posts with:
-
-Required fields:
-- trainingTitle
-- trainingDescription
-- maxTrainees (seat cap)
-- enrollmentMode:
-  - "open_volunteer"
-  - "assigned"
-
-Behavior:
-- If open_volunteer → teachers can apply
-- If assigned → principal selects trainees directly
-
-Training posts must display:
-- remaining seats (real-time calculated from traineeIds.length)
-- enrollment mode badge
-- apply/join button logic based on mode
+NO hardcoded widths allowed.
 
 ---
 
-## 4. Teacher Application Workflow
+## 2. Keyboard bottom overflow (46px issue)
 
-Teachers can:
-- view training posts in teacher screen
-- see seat availability
-- click “Apply” if open_volunteer mode
+Fix bottom overflow when keyboard appears.
 
-Application flow:
-1. Teacher submits TrainingApplication to Firestore
-2. Status = pending
-3. Stored in trainingApplications collection
+Requirements:
+- Wrap main admin layout with:
+  - SingleChildScrollView OR
+  - SafeArea + ResizeToAvoidBottomInset
+- Ensure form fields remain visible when keyboard opens
+- Add proper padding using MediaQuery viewInsets
 
----
-
-## 5. Principal Approval System (Admin Screen)
-
-Admin screen must:
-- show all pending applications grouped by training post
-- allow approve / reject
-
-When action is taken:
-- update TrainingApplication.status → approved / rejected
-- if approved:
-  - add teacherId into TrainingPost.traineeIds array
-  - update seat count automatically
+Must fully eliminate overflow warnings.
 
 ---
 
-## 6. Real-time Updates & Notifications
+# 🧩 PART 2 — POST INTERACTION ENHANCEMENTS
 
-Everything must be real-time:
-- feed updates instantly
-- application status updates instantly
-- trainee list updates instantly
+## 3. Image upload from local storage
 
-Also implement a basic notification trigger system:
-- when application approved → teacher sees status update in UI immediately
+When user (teacher or principal) creates a post:
 
-(No external push notification required unless already supported)
+Add ability to:
+- click image upload button inside post composer
+- pick image from device storage
+- upload to Firebase Storage
+- store returned image URL in Firestore (photoUrl field)
 
----
+Requirements:
+- Use image_picker package
+- Create reusable function in training_service:
+  uploadImageToStorage()
 
-## 7. Faculty Profile Overlay Feature
-
-When clicking any post author avatar:
-- open modal bottom sheet or dialog
-- fetch faculty profile from Firestore using authorId
-- display:
-  - name
-  - role
-  - school info (if available)
-  - ethics points (placeholder field if not implemented)
-  - emergency contact (if available)
+- Must support:
+  - admin post
+  - teacher post
+  - training post
 
 ---
 
-# 🧩 SERVICE LAYER REQUIREMENTS
+## 4. Clickable links inside posts
 
-Use services/training_service.dart as SINGLE source of truth for Firestore operations.
+Enable hyperlink detection in post content.
 
-It must include:
-- createPost
-- streamPosts
-- toggleLike
-- addComment
-- applyTraining
-- approveApplication
-- rejectApplication
-- assignTraineeToTraining
+Requirements:
+- Detect URLs inside post content
+- Render them as clickable links
+- On tap:
+  - open in external browser using url_launcher
 
-NO Firestore logic should be inside UI or provider directly.
+Ensure:
+- links work inside feed
+- links work inside comments if present
 
 ---
 
-# 📦 PROVIDER REQUIREMENTS
+## 5. Search posts (teacher + principal)
+
+Add search functionality in feed.
+
+Requirements:
+- Add search bar in teacher_training.dart and admin_training_screen.dart
+- Search by:
+  - trainingTitle
+  - content
+  - authorName
+
+Implementation:
+- Use Firestore query OR local filtering from provider stream
+- Must update results in real-time as user types
+
+---
+
+## 6. Profile view (Facebook-style post owner profile)
+
+When clicking on post author avatar:
+
+Open profile page/modal showing:
+
+Required:
+- authorName
+- authorRole
+- all posts created by that user
+
+Feed requirements:
+- Display posts in chronological order
+- Same UI style as main feed
+- Allow:
+  - like posts
+  - comment on posts
+
+Data source:
+- Filter TrainingPost where authorId == selected userId
+
+---
+
+# 🧩 PART 3 — SOCIAL INTERACTIONS
+
+Ensure existing features remain functional:
+- like system
+- comments system
+- trainee application system
+
+BUT extend them to:
+- support real-time UI updates
+- reflect changes instantly in feed and profile view
+
+---
+
+# 🧠 SERVICE LAYER RULES (STRICT)
+
+All Firebase logic MUST be inside:
+services/training_service.dart
+
+Add or extend functions:
+
+- uploadImageToStorage()
+- searchPosts(query)
+- getPostsByAuthor(authorId)
+- openLink(url handling is UI but detection helper can be here if needed)
+
+NO Firestore calls inside UI or provider directly.
+
+---
+
+# 📦 PROVIDER RULES
 
 training_provider.dart must:
-- expose stream of TrainingPosts
-- manage loading states
-- handle optimistic updates for likes
-- expose applications stream for admin screen
-- handle filtering:
-  - teacher view
-  - admin view
 
-Use ChangeNotifier or Riverpod depending on existing setup (match project style).
+- expose search state
+- manage filtered post list
+- maintain full post stream
+- support profile post filtering state
+- ensure real-time sync with Firestore
 
 ---
 
-# 📱 SCREENS
+# 📱 UI REQUIREMENTS
 
 ## teacher_training.dart
 Must include:
-- feed view
-- apply button
-- comment interaction
-- real-time updates
+- feed
+- search bar
+- image upload post composer
+- clickable links in posts
+- profile navigation on avatar click
+
+---
 
 ## admin_training_screen.dart
 Must include:
-- create training post form
-- applications review panel
-- approve/reject workflow
-- trainee assignment UI
+- fixed layout (no overflow)
+- post creation with image upload
+- search bar
+- application approval system
+- profile navigation support
+
+---
+
+## profile view (new or modal)
+Must show:
+- user info header
+- list of all their posts
+- interactive feed behavior
 
 ---
 
 # ⚠️ CONSTRAINTS
 
-- Do NOT redesign folder structure
-- Do NOT remove existing model file (training.dart)
-- Must use Firestore as backend
-- Must use real-time streams (no fake state)
-- Must reuse existing models exactly
-- Must ensure null safety
-- Must avoid duplicated service logic
+- Do NOT change project structure
+- Do NOT remove existing models
+- Do NOT break Firestore schema
+- Must use existing TrainingPost / TrainingComment / TrainingApplication models
+- Must maintain null safety
+- Must ensure responsive UI on mobile screens
+- Must not introduce duplicated service logic
 
 ---
 
-# 🎯 FINAL OUTPUT EXPECTATION
+# 🎯 FINAL EXPECTATION
 
 After implementation:
-- Teachers can see training feed
-- Teachers can apply to trainings
-- Principals can create trainings
-- Principals can approve/reject applications
-- Approved teachers appear in trainee list instantly
-- All updates sync in real-time via Firestore
 
-Build this as a production-ready module, not a demo.
+1. Admin UI has no overflow issues
+2. Keyboard no longer causes bottom overflow
+3. Users can upload images to posts
+4. Links in posts are clickable and open browser
+5. Search works in both admin and teacher feeds
+6. Clicking profile shows all past posts (Facebook-style)
+7. System remains fully real-time with Firebase
+
+Build this as production-quality Flutter code.

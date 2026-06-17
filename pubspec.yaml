@@ -13,6 +13,7 @@ dependencies:
   # Firebase Core & Firestore
   firebase_core: ^4.10.0
   cloud_firestore: ^6.5.0
+  firebase_storage: ^13.0.2
   
   # State Management & DI
   provider: ^6.1.1
@@ -33,6 +34,7 @@ dependencies:
   # Image uploads & camera access (Duty Checklists & Reports)
   image_picker: ^1.0.4
   file_picker: ^8.1.2
+  url_launcher: ^6.3.2
   
   # Interactive icons
   lucide_icons: 0.257.0

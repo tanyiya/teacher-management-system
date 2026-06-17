@@ -1,8 +1,10 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app_theme.dart';
 import '../../teachers/models/teacher.dart';
@@ -20,17 +22,17 @@ class TeacherTrainingScreen extends StatefulWidget {
 class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _contentController = TextEditingController();
-  final TextEditingController _photoController = TextEditingController();
   final Map<String, TextEditingController> _commentControllers = {};
   final Set<String> _expandedComments = {};
+  XFile? _selectedImage;
   bool _isCreatorExpanded = false;
+  bool _isUploadingImage = false;
   String _fontStyle = 'sans';
 
   @override
   void dispose() {
     _searchController.dispose();
     _contentController.dispose();
-    _photoController.dispose();
     for (final controller in _commentControllers.values) {
       controller.dispose();
     }
@@ -40,13 +42,7 @@ class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<TrainingProvider>();
-    final query = _searchController.text.trim().toLowerCase();
-    final posts = provider.teacherPosts().where((post) {
-      if (query.isEmpty) return true;
-      return post.content.toLowerCase().contains(query) ||
-          post.authorName.toLowerCase().contains(query) ||
-          (post.trainingTitle ?? '').toLowerCase().contains(query);
-    }).toList();
+    final posts = provider.teacherPosts();
 
     return Column(
       children: [
@@ -54,7 +50,7 @@ class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
           padding: const EdgeInsets.all(16),
           child: TextField(
             controller: _searchController,
-            onChanged: (_) => setState(() {}),
+            onChanged: provider.updateSearchQuery,
             decoration: InputDecoration(
               hintText: 'Search posts, training, authors...',
               prefixIcon: const Icon(LucideIcons.search),
@@ -140,12 +136,7 @@ class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
                     border: OutlineInputBorder(), hintText: 'Write here...'),
               ),
               const SizedBox(height: 12),
-              TextField(
-                controller: _photoController,
-                decoration: const InputDecoration(
-                    border: OutlineInputBorder(), labelText: 'Photo URL'),
-              ),
-              const SizedBox(height: 12),
+              _buildImagePickerRow(),
               Row(
                 children: [
                   IconButton(
@@ -184,9 +175,11 @@ class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
                   ),
                   const SizedBox(width: 8),
                   ElevatedButton.icon(
-                    onPressed: () => _createSocialPost(provider),
+                    onPressed: _isUploadingImage
+                        ? null
+                        : () => _createSocialPost(provider),
                     icon: const Icon(LucideIcons.send, size: 16),
-                    label: const Text('Post'),
+                    label: Text(_isUploadingImage ? 'Uploading...' : 'Post'),
                   ),
                 ],
               ),
@@ -197,11 +190,9 @@ class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
     );
   }
 
-  Widget _buildPostCard(
-    TrainingProvider provider,
-    TrainingPost post,
-    TrainingApplication? application,
-  ) {
+  Widget _buildPostCard(TrainingProvider provider, TrainingPost post,
+      TrainingApplication? application,
+      {bool allowApplication = true}) {
     final isLiked = post.likes.contains(widget.user.id);
     final commentsExpanded = _expandedComments.contains(post.id);
 
@@ -242,7 +233,12 @@ class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
             ),
             const SizedBox(height: 12),
             if (post.isTraining)
-              _buildTrainingPanel(provider, post, application),
+              _buildTrainingPanel(
+                provider,
+                post,
+                application,
+                allowApplication: allowApplication,
+              ),
             _buildFormattedContent(post),
             if (post.photoUrl.isNotEmpty) ...[
               const SizedBox(height: 12),
@@ -285,14 +281,13 @@ class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
     );
   }
 
-  Widget _buildTrainingPanel(
-    TrainingProvider provider,
-    TrainingPost post,
-    TrainingApplication? application,
-  ) {
+  Widget _buildTrainingPanel(TrainingProvider provider, TrainingPost post,
+      TrainingApplication? application,
+      {bool allowApplication = true}) {
     final remaining = post.remainingSeats;
     final isEnrolled = post.traineeIds.contains(widget.user.id);
-    final canApply = post.isOpenVolunteer &&
+    final canApply = allowApplication &&
+        post.isOpenVolunteer &&
         !post.isFull &&
         application == null &&
         !isEnrolled;
@@ -341,7 +336,9 @@ class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
                 onPressed: canApply && !provider.isPostBusy(post.id)
                     ? () => _apply(provider, post)
                     : null,
-                child: Text(_trainingButtonText(post, application, isEnrolled)),
+                child: Text(allowApplication
+                    ? _trainingButtonText(post, application, isEnrolled)
+                    : 'View in feed'),
               ),
             ],
           ),
@@ -381,7 +378,17 @@ class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
                         title: Text(comment.authorName,
                             style: const TextStyle(
                                 fontWeight: FontWeight.w600, fontSize: 13)),
-                        subtitle: Text(comment.text),
+                        subtitle: RichText(
+                          text: TextSpan(
+                            style: const TextStyle(
+                                color: AppTheme.textColor, height: 1.3),
+                            children: _linkSpans(
+                              comment.text,
+                              const TextStyle(
+                                  color: AppTheme.textColor, height: 1.3),
+                            ),
+                          ),
+                        ),
                       ))
                   .toList(),
             );
@@ -505,26 +512,42 @@ class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
 
   Future<void> _createSocialPost(TrainingProvider provider) async {
     final content = _contentController.text.trim();
-    if (content.isEmpty) return;
+    if (content.isEmpty && _selectedImage == null) return;
 
-    await provider.createPost(TrainingPost(
-      id: '',
-      authorId: widget.user.id,
-      authorName: widget.user.fullName,
-      authorRole: widget.user.role,
-      content: content,
-      photoUrl: _photoController.text.trim(),
-      likes: const [],
-      commentsCount: 0,
-      createdAt: DateTime.now(),
-      fontStyle: _fontStyle,
-      isTraining: false,
-      traineeIds: const [],
-    ));
+    try {
+      setState(() => _isUploadingImage = true);
+      final photoUrl = _selectedImage == null
+          ? ''
+          : await provider.uploadImageToStorage(
+              _selectedImage!, widget.user.id);
 
-    _contentController.clear();
-    _photoController.clear();
-    setState(() => _isCreatorExpanded = false);
+      await provider.createPost(TrainingPost(
+        id: '',
+        authorId: widget.user.id,
+        authorName: widget.user.fullName,
+        authorRole: widget.user.role,
+        content: content,
+        photoUrl: photoUrl,
+        likes: const [],
+        commentsCount: 0,
+        createdAt: DateTime.now(),
+        fontStyle: _fontStyle,
+        isTraining: false,
+        traineeIds: const [],
+      ));
+
+      _contentController.clear();
+      setState(() {
+        _selectedImage = null;
+        _isCreatorExpanded = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      if (mounted) setState(() => _isUploadingImage = false);
+    }
   }
 
   Future<void> _apply(TrainingProvider provider, TrainingPost post) async {
@@ -545,6 +568,7 @@ class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (context) => FutureBuilder<TeacherRecord?>(
         future: provider.getFacultyProfile(authorId),
         builder: (context, snapshot) {
@@ -559,42 +583,72 @@ class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
                 child: Center(child: Text('Profile unavailable.')));
           }
 
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                        radius: 24, child: Text(_initial(faculty.fullName))),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+          return DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.85,
+            minChildSize: 0.45,
+            maxChildSize: 0.95,
+            builder: (context, scrollController) {
+              return StreamBuilder<List<TrainingPost>>(
+                stream: provider.getPostsByAuthor(authorId),
+                builder: (context, postsSnapshot) {
+                  final posts = postsSnapshot.data ?? [];
+
+                  return ListView(
+                    controller: scrollController,
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                    children: [
+                      Row(
                         children: [
-                          Text(faculty.fullName,
-                              style: const TextStyle(
-                                  fontSize: 18, fontWeight: FontWeight.bold)),
-                          Text(faculty.role,
-                              style: const TextStyle(color: Colors.grey)),
+                          CircleAvatar(
+                              radius: 24,
+                              child: Text(_initial(faculty.fullName))),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(faculty.fullName,
+                                    style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold)),
+                                Text(faculty.role,
+                                    style: const TextStyle(color: Colors.grey)),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _profileLine('School info',
-                    faculty.address.isEmpty ? 'Not provided' : faculty.address),
-                _profileLine('Ethics points', faculty.currentScore.toString()),
-                _profileLine(
-                    'Emergency contact',
-                    faculty.emergencyContactName.isEmpty
-                        ? 'Not provided'
-                        : '${faculty.emergencyContactName} ${faculty.emergencyContactNumber}'),
-              ],
-            ),
+                      const SizedBox(height: 16),
+                      _profileLine('School info',
+                          _profileValueOrFallback(faculty.address)),
+                      _profileLine(
+                          'Ethics points', faculty.currentScore.toString()),
+                      _profileLine(
+                          'Emergency contact',
+                          _profileValue(faculty.emergencyContactName).isEmpty
+                              ? 'Not provided'
+                              : '${_profileValue(faculty.emergencyContactName)} ${_profileValue(faculty.emergencyContactNumber)}'),
+                      const Divider(height: 32),
+                      if (postsSnapshot.connectionState ==
+                          ConnectionState.waiting)
+                        const Center(child: CircularProgressIndicator())
+                      else if (posts.isEmpty)
+                        const Center(child: Text('No posts yet.'))
+                      else
+                        ...posts.map(
+                          (post) => _buildPostCard(
+                            provider,
+                            post,
+                            null,
+                            allowApplication: false,
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              );
+            },
           );
         },
       ),
@@ -637,21 +691,63 @@ class _TeacherTrainingScreenState extends State<TeacherTrainingScreen> {
     return 'Apply';
   }
 
-  void _showLink(String url) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Link'),
-        content: SelectableText(url),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Close')),
+  Widget _buildImagePickerRow() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          OutlinedButton.icon(
+            onPressed: _pickImage,
+            icon: const Icon(LucideIcons.image, size: 16),
+            label: Text(_selectedImage == null ? 'Add image' : 'Change image'),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              _selectedImage?.name ?? 'No image selected',
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Colors.grey),
+            ),
+          ),
+          if (_selectedImage != null)
+            IconButton(
+              tooltip: 'Remove image',
+              icon: const Icon(LucideIcons.x),
+              onPressed: () => setState(() => _selectedImage = null),
+            ),
         ],
       ),
     );
   }
 
-  String _initial(String value) =>
-      value.trim().isEmpty ? '?' : value.trim()[0].toUpperCase();
+  Future<void> _pickImage() async {
+    final image = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+      maxWidth: 1600,
+    );
+    if (image == null || !mounted) return;
+    setState(() => _selectedImage = image);
+  }
+
+  Future<void> _showLink(String url) async {
+    final uri = Uri.parse(url);
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Could not open $url')));
+    }
+  }
+
+  String _profileValue(Object? value) => (value ?? '').toString().trim();
+
+  String _profileValueOrFallback(Object? value) {
+    final text = _profileValue(value);
+    return text.isEmpty ? 'Not provided' : text;
+  }
+
+  String _initial(Object? value) {
+    final text = (value ?? '').toString().trim();
+    return text.isEmpty ? '?' : text[0].toUpperCase();
+  }
 }

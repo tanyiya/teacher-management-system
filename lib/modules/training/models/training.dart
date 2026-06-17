@@ -49,23 +49,25 @@ class TrainingPost {
   factory TrainingPost.fromMap(String id, Map<String, dynamic> data) {
     return TrainingPost(
       id: id,
-      authorId: data['authorId'] ?? '',
-      authorName: data['authorName'] ?? '',
-      authorRole: data['authorRole'] ?? 'teacher',
-      content: data['content'] ?? '',
-      photoUrl: data['photoUrl'] ?? '',
-      likes: List<String>.from(data['likes'] ?? []),
+      authorId: _stringValue(data['authorId']),
+      authorName: _stringValue(data['authorName']),
+      authorRole: _stringValue(data['authorRole'], fallback: 'teacher'),
+      content: _stringValue(data['content']),
+      photoUrl: _stringValue(data['photoUrl']),
+      likes: _stringListValue(data['likes']),
       commentsCount: data['commentsCount']?.toInt() ?? 0,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      fontStyle: data['fontStyle'] ?? 'sans',
+      fontStyle: _stringValue(data['fontStyle'], fallback: 'sans'),
       isTraining: data['isTraining'] ?? false,
-      trainingTitle: data['trainingTitle'],
-      trainingDescription: data['trainingDescription'],
+      trainingTitle: _nullableStringValue(data['trainingTitle']),
+      trainingDescription: _nullableStringValue(data['trainingDescription']),
       maxTrainees: data['maxTrainees']?.toInt(),
-      type: data['type'],
-      enrollmentMode:
-          data['enrollmentMode'] ?? data['type'] ?? 'open_volunteer',
-      traineeIds: List<String>.from(data['traineeIds'] ?? []),
+      type: _nullableStringValue(data['type']),
+      enrollmentMode: _stringValue(
+        data['enrollmentMode'] ?? data['type'],
+        fallback: 'open_volunteer',
+      ),
+      traineeIds: _stringListValue(data['traineeIds']),
     );
   }
 
@@ -113,11 +115,11 @@ class TrainingComment {
   factory TrainingComment.fromMap(String id, Map<String, dynamic> data) {
     return TrainingComment(
       id: id,
-      postId: data['postId'] ?? '',
-      authorId: data['authorId'] ?? '',
-      authorName: data['authorName'] ?? '',
-      authorRole: data['authorRole'] ?? 'teacher',
-      text: data['text'] ?? '',
+      postId: _stringValue(data['postId']),
+      authorId: _stringValue(data['authorId']),
+      authorName: _stringValue(data['authorName']),
+      authorRole: _stringValue(data['authorRole'], fallback: 'teacher'),
+      text: _stringValue(data['text']),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
@@ -156,11 +158,11 @@ class TrainingApplication {
   factory TrainingApplication.fromMap(String id, Map<String, dynamic> data) {
     return TrainingApplication(
       id: id,
-      postId: data['postId'] ?? '',
-      trainingTitle: data['trainingTitle'] ?? '',
-      teacherId: data['teacherId'] ?? '',
-      teacherName: data['teacherName'] ?? '',
-      status: data['status'] ?? 'pending',
+      postId: _stringValue(data['postId']),
+      trainingTitle: _stringValue(data['trainingTitle']),
+      teacherId: _stringValue(data['teacherId']),
+      teacherName: _stringValue(data['teacherName']),
+      status: _stringValue(data['status'], fallback: 'pending'),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
@@ -175,4 +177,23 @@ class TrainingApplication {
       'createdAt': Timestamp.fromDate(createdAt),
     };
   }
+}
+
+String _stringValue(Object? value, {String fallback = ''}) {
+  if (value == null) return fallback;
+  if (value is String) return value;
+  return value.toString();
+}
+
+String? _nullableStringValue(Object? value) {
+  if (value == null) return null;
+  if (value is String) return value;
+  return value.toString();
+}
+
+List<String> _stringListValue(Object? value) {
+  if (value is Iterable) {
+    return value.map((item) => _stringValue(item)).toList();
+  }
+  return const [];
 }
