@@ -73,7 +73,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ).animate().scale(duration: 400.ms, curve: Curves.easeOutBack),
                 const SizedBox(height: 24),
                 Text(
-                  'PORTAL ACCESS',
+                  'GENIUS AQILOS',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.bold,
                         letterSpacing: 2,
@@ -120,7 +120,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             child: Center(
                               child: Text(
-                                'Campus Staff',
+                                'Teachers',
                                 style: TextStyle(
                                   fontWeight: _isCampusStaff
                                       ? FontWeight.bold
@@ -157,7 +157,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             child: Center(
                               child: Text(
-                                'Administration',
+                                'Admin',
                                 style: TextStyle(
                                   fontWeight: !_isCampusStaff
                                       ? FontWeight.bold

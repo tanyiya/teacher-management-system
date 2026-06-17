@@ -96,7 +96,6 @@ class _KpiScreenState extends State<KpiScreen> {
 
   late String _selectedCategory;
   late String _selectedCriterion;
-  bool _hasBootstrapped = false;
   bool _isPositive = true;
   String _severity = 'Normal';
 
@@ -105,6 +104,26 @@ class _KpiScreenState extends State<KpiScreen> {
     super.initState();
     _selectedCategory = _categoryCriteria.keys.first;
     _selectedCriterion = _categoryCriteria[_selectedCategory]!.first;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final appState = Provider.of<AppStateProvider>(context);
+    final provider = Provider.of<PerformanceProvider>(context, listen: false);
+    final user = appState.currentUser;
+    if (user == null) return;
+
+    final isPrincipal = user.role.toLowerCase() == 'principal';
+    if (isPrincipal) {
+      if (provider.teachers.isEmpty) {
+        provider.fetchTeachers();
+      }
+    } else {
+      if (provider.selectedTeacherId != user.id) {
+        provider.fetchTeacherPerformance(user.id);
+      }
+    }
   }
 
   @override
@@ -120,19 +139,6 @@ class _KpiScreenState extends State<KpiScreen> {
     final appState = Provider.of<AppStateProvider>(context);
     final provider = Provider.of<PerformanceProvider>(context);
     final user = appState.currentUser;
-
-    // Bootstrap once after first frame so provider is already listening
-    if (user != null && !_hasBootstrapped) {
-      _hasBootstrapped = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        if (user.role.toLowerCase() == 'principal') {
-          provider.fetchTeachers();
-        } else {
-          provider.fetchTeacherPerformance(user.id);
-        }
-      });
-    }
 
     if (user == null) {
       return const Center(child: Text('No signed-in user found.'));
@@ -939,20 +945,118 @@ class _KpiScreenState extends State<KpiScreen> {
   }
 
   Widget _buildWarningsSection(PerformanceProvider provider) {
-    return _recordList(
-      title: 'Warnings',
-      emptyText: 'No warnings recorded.',
-      items: provider.warnings
-          .take(5)
-          .map((w) => ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(LucideIcons.alertTriangle,
-                    color: Colors.orange),
-                title: Text(w.warningType,
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: Text('${w.issuedBy} · ${w.message}'),
-              ))
-          .toList(),
+    final warnings = provider.warnings;
+    return _panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Warnings',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              if (warnings.length > 5)
+                TextButton(
+                  onPressed: () => _showAllWarningRecords(context, provider),
+                  child: const Text('View All'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (warnings.isEmpty)
+            const Text('No warnings recorded.',
+                style: TextStyle(color: Colors.grey))
+          else
+            Column(
+              children: warnings.take(5).map((w) {
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(LucideIcons.alertTriangle,
+                      color: Colors.orange),
+                  title: Text(w.warningType,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1),
+                  subtitle: Text('${w.issuedBy} · ${w.message}',
+                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                );
+              }).toList(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _showAllWarningRecords(
+    BuildContext context,
+    PerformanceProvider provider,
+  ) {
+    final warnings = provider.warnings;
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: 560,
+            maxWidth: MediaQuery.of(context).size.width * 0.95,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Expanded(
+                      child: Text('All Warning Records',
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold)),
+                    ),
+                    IconButton(
+                      icon: const Icon(LucideIcons.x),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: warnings.isEmpty
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Text('No warnings recorded.'),
+                        ),
+                      )
+                    : ListView.separated(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: warnings.length,
+                        separatorBuilder: (context, index) => const Divider(),
+                        itemBuilder: (context, index) {
+                          final warning = warnings[index];
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(LucideIcons.alertTriangle,
+                                color: Colors.orange),
+                            title: Text(warning.warningType,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1),
+                            subtitle: Text(
+                              '${warning.issuedBy} · ${warning.message}',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1102,8 +1206,17 @@ class _KpiScreenState extends State<KpiScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('KPI Leaderboard',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('KPI Leaderboard',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              TextButton(
+                onPressed: () => _showAllKpiRecords(context, provider, records),
+                child: const Text('View All'),
+              ),
+            ],
+          ),
           const SizedBox(height: 12),
           Column(
             children: records.take(5).map((record) {
@@ -1144,6 +1257,95 @@ class _KpiScreenState extends State<KpiScreen> {
             }).toList(),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showAllKpiRecords(
+    BuildContext context,
+    PerformanceProvider provider,
+    List<YearlyKpiRecord> records,
+  ) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: 560,
+            maxWidth: MediaQuery.of(context).size.width * 0.95,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Expanded(
+                      child: Text('All Teacher KPI Records',
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold)),
+                    ),
+                    IconButton(
+                      icon: const Icon(LucideIcons.x),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: records.length,
+                  separatorBuilder: (context, index) => const Divider(),
+                  itemBuilder: (context, index) {
+                    final record = records[index];
+                    final teacherName = provider.teachers
+                            .firstWhere(
+                                (t) => t.id == record.teacherId,
+                                orElse: () => TeacherRecord(
+                                      id: record.teacherId,
+                                      username: record.teacherId,
+                                      email: '',
+                                      fullName: record.teacherId,
+                                      role: 'teacher',
+                                      icNumber: '',
+                                      gender: '',
+                                      dob: '',
+                                      address: '',
+                                      phoneNumber: '',
+                                      maritalStatus: '',
+                                      emergencyContactName: '',
+                                      emergencyContactNumber: '',
+                                      currentScore: 100,
+                                      yearlyKpi: 0,
+                                      status: 'active',
+                                      documents: {},
+                                    ))
+                            .fullName ??
+                        record.teacherId;
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        teacherName,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                      subtitle: Text(
+                        'Score: ${record.finalScore.toStringAsFixed(1)} · Rating: ${record.rating} · Status: ${record.status}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
