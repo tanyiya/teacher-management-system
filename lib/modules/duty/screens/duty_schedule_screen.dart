@@ -54,9 +54,13 @@ class _DutyScheduleScreenState extends State<DutyScheduleScreen> {
         title: const Text('Duty Management'),
         actions: [
           IconButton(
-            tooltip: provider.viewMode == DutyViewMode.calendar ? 'List view' : 'Calendar view',
+            tooltip: provider.viewMode == DutyViewMode.calendar
+                ? 'List view'
+                : 'Calendar view',
             onPressed: provider.toggleViewMode,
-            icon: Icon(provider.viewMode == DutyViewMode.calendar ? Icons.view_agenda_outlined : Icons.calendar_month),
+            icon: Icon(provider.viewMode == DutyViewMode.calendar
+                ? Icons.view_agenda_outlined
+                : Icons.calendar_month),
           ),
           if (provider.isPrincipal)
             IconButton(
@@ -74,31 +78,43 @@ class _DutyScheduleScreenState extends State<DutyScheduleScreen> {
           : null,
       body: Column(
         children: [
-          _TopBar(onAddLocation: provider.isPrincipal && provider.groupingMode == DutyGroupingMode.location
-              ? () => _showAddLocation(context)
-              : null),
+          _TopBar(
+              onAddLocation: provider.isPrincipal &&
+                      provider.groupingMode == DutyGroupingMode.location
+                  ? () => _showAddLocation(context)
+                  : null),
           if (provider.error != null)
             MaterialBanner(
               content: Text(provider.error!),
               actions: [
-                TextButton(onPressed: ScaffoldMessenger.of(context).hideCurrentMaterialBanner, child: const Text('Dismiss')),
+                TextButton(
+                    onPressed:
+                        ScaffoldMessenger.of(context).hideCurrentMaterialBanner,
+                    child: const Text('Dismiss')),
               ],
             ),
           Expanded(
             child: provider.isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : provider.viewMode == DutyViewMode.calendar
-                    ? _CalendarGrid(onOpen: _showDutyDetail, onEdit: _showDutyEditor)
-                    : _DutyList(onOpen: _showDutyDetail, onEdit: _showDutyEditor, onComplete: _completeTask, onSwap: _showSwapDialog),
+                    ? _CalendarGrid(
+                        onOpen: _showDutyDetail, onEdit: _showDutyEditor)
+                    : _DutyList(
+                        onOpen: _showDutyDetail,
+                        onEdit: _showDutyEditor,
+                        onComplete: _completeTask,
+                        onSwap: _showSwapDialog),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _completeTask(BuildContext context, Duty duty, DutyTask task) async {
+  Future<void> _completeTask(
+      BuildContext context, Duty duty, DutyTask task) async {
     final provider = context.read<DutyProvider>();
-    final image = await _picker.pickImage(source: ImageSource.camera, imageQuality: 78, maxWidth: 1600);
+    final image = await _picker.pickImage(
+        source: ImageSource.camera, imageQuality: 78, maxWidth: 1600);
     if (image == null) return;
     await provider.completeTask(
       duty: duty,
@@ -125,7 +141,9 @@ class _DutyScheduleScreenState extends State<DutyScheduleScreen> {
             children: [
               Row(
                 children: [
-                  Expanded(child: Text(duty.title, style: Theme.of(context).textTheme.headlineSmall)),
+                  Expanded(
+                      child: Text(duty.title,
+                          style: Theme.of(context).textTheme.headlineSmall)),
                   if (provider.isPrincipal)
                     IconButton(
                       tooltip: 'Edit duty',
@@ -137,7 +155,8 @@ class _DutyScheduleScreenState extends State<DutyScheduleScreen> {
                     ),
                 ],
               ),
-              Text('${DateFormat.yMMMd().format(duty.date)}  ${duty.timeStart} - ${duty.timeEnd}'),
+              Text(
+                  '${DateFormat.yMMMd().format(duty.date)}  ${duty.timeStart} - ${duty.timeEnd}'),
               const SizedBox(height: 16),
               _InfoSection(
                 title: 'Locations and teachers',
@@ -146,7 +165,8 @@ class _DutyScheduleScreenState extends State<DutyScheduleScreen> {
                           contentPadding: EdgeInsets.zero,
                           leading: const Icon(Icons.place_outlined),
                           title: Text(location.name),
-                          subtitle: Text(duty.teacherLabelForLocation(location.id)),
+                          subtitle:
+                              Text(duty.teacherLabelForLocation(location.id)),
                         ))
                     .toList(),
               ),
@@ -156,19 +176,24 @@ class _DutyScheduleScreenState extends State<DutyScheduleScreen> {
                     .map((task) => ListTile(
                           contentPadding: EdgeInsets.zero,
                           leading: task.photoUrl == null
-                              ? Icon(task.isCompleted ? Icons.check_circle : Icons.radio_button_unchecked)
+                              ? Icon(task.isCompleted
+                                  ? Icons.check_circle
+                                  : Icons.radio_button_unchecked)
                               : ClipRRect(
                                   borderRadius: BorderRadius.circular(6),
-                                  child: Image.network(task.photoUrl!, width: 44, height: 44, fit: BoxFit.cover),
+                                  child: Image.network(task.photoUrl!,
+                                      width: 44, height: 44, fit: BoxFit.cover),
                                 ),
                           title: Text(task.name),
                           subtitle: Text(task.isCompleted
                               ? 'Completed ${task.completedAt == null ? '' : DateFormat.jm().format(task.completedAt!)}'
                               : 'Pending proof photo'),
-                          trailing: !task.isCompleted && provider.canCompleteTask(duty)
+                          trailing: !task.isCompleted &&
+                                  provider.canCompleteTask(duty)
                               ? IconButton(
                                   tooltip: 'Capture proof',
-                                  onPressed: () => _completeTask(context, duty, task),
+                                  onPressed: () =>
+                                      _completeTask(context, duty, task),
                                   icon: const Icon(Icons.photo_camera_outlined),
                                 )
                               : null,
@@ -194,8 +219,10 @@ class _DutyScheduleScreenState extends State<DutyScheduleScreen> {
               initialValue: provider.teacherFilterId,
               decoration: const InputDecoration(labelText: 'Teacher'),
               items: [
-                const DropdownMenuItem<String?>(value: null, child: Text('All teachers')),
-                ...provider.teachers.map((teacher) => DropdownMenuItem(value: teacher.id, child: Text(teacher.fullName))),
+                const DropdownMenuItem<String?>(
+                    value: null, child: Text('All teachers')),
+                ...provider.teachers.map((teacher) => DropdownMenuItem(
+                    value: teacher.id, child: Text(teacher.fullName))),
               ],
               onChanged: provider.setTeacherFilter,
             ),
@@ -204,8 +231,10 @@ class _DutyScheduleScreenState extends State<DutyScheduleScreen> {
               initialValue: provider.locationFilterId,
               decoration: const InputDecoration(labelText: 'Venue'),
               items: [
-                const DropdownMenuItem<String?>(value: null, child: Text('All venues')),
-                ...provider.locations.map((location) => DropdownMenuItem(value: location.id, child: Text(location.name))),
+                const DropdownMenuItem<String?>(
+                    value: null, child: Text('All venues')),
+                ...provider.locations.map((location) => DropdownMenuItem(
+                    value: location.id, child: Text(location.name))),
               ],
               onChanged: provider.setLocationFilter,
             ),
@@ -221,9 +250,13 @@ class _DutyScheduleScreenState extends State<DutyScheduleScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Add location'),
-        content: TextField(controller: controller, decoration: const InputDecoration(labelText: 'Location name')),
+        content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(labelText: 'Location name')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel')),
           FilledButton(
             onPressed: () async {
               if (controller.text.trim().isEmpty) return;
@@ -241,6 +274,8 @@ class _DutyScheduleScreenState extends State<DutyScheduleScreen> {
     final provider = context.read<DutyProvider>();
     final ids = await provider.eligibleSwapTeacherIds(duty);
     if (!context.mounted) return;
+    String? fromTeacherId =
+        duty.teacherIds.isNotEmpty ? duty.teacherIds.first : null;
     String? selectedId = ids.isNotEmpty ? ids.first : null;
     showDialog<void>(
       context: context,
@@ -251,15 +286,32 @@ class _DutyScheduleScreenState extends State<DutyScheduleScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('${duty.title}\n${duty.timeStart} - ${duty.timeEnd}\n${duty.locations.map((e) => e.name).join(', ')}'),
+              Text(
+                  '${duty.title}\n${duty.timeStart} - ${duty.timeEnd}\n${duty.locations.map((e) => e.name).join(', ')}'),
               const SizedBox(height: 16),
+              if (provider.isPrincipal)
+                DropdownButtonFormField<String>(
+                  initialValue: fromTeacherId,
+                  decoration:
+                      const InputDecoration(labelText: 'Replace teacher'),
+                  items: duty.teacherIds
+                      .map((id) => DropdownMenuItem(
+                          value: id, child: Text(duty.teacherNames[id] ?? id)))
+                      .toList(),
+                  onChanged: (value) => setState(() => fromTeacherId = value),
+                ),
+              if (provider.isPrincipal) const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: selectedId,
-                decoration: const InputDecoration(labelText: 'Eligible teacher'),
+                decoration:
+                    const InputDecoration(labelText: 'Eligible teacher'),
                 items: ids
                     .map((id) => DropdownMenuItem(
                           value: id,
-                          child: Text(provider.teachers.firstWhere((t) => t.id == id, orElse: () => _fallbackTeacher(id)).fullName),
+                          child: Text(provider.teachers
+                              .firstWhere((t) => t.id == id,
+                                  orElse: () => _fallbackTeacher(id))
+                              .fullName),
                         ))
                     .toList(),
                 onChanged: (value) => setState(() => selectedId = value),
@@ -267,12 +319,15 @@ class _DutyScheduleScreenState extends State<DutyScheduleScreen> {
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel')),
             FilledButton(
               onPressed: selectedId == null
                   ? null
                   : () async {
-                      await provider.requestSwap(duty, selectedId!);
+                      await provider.requestSwap(duty, selectedId!,
+                          fromTeacherId: fromTeacherId);
                       if (dialogContext.mounted) Navigator.pop(dialogContext);
                     },
               child: Text(provider.isPrincipal ? 'Swap now' : 'Request'),
@@ -286,14 +341,18 @@ class _DutyScheduleScreenState extends State<DutyScheduleScreen> {
   void _showDutyEditor(BuildContext context, {Duty? duty}) {
     final provider = context.read<DutyProvider>();
     final title = TextEditingController(text: duty?.title ?? '');
-    final start = TextEditingController(text: duty?.timeStart ?? '07:00');
-    final end = TextEditingController(text: duty?.timeEnd ?? '08:00');
-    final taskText = TextEditingController(text: duty?.tasks.map((task) => task.name).join('\n') ?? 'Inspect area\nSubmit photo proof');
+    var startTime = _timeOfDayFromText(duty?.timeStart ?? '07:00');
+    var endTime = _timeOfDayFromText(duty?.timeEnd ?? '08:00');
+    final taskText = TextEditingController(
+        text: duty?.tasks.map((task) => task.name).join('\n') ??
+            'Inspect area\nSubmit photo proof');
+    final newLocation = TextEditingController();
     var selectedDate = duty?.date ?? provider.selectedDate;
     var isAllDay = duty?.isAllDay ?? false;
     var minTeachers = duty?.minTeachersPerVenue ?? 1;
-    var selectedLocations = duty?.locations.map((e) => e.id).toSet() ?? <String>{};
-    var selectedTeachers = duty?.teacherIds.toSet() ?? <String>{};
+    var recurrence = duty?.recurrence ?? DutyRecurrence.once;
+    var selectedLocations =
+        duty?.locations.map((e) => e.id).toSet() ?? <String>{};
 
     showDialog<void>(
       context: context,
@@ -306,7 +365,10 @@ class _DutyScheduleScreenState extends State<DutyScheduleScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextField(controller: title, decoration: const InputDecoration(labelText: 'Duty name')),
+                  TextField(
+                      controller: title,
+                      decoration:
+                          const InputDecoration(labelText: 'Duty name')),
                   const SizedBox(height: 10),
                   Row(
                     children: [
@@ -315,11 +377,15 @@ class _DutyScheduleScreenState extends State<DutyScheduleScreen> {
                           onPressed: () async {
                             final picked = await showDatePicker(
                               context: context,
-                              firstDate: DateTime.now().subtract(const Duration(days: 10)),
-                              lastDate: DateTime.now().add(const Duration(days: 10)),
+                              firstDate: DateTime.now()
+                                  .subtract(const Duration(days: 10)),
+                              lastDate:
+                                  DateTime.now().add(const Duration(days: 10)),
                               initialDate: selectedDate,
                             );
-                            if (picked != null) setState(() => selectedDate = picked);
+                            if (picked != null) {
+                              setState(() => selectedDate = picked);
+                            }
                           },
                           icon: const Icon(Icons.event_outlined),
                           label: Text(DateFormat.yMMMd().format(selectedDate)),
@@ -337,17 +403,88 @@ class _DutyScheduleScreenState extends State<DutyScheduleScreen> {
                     const SizedBox(height: 10),
                     Row(
                       children: [
-                        Expanded(child: TextField(controller: start, decoration: const InputDecoration(labelText: 'Start HH:mm'))),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              final picked = await showTimePicker(
+                                  context: context, initialTime: startTime);
+                              if (picked != null) {
+                                setState(() => startTime = picked);
+                              }
+                            },
+                            icon: const Icon(Icons.schedule_outlined),
+                            label: Text('Start ${startTime.format(context)}'),
+                          ),
+                        ),
                         const SizedBox(width: 12),
-                        Expanded(child: TextField(controller: end, decoration: const InputDecoration(labelText: 'End HH:mm'))),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              final picked = await showTimePicker(
+                                  context: context, initialTime: endTime);
+                              if (picked != null) {
+                                setState(() => endTime = picked);
+                              }
+                            },
+                            icon: const Icon(Icons.schedule),
+                            label: Text('End ${endTime.format(context)}'),
+                          ),
+                        ),
                       ],
                     ),
                   ],
                   const SizedBox(height: 12),
+                  DropdownButtonFormField<DutyRecurrence>(
+                    initialValue: recurrence,
+                    decoration: const InputDecoration(labelText: 'Routine'),
+                    items: const [
+                      DropdownMenuItem(
+                          value: DutyRecurrence.once, child: Text('One time')),
+                      DropdownMenuItem(
+                          value: DutyRecurrence.daily, child: Text('Daily')),
+                      DropdownMenuItem(
+                          value: DutyRecurrence.weekly, child: Text('Weekly')),
+                      DropdownMenuItem(
+                          value: DutyRecurrence.monthly,
+                          child: Text('Monthly')),
+                    ],
+                    onChanged: (value) => setState(
+                        () => recurrence = value ?? DutyRecurrence.once),
+                  ),
+                  const SizedBox(height: 12),
                   Align(
                     alignment: Alignment.centerLeft,
-                    child: Text('Locations', style: Theme.of(context).textTheme.titleSmall),
+                    child: Text('Locations',
+                        style: Theme.of(context).textTheme.titleSmall),
                   ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: newLocation,
+                          decoration: const InputDecoration(
+                              labelText: 'Add new location'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.filledTonal(
+                        tooltip: 'Add location',
+                        onPressed: () async {
+                          final name = newLocation.text.trim();
+                          if (name.isEmpty) return;
+                          final added = await provider.addLocation(name);
+                          if (added != null) {
+                            setState(() {
+                              selectedLocations.add(added.id);
+                              newLocation.clear();
+                            });
+                          }
+                        },
+                        icon: const Icon(Icons.add_location_alt_outlined),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
                     children: provider.locations
@@ -355,7 +492,9 @@ class _DutyScheduleScreenState extends State<DutyScheduleScreen> {
                               label: Text(location.name),
                               selected: selectedLocations.contains(location.id),
                               onSelected: (value) => setState(() {
-                                value ? selectedLocations.add(location.id) : selectedLocations.remove(location.id);
+                                value
+                                    ? selectedLocations.add(location.id)
+                                    : selectedLocations.remove(location.id);
                               }),
                             ))
                         .toList(),
@@ -364,33 +503,29 @@ class _DutyScheduleScreenState extends State<DutyScheduleScreen> {
                   Row(
                     children: [
                       const Expanded(child: Text('Minimum teachers per venue')),
-                      IconButton(onPressed: minTeachers > 1 ? () => setState(() => minTeachers--) : null, icon: const Icon(Icons.remove)),
+                      IconButton(
+                          onPressed: minTeachers > 1
+                              ? () => setState(() => minTeachers--)
+                              : null,
+                          icon: const Icon(Icons.remove)),
                       Text('$minTeachers'),
-                      IconButton(onPressed: () => setState(() => minTeachers++), icon: const Icon(Icons.add)),
+                      IconButton(
+                          onPressed: () => setState(() => minTeachers++),
+                          icon: const Icon(Icons.add)),
                     ],
                   ),
-                  Align(
+                  const Align(
                     alignment: Alignment.centerLeft,
-                    child: Text('Teachers', style: Theme.of(context).textTheme.titleSmall),
-                  ),
-                  Wrap(
-                    spacing: 8,
-                    children: provider.teachers
-                        .map((teacher) => FilterChip(
-                              label: Text(teacher.fullName),
-                              selected: selectedTeachers.contains(teacher.id),
-                              onSelected: (value) => setState(() {
-                                value ? selectedTeachers.add(teacher.id) : selectedTeachers.remove(teacher.id);
-                              }),
-                            ))
-                        .toList(),
+                    child: Text(
+                        'Teachers are auto-assigned from active teachers who are not on leave or in training.'),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: taskText,
                     minLines: 3,
                     maxLines: 6,
-                    decoration: const InputDecoration(labelText: 'Task checklist, one per line'),
+                    decoration: const InputDecoration(
+                        labelText: 'Task checklist, one per line'),
                   ),
                 ],
               ),
@@ -405,36 +540,52 @@ class _DutyScheduleScreenState extends State<DutyScheduleScreen> {
                 },
                 child: const Text('Delete'),
               ),
-            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel')),
             FilledButton(
               onPressed: () async {
-                final locations = provider.locations.where((location) => selectedLocations.contains(location.id)).toList();
-                final teachers = provider.teachers.where((teacher) => selectedTeachers.contains(teacher.id)).toList();
-                final assignments = {
-                  for (final location in locations) location.id: teachers.map((teacher) => teacher.id).take(minTeachers).toList(),
+                final locations = provider.locations
+                    .where(
+                        (location) => selectedLocations.contains(location.id))
+                    .toList();
+                final existingTasks = {
+                  for (final task in duty?.tasks ?? const <DutyTask>[])
+                    task.id: task
                 };
-                final names = {for (final teacher in teachers) teacher.id: teacher.fullName};
                 final tasks = taskText.text
                     .split('\n')
                     .map((line) => line.trim())
                     .where((line) => line.isNotEmpty)
-                    .map((line) => DutyTask(id: line.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_'), name: line))
-                    .toList();
+                    .toList()
+                    .asMap()
+                    .entries
+                    .map((entry) {
+                  final id =
+                      '${entry.key}_${entry.value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_')}';
+                  return existingTasks[id]?.copyWith(name: entry.value) ??
+                      DutyTask(id: id, name: entry.value);
+                }).toList();
                 final next = Duty(
                   id: duty?.id ?? '',
-                  title: title.text.trim().isEmpty ? 'Untitled duty' : title.text.trim(),
+                  title: title.text.trim().isEmpty
+                      ? 'Untitled duty'
+                      : title.text.trim(),
                   date: selectedDate,
-                  timeStart: isAllDay ? '00:00' : start.text.trim(),
-                  timeEnd: isAllDay ? '23:59' : end.text.trim(),
+                  timeStart: isAllDay ? '00:00' : _formatTime(startTime),
+                  timeEnd: isAllDay ? '23:59' : _formatTime(endTime),
                   isAllDay: isAllDay,
                   locations: locations,
-                  teacherAssignments: assignments,
-                  teacherNames: names,
+                  teacherAssignments: duty?.teacherAssignments ?? const {},
+                  teacherNames: duty?.teacherNames ?? const {},
                   tasks: tasks,
                   thumbnailUrl: duty?.thumbnailUrl,
                   minTeachersPerVenue: minTeachers,
+                  recurrence: recurrence,
                 );
-                duty == null ? await provider.createDuty(next) : await provider.updateDuty(next);
+                duty == null
+                    ? await provider.createDuty(next)
+                    : await provider.updateDuty(next);
                 if (dialogContext.mounted) Navigator.pop(dialogContext);
               },
               child: const Text('Save'),
@@ -466,7 +617,8 @@ class _TopBar extends StatelessWidget {
           children: [
             IconButton(
               tooltip: 'Previous day',
-              onPressed: () => provider.setSelectedDate(date.subtract(const Duration(days: 1))),
+              onPressed: () => provider
+                  .setSelectedDate(date.subtract(const Duration(days: 1))),
               icon: const Icon(Icons.chevron_left),
             ),
             OutlinedButton.icon(
@@ -484,16 +636,24 @@ class _TopBar extends StatelessWidget {
             ),
             IconButton(
               tooltip: 'Next day',
-              onPressed: () => provider.setSelectedDate(date.add(const Duration(days: 1))),
+              onPressed: () =>
+                  provider.setSelectedDate(date.add(const Duration(days: 1))),
               icon: const Icon(Icons.chevron_right),
             ),
             SegmentedButton<DutyGroupingMode>(
               segments: const [
-                ButtonSegment(value: DutyGroupingMode.location, label: Text('Locations'), icon: Icon(Icons.place_outlined)),
-                ButtonSegment(value: DutyGroupingMode.teacher, label: Text('Teachers'), icon: Icon(Icons.people_outline)),
+                ButtonSegment(
+                    value: DutyGroupingMode.location,
+                    label: Text('Locations'),
+                    icon: Icon(Icons.place_outlined)),
+                ButtonSegment(
+                    value: DutyGroupingMode.teacher,
+                    label: Text('Teachers'),
+                    icon: Icon(Icons.people_outline)),
               ],
               selected: {provider.groupingMode},
-              onSelectionChanged: (value) => provider.setGroupingMode(value.first),
+              onSelectionChanged: (value) =>
+                  provider.setGroupingMode(value.first),
             ),
             if (onAddLocation != null)
               IconButton.filledTonal(
@@ -508,88 +668,246 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-class _CalendarGrid extends StatelessWidget {
+class _CalendarGrid extends StatefulWidget {
   const _CalendarGrid({required this.onOpen, required this.onEdit});
 
   final void Function(BuildContext context, Duty duty) onOpen;
   final void Function(BuildContext context, {Duty? duty}) onEdit;
 
   @override
+  State<_CalendarGrid> createState() => _CalendarGridState();
+}
+
+class _CalendarGridState extends State<_CalendarGrid> {
+  final _horizontalHeader = ScrollController();
+  final _horizontalBody = ScrollController();
+  final _verticalTime = ScrollController();
+  final _verticalBody = ScrollController();
+  bool _syncingHorizontal = false;
+  bool _syncingVertical = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _horizontalHeader
+        .addListener(() => _syncHorizontal(_horizontalHeader, _horizontalBody));
+    _horizontalBody
+        .addListener(() => _syncHorizontal(_horizontalBody, _horizontalHeader));
+    _verticalTime
+        .addListener(() => _syncVertical(_verticalTime, _verticalBody));
+    _verticalBody
+        .addListener(() => _syncVertical(_verticalBody, _verticalTime));
+  }
+
+  void _syncHorizontal(ScrollController source, ScrollController target) {
+    if (_syncingHorizontal || !source.hasClients || !target.hasClients) return;
+    _syncingHorizontal = true;
+    target.jumpTo(source.offset.clamp(0, target.position.maxScrollExtent));
+    _syncingHorizontal = false;
+  }
+
+  void _syncVertical(ScrollController source, ScrollController target) {
+    if (_syncingVertical || !source.hasClients || !target.hasClients) return;
+    _syncingVertical = true;
+    target.jumpTo(source.offset.clamp(0, target.position.maxScrollExtent));
+    _syncingVertical = false;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final provider = context.watch<DutyProvider>();
     final columns = provider.groupingMode == DutyGroupingMode.location
-        ? provider.locations.map((location) => _ColumnMeta(location.id, location.name)).toList()
-        : provider.teachers.map((teacher) => _ColumnMeta(teacher.id, teacher.fullName)).toList();
+        ? provider.locations
+            .map((location) => _ColumnMeta(location.id, location.name))
+            .toList()
+        : provider.teachers
+            .map((teacher) => _ColumnMeta(teacher.id, teacher.fullName))
+            .toList();
     if (columns.isEmpty) {
-      return const Center(child: Text('No locations or teachers available yet.'));
+      return const Center(
+          child: Text('No locations or teachers available yet.'));
     }
 
-    return Scrollbar(
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: SingleChildScrollView(
-          child: SizedBox(
-            width: _DutyScheduleScreenState._timeWidth + columns.length * _DutyScheduleScreenState._columnWidth,
-            height: 48 + _DutyScheduleScreenState._hourCount * _DutyScheduleScreenState._hourHeight,
-            child: Stack(
-              children: [
-                _CalendarBackground(columns: columns),
-                ...provider.duties.expand((duty) => _blocksForDuty(context, provider, duty, columns)),
-              ],
-            ),
+    final contentWidth = columns.length * _DutyScheduleScreenState._columnWidth;
+    const contentHeight = _DutyScheduleScreenState._hourCount *
+        _DutyScheduleScreenState._hourHeight;
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 48,
+          child: Row(
+            children: [
+              Container(
+                width: _DutyScheduleScreenState._timeWidth,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                    border: Border.all(color: const Color(0xffe5e7eb)),
+                    color: Colors.white),
+                child: const Icon(Icons.schedule_outlined, size: 18),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: _horizontalHeader,
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: columns
+                        .map((column) => Container(
+                              width: _DutyScheduleScreenState._columnWidth,
+                              height: 48,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                  border: Border.all(
+                                      color: const Color(0xffe5e7eb)),
+                                  color: Colors.white),
+                              child: Text(column.label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w700)),
+                            ))
+                        .toList(),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-      ),
+        Expanded(
+          child: Row(
+            children: [
+              SizedBox(
+                width: _DutyScheduleScreenState._timeWidth,
+                child: SingleChildScrollView(
+                  controller: _verticalTime,
+                  child: const _TimeColumn(height: contentHeight),
+                ),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: _horizontalBody,
+                  scrollDirection: Axis.horizontal,
+                  child: SingleChildScrollView(
+                    controller: _verticalBody,
+                    child: SizedBox(
+                      width: contentWidth,
+                      height: contentHeight,
+                      child: Stack(
+                        children: [
+                          _CalendarBodyBackground(columns: columns),
+                          ...provider.duties.expand((duty) =>
+                              _blocksForDuty(context, provider, duty, columns)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
-  Iterable<Widget> _blocksForDuty(BuildContext context, DutyProvider provider, Duty duty, List<_ColumnMeta> columns) {
-    final ids = provider.groupingMode == DutyGroupingMode.location ? duty.locations.map((e) => e.id) : duty.teacherIds;
+  Iterable<Widget> _blocksForDuty(BuildContext context, DutyProvider provider,
+      Duty duty, List<_ColumnMeta> columns) {
+    final ids = provider.groupingMode == DutyGroupingMode.location
+        ? duty.locations.map((e) => e.id)
+        : duty.teacherIds;
     return ids.map((id) {
       final index = columns.indexWhere((column) => column.id == id);
       if (index < 0) return const SizedBox.shrink();
-      final top = 48 + (duty.timeStart.toMinutes() - _DutyScheduleScreenState._startHour * 60) * (_DutyScheduleScreenState._hourHeight / 60);
-      final height = ((duty.timeEnd.toMinutes() - duty.timeStart.toMinutes()) * (_DutyScheduleScreenState._hourHeight / 60)).clamp(44, 240).toDouble();
+      final top = (duty.timeStart.toMinutes() -
+              _DutyScheduleScreenState._startHour * 60) *
+          (_DutyScheduleScreenState._hourHeight / 60);
+      final height = ((duty.timeEnd.toMinutes() - duty.timeStart.toMinutes()) *
+              (_DutyScheduleScreenState._hourHeight / 60))
+          .clamp(40, 240)
+          .toDouble();
       final color = provider.groupingMode == DutyGroupingMode.location
-          ? provider.colorForTeacher(duty.teacherIds.isEmpty ? duty.id : duty.teacherIds.first)
-          : provider.colorForLocation(duty.locations.isEmpty ? duty.id : duty.locations.first.id);
+          ? provider.colorForTeacher(
+              duty.teacherIds.isEmpty ? duty.id : duty.teacherIds.first)
+          : provider.colorForLocation(
+              duty.locations.isEmpty ? duty.id : duty.locations.first.id);
       return Positioned(
-        top: top,
-        left: _DutyScheduleScreenState._timeWidth + index * _DutyScheduleScreenState._columnWidth + 8,
+        top: top.clamp(0, double.infinity).toDouble(),
+        left: index * _DutyScheduleScreenState._columnWidth + 8,
         width: _DutyScheduleScreenState._columnWidth - 16,
         height: height,
         child: InkWell(
-          onTap: () => onOpen(context, duty),
+          onTap: () => widget.onOpen(context, duty),
           borderRadius: BorderRadius.circular(8),
           child: Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(8)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+            decoration: BoxDecoration(
+                color: color, borderRadius: BorderRadius.circular(8)),
+            child: LayoutBuilder(
+              builder: (_, constraints) {
+                final compact = constraints.maxHeight < 64;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Expanded(child: Text(duty.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700))),
-                    if (provider.isPrincipal)
-                      InkWell(
-                        onTap: () => onEdit(context, duty: duty),
-                        child: const Icon(Icons.edit_outlined, color: Colors.white, size: 16),
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                            child: Text(duty.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12))),
+                        if (provider.isPrincipal)
+                          InkWell(
+                            onTap: () => widget.onEdit(context, duty: duty),
+                            child: const Icon(Icons.edit_outlined,
+                                color: Colors.white, size: 16),
+                          ),
+                      ],
+                    ),
+                    if (!compact) ...[
+                      const SizedBox(height: 2),
+                      Flexible(
+                          child: Text(
+                              duty.teacherIds
+                                  .map((id) => duty.teacherNames[id] ?? id)
+                                  .join(', '),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 11))),
+                      Flexible(
+                          child: Text(
+                              duty.locations.map((e) => e.name).join(', '),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  color: Colors.white70, fontSize: 11))),
+                    ],
                   ],
-                ),
-                Text(duty.teacherIds.map((id) => duty.teacherNames[id] ?? id).join(', '), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white)),
-                Text(duty.locations.map((e) => e.name).join(', '), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70)),
-              ],
+                );
+              },
             ),
           ),
         ),
       );
     });
   }
+
+  @override
+  void dispose() {
+    _horizontalHeader.dispose();
+    _horizontalBody.dispose();
+    _verticalTime.dispose();
+    _verticalBody.dispose();
+    super.dispose();
+  }
 }
 
-class _CalendarBackground extends StatelessWidget {
-  const _CalendarBackground({required this.columns});
+class _CalendarBodyBackground extends StatelessWidget {
+  const _CalendarBodyBackground({required this.columns});
 
   final List<_ColumnMeta> columns;
 
@@ -597,27 +915,15 @@ class _CalendarBackground extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Row(
-          children: [
-            const SizedBox(width: _DutyScheduleScreenState._timeWidth, height: 48),
-            ...columns.map((column) => Container(
-                  width: _DutyScheduleScreenState._columnWidth,
-                  height: 48,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(border: Border.all(color: const Color(0xffe5e7eb)), color: Colors.white),
-                  child: Text(column.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
-                )),
-          ],
-        ),
         ...List.generate(_DutyScheduleScreenState._hourCount, (index) {
-          final hour = _DutyScheduleScreenState._startHour + index;
           return Row(
             children: [
-              Container(width: _DutyScheduleScreenState._timeWidth, height: _DutyScheduleScreenState._hourHeight, alignment: Alignment.topCenter, child: Text('${hour.toString().padLeft(2, '0')}:00')),
               ...columns.map((_) => Container(
                     width: _DutyScheduleScreenState._columnWidth,
                     height: _DutyScheduleScreenState._hourHeight,
-                    decoration: BoxDecoration(border: Border.all(color: const Color(0xffe5e7eb)), color: Colors.white),
+                    decoration: BoxDecoration(
+                        border: Border.all(color: const Color(0xffe5e7eb)),
+                        color: Colors.white),
                   )),
             ],
           );
@@ -627,12 +933,48 @@ class _CalendarBackground extends StatelessWidget {
   }
 }
 
+class _TimeColumn extends StatelessWidget {
+  const _TimeColumn({required this.height});
+
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: height,
+      child: Column(
+        children: List.generate(_DutyScheduleScreenState._hourCount, (index) {
+          final hour = _DutyScheduleScreenState._startHour + index;
+          return Container(
+            width: _DutyScheduleScreenState._timeWidth,
+            height: _DutyScheduleScreenState._hourHeight,
+            alignment: Alignment.topCenter,
+            decoration: BoxDecoration(
+                border: Border.all(color: const Color(0xffe5e7eb)),
+                color: Colors.white),
+            child: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child:
+                  Text(_formatHour(hour), style: const TextStyle(fontSize: 11)),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+}
+
 class _DutyList extends StatelessWidget {
-  const _DutyList({required this.onOpen, required this.onEdit, required this.onComplete, required this.onSwap});
+  const _DutyList(
+      {required this.onOpen,
+      required this.onEdit,
+      required this.onComplete,
+      required this.onSwap});
 
   final void Function(BuildContext context, Duty duty) onOpen;
   final void Function(BuildContext context, {Duty? duty}) onEdit;
-  final Future<void> Function(BuildContext context, Duty duty, DutyTask task) onComplete;
+  final Future<void> Function(BuildContext context, Duty duty, DutyTask task)
+      onComplete;
   final void Function(BuildContext context, Duty duty) onSwap;
 
   @override
@@ -641,22 +983,41 @@ class _DutyList extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _DutyListSection(title: 'TODO', duties: provider.todoDuties, onOpen: onOpen, onEdit: onEdit, onComplete: onComplete, onSwap: onSwap),
+        _DutyListSection(
+            title: 'TODO',
+            duties: provider.todoDuties,
+            onOpen: onOpen,
+            onEdit: onEdit,
+            onComplete: onComplete,
+            onSwap: onSwap),
         const SizedBox(height: 16),
-        _DutyListSection(title: 'COMPLETED', duties: provider.completedDuties, onOpen: onOpen, onEdit: onEdit, onComplete: onComplete, onSwap: onSwap),
+        _DutyListSection(
+            title: 'COMPLETED',
+            duties: provider.completedDuties,
+            onOpen: onOpen,
+            onEdit: onEdit,
+            onComplete: onComplete,
+            onSwap: onSwap),
       ],
     );
   }
 }
 
 class _DutyListSection extends StatelessWidget {
-  const _DutyListSection({required this.title, required this.duties, required this.onOpen, required this.onEdit, required this.onComplete, required this.onSwap});
+  const _DutyListSection(
+      {required this.title,
+      required this.duties,
+      required this.onOpen,
+      required this.onEdit,
+      required this.onComplete,
+      required this.onSwap});
 
   final String title;
   final List<Duty> duties;
   final void Function(BuildContext context, Duty duty) onOpen;
   final void Function(BuildContext context, {Duty? duty}) onEdit;
-  final Future<void> Function(BuildContext context, Duty duty, DutyTask task) onComplete;
+  final Future<void> Function(BuildContext context, Duty duty, DutyTask task)
+      onComplete;
   final void Function(BuildContext context, Duty duty) onSwap;
 
   @override
@@ -670,28 +1031,53 @@ class _DutyListSection extends StatelessWidget {
         if (duties.isEmpty) const Text('No duties here.'),
         ...duties.map((duty) => Card(
               margin: const EdgeInsets.only(bottom: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
               child: ExpansionTile(
                 leading: duty.thumbnailUrl == null
                     ? const Icon(Icons.assignment_outlined)
-                    : ClipRRect(borderRadius: BorderRadius.circular(6), child: Image.network(duty.thumbnailUrl!, width: 44, height: 44, fit: BoxFit.cover)),
+                    : ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: Image.network(duty.thumbnailUrl!,
+                            width: 44, height: 44, fit: BoxFit.cover)),
                 title: Text(duty.title),
-                subtitle: Text('${duty.timeStart} - ${duty.timeEnd}  •  ${duty.locations.map((e) => e.name).join(', ')}\n${duty.teacherIds.map((id) => duty.teacherNames[id] ?? id).join(', ')}'),
+                subtitle: Text(
+                    '${duty.timeStart} - ${duty.timeEnd}  •  ${duty.locations.map((e) => e.name).join(', ')}\n${duty.teacherIds.map((id) => duty.teacherNames[id] ?? id).join(', ')}'),
                 trailing: Wrap(
                   spacing: 4,
                   children: [
-                    if (provider.canRequestSwap(duty)) IconButton(tooltip: 'Swap', onPressed: () => onSwap(context, duty), icon: const Icon(Icons.swap_horiz)),
-                    if (provider.isPrincipal) IconButton(tooltip: 'Edit', onPressed: () => onEdit(context, duty: duty), icon: const Icon(Icons.edit_outlined)),
-                    IconButton(tooltip: 'Details', onPressed: () => onOpen(context, duty), icon: const Icon(Icons.chevron_right)),
+                    if (provider.canRequestSwap(duty))
+                      IconButton(
+                          tooltip: 'Swap',
+                          onPressed: () => onSwap(context, duty),
+                          icon: const Icon(Icons.swap_horiz)),
+                    if (provider.isPrincipal)
+                      IconButton(
+                          tooltip: 'Edit',
+                          onPressed: () => onEdit(context, duty: duty),
+                          icon: const Icon(Icons.edit_outlined)),
+                    IconButton(
+                        tooltip: 'Details',
+                        onPressed: () => onOpen(context, duty),
+                        icon: const Icon(Icons.chevron_right)),
                   ],
                 ),
                 children: duty.tasks
                     .map((task) => ListTile(
                           title: Text(task.name),
-                          subtitle: Text(task.isCompleted ? 'Completed' : 'Needs camera proof'),
-                          leading: Icon(task.isCompleted ? Icons.check_circle : Icons.radio_button_unchecked),
-                          trailing: !task.isCompleted && provider.canCompleteTask(duty)
-                              ? IconButton(tooltip: 'Capture proof', onPressed: () => onComplete(context, duty, task), icon: const Icon(Icons.photo_camera_outlined))
+                          subtitle: Text(task.isCompleted
+                              ? 'Completed'
+                              : 'Needs camera proof'),
+                          leading: Icon(task.isCompleted
+                              ? Icons.check_circle
+                              : Icons.radio_button_unchecked),
+                          trailing: !task.isCompleted &&
+                                  provider.canCompleteTask(duty)
+                              ? IconButton(
+                                  tooltip: 'Capture proof',
+                                  onPressed: () =>
+                                      onComplete(context, duty, task),
+                                  icon: const Icon(Icons.photo_camera_outlined))
                               : null,
                         ))
                     .toList(),
@@ -753,5 +1139,25 @@ TeacherRecord _fallbackTeacher(String id) {
 
 DutyUserRole _roleFromUser(TeacherRecord? user) {
   final role = user?.role.toLowerCase() ?? 'teacher';
-  return role == 'principal' || role == 'admin' ? DutyUserRole.principal : DutyUserRole.teacher;
+  return role == 'principal' || role == 'admin'
+      ? DutyUserRole.principal
+      : DutyUserRole.teacher;
+}
+
+TimeOfDay _timeOfDayFromText(String value) {
+  final parts =
+      value.split(':').map((part) => int.tryParse(part) ?? 0).toList();
+  return TimeOfDay(
+      hour: parts.isEmpty ? 0 : parts[0],
+      minute: parts.length > 1 ? parts[1] : 0);
+}
+
+String _formatTime(TimeOfDay value) {
+  return '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+}
+
+String _formatHour(int hour) {
+  final suffix = hour >= 12 ? 'PM' : 'AM';
+  final displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+  return '$displayHour $suffix';
 }

@@ -7,7 +7,8 @@ import '../models/duty.dart';
 import '../services/duty_service.dart';
 
 class DutyProvider extends ChangeNotifier {
-  DutyProvider({DutyService? dutyService}) : _dutyService = dutyService ?? DutyService() {
+  DutyProvider({DutyService? dutyService})
+      : _dutyService = dutyService ?? DutyService() {
     loadForSelectedDate();
     _listenLocations();
     _listenTeachers();
@@ -15,6 +16,7 @@ class DutyProvider extends ChangeNotifier {
 
   final DutyService _dutyService;
   StreamSubscription<List<Duty>>? _dutySub;
+  StreamSubscription<List<Duty>>? _upcomingSub;
   StreamSubscription<List<DutyLocation>>? _locationSub;
   StreamSubscription<List<TeacherRecord>>? _teacherSub;
 
@@ -27,6 +29,7 @@ class DutyProvider extends ChangeNotifier {
   String? _teacherFilterId;
   String? _locationFilterId;
   List<Duty> _duties = [];
+  List<Duty> _upcomingDuties = [];
   List<DutyLocation> _locations = [];
   List<TeacherRecord> _teachers = [];
   bool _isLoading = true;
@@ -40,6 +43,9 @@ class DutyProvider extends ChangeNotifier {
   String? get currentTeacherId => _currentTeacherId;
   String? get currentTeacherName => _currentTeacherName;
   List<Duty> get duties => _filteredDuties();
+  List<Duty> get upcomingDuties => _upcomingDuties;
+  Duty? get nextUpcomingDuty =>
+      _upcomingDuties.isEmpty ? null : _upcomingDuties.first;
   List<DutyLocation> get locations => _locations;
   List<TeacherRecord> get teachers => _teachers;
   bool get isLoading => _isLoading;
@@ -49,8 +55,10 @@ class DutyProvider extends ChangeNotifier {
   String? get locationFilterId => _locationFilterId;
   bool get isPrincipal => _userRole == DutyUserRole.principal;
 
-  List<Duty> get todoDuties => duties.where((duty) => !duty.isCompleted).toList();
-  List<Duty> get completedDuties => duties.where((duty) => duty.isCompleted).toList();
+  List<Duty> get todoDuties =>
+      duties.where((duty) => !duty.isCompleted).toList();
+  List<Duty> get completedDuties =>
+      duties.where((duty) => duty.isCompleted).toList();
 
   void setUser({
     required String? teacherId,
@@ -58,20 +66,27 @@ class DutyProvider extends ChangeNotifier {
     required String role,
   }) {
     final lower = role.toLowerCase();
-    final nextRole = lower == 'principal' || lower == 'admin' ? DutyUserRole.principal : DutyUserRole.teacher;
-    if (_currentTeacherId == teacherId && _currentTeacherName == teacherName && _userRole == nextRole) {
+    final nextRole = lower == 'principal' || lower == 'admin'
+        ? DutyUserRole.principal
+        : DutyUserRole.teacher;
+    if (_currentTeacherId == teacherId &&
+        _currentTeacherName == teacherName &&
+        _userRole == nextRole) {
       return;
     }
     _currentTeacherId = teacherId;
     _currentTeacherName = teacherName;
     _userRole = nextRole;
+    _listenUpcomingDuties();
     notifyListeners();
   }
 
   void setSelectedDate(DateTime date) {
     final now = DateTime.now();
-    final min = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 10));
-    final max = DateTime(now.year, now.month, now.day).add(const Duration(days: 10));
+    final min = DateTime(now.year, now.month, now.day)
+        .subtract(const Duration(days: 10));
+    final max =
+        DateTime(now.year, now.month, now.day).add(const Duration(days: 10));
     final onlyDate = DateTime(date.year, date.month, date.day);
     if (onlyDate.isBefore(min) || onlyDate.isAfter(max)) return;
     _selectedDate = onlyDate;
@@ -79,7 +94,9 @@ class DutyProvider extends ChangeNotifier {
   }
 
   void toggleViewMode() {
-    _viewMode = _viewMode == DutyViewMode.calendar ? DutyViewMode.list : DutyViewMode.calendar;
+    _viewMode = _viewMode == DutyViewMode.calendar
+        ? DutyViewMode.list
+        : DutyViewMode.calendar;
     notifyListeners();
   }
 
@@ -116,7 +133,7 @@ class DutyProvider extends ChangeNotifier {
 
   Future<void> createDuty(Duty duty) async {
     await _guard(() async {
-      await _dutyService.createDuty(duty);
+      await _dutyService.createRecurringDuties(duty);
     });
   }
 
@@ -163,15 +180,19 @@ class DutyProvider extends ChangeNotifier {
     return _dutyService.findEligibleTeacherIds(duty);
   }
 
-  Future<void> requestSwap(Duty duty, String toTeacherId) async {
-    final fromTeacherId = _currentTeacherId;
-    if (fromTeacherId == null) return;
+  Future<void> requestSwap(Duty duty, String toTeacherId,
+      {String? fromTeacherId}) async {
+    final sourceTeacherId = fromTeacherId ??
+        (isPrincipal
+            ? (duty.teacherIds.isEmpty ? null : duty.teacherIds.first)
+            : _currentTeacherId);
+    if (sourceTeacherId == null) return;
     await _guard(() async {
       _lastSwap = await _dutyService.requestSwap(
         duty: duty,
-        fromTeacherId: fromTeacherId,
+        fromTeacherId: sourceTeacherId,
         toTeacherId: toTeacherId,
-        requestedBy: fromTeacherId,
+        requestedBy: _currentTeacherId ?? sourceTeacherId,
         requestedByPrincipal: isPrincipal,
       );
     });
@@ -182,12 +203,16 @@ class DutyProvider extends ChangeNotifier {
   bool canRequestSwap(Duty duty) {
     if (isPrincipal) return true;
     final teacherId = _currentTeacherId;
-    return teacherId != null && duty.teacherIds.contains(teacherId) && _dutyService.canRequestSwap(duty);
+    return teacherId != null &&
+        duty.teacherIds.contains(teacherId) &&
+        _dutyService.canRequestSwap(duty);
   }
 
-  Color colorForTeacher(String teacherId) => _stableColor(teacherId, _teacherPalette);
+  Color colorForTeacher(String teacherId) =>
+      _stableColor(teacherId, _teacherPalette);
 
-  Color colorForLocation(String locationId) => _stableColor(locationId, _locationPalette);
+  Color colorForLocation(String locationId) =>
+      _stableColor(locationId, _locationPalette);
 
   void _listenLocations() {
     _locationSub = _dutyService.fetchLocations().listen((items) {
@@ -203,16 +228,33 @@ class DutyProvider extends ChangeNotifier {
     });
   }
 
+  void _listenUpcomingDuties() {
+    _upcomingSub?.cancel();
+    final teacherId = _currentTeacherId;
+    if (teacherId == null) {
+      _upcomingDuties = [];
+      return;
+    }
+    _upcomingSub =
+        _dutyService.fetchUpcomingByTeacher(teacherId).listen((items) {
+      _upcomingDuties = items;
+      notifyListeners();
+    });
+  }
+
   List<Duty> _filteredDuties() {
     Iterable<Duty> result = _duties;
     if (!isPrincipal && _currentTeacherId != null) {
-      result = result.where((duty) => duty.teacherIds.contains(_currentTeacherId));
+      result =
+          result.where((duty) => duty.teacherIds.contains(_currentTeacherId));
     }
     if (_teacherFilterId != null && _teacherFilterId!.isNotEmpty) {
-      result = result.where((duty) => duty.teacherIds.contains(_teacherFilterId));
+      result =
+          result.where((duty) => duty.teacherIds.contains(_teacherFilterId));
     }
     if (_locationFilterId != null && _locationFilterId!.isNotEmpty) {
-      result = result.where((duty) => duty.locations.any((location) => location.id == _locationFilterId));
+      result = result.where((duty) =>
+          duty.locations.any((location) => location.id == _locationFilterId));
     }
     return result.toList();
   }
@@ -237,6 +279,7 @@ class DutyProvider extends ChangeNotifier {
   @override
   void dispose() {
     _dutySub?.cancel();
+    _upcomingSub?.cancel();
     _locationSub?.cancel();
     _teacherSub?.cancel();
     super.dispose();

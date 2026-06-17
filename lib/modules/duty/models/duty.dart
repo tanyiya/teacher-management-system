@@ -8,6 +8,8 @@ enum DutyUserRole { teacher, principal }
 
 enum DutySwapStatus { none, pending, approved, rejected }
 
+enum DutyRecurrence { once, daily, weekly, monthly }
+
 typedef DutyAssignment = Duty;
 
 class DutyLocation {
@@ -70,7 +72,8 @@ class DutyTask {
       completedAt: _dateFromAny(data['completedAt'] ?? data['timestamp']),
       teacherId: data['teacherId']?.toString() ?? data['teacher']?.toString(),
       teacherName: data['teacherName']?.toString(),
-      locationId: data['locationId']?.toString() ?? data['location']?.toString(),
+      locationId:
+          data['locationId']?.toString() ?? data['location']?.toString(),
       locationName: data['locationName']?.toString(),
     );
   }
@@ -81,7 +84,8 @@ class DutyTask {
       'name': name,
       'isCompleted': isCompleted,
       'photoUrl': photoUrl,
-      'completedAt': completedAt == null ? null : Timestamp.fromDate(completedAt!),
+      'completedAt':
+          completedAt == null ? null : Timestamp.fromDate(completedAt!),
       'teacherId': teacherId,
       'teacherName': teacherName,
       'locationId': locationId,
@@ -129,6 +133,7 @@ class Duty {
   final String status;
   final String type;
   final int minTeachersPerVenue;
+  final DutyRecurrence recurrence;
 
   const Duty({
     required this.id,
@@ -146,9 +151,11 @@ class Duty {
     this.status = 'todo',
     this.type = 'Cleaning Duty',
     this.minTeachersPerVenue = 1,
+    this.recurrence = DutyRecurrence.once,
   });
 
-  bool get isCompleted => tasks.isNotEmpty && tasks.every((task) => task.isCompleted);
+  bool get isCompleted =>
+      tasks.isNotEmpty && tasks.every((task) => task.isCompleted);
 
   List<String> get teacherIds {
     return teacherAssignments.values.expand((ids) => ids).toSet().toList();
@@ -165,30 +172,39 @@ class Duty {
     final locations = rawLocations is List
         ? rawLocations.map((entry) {
             if (entry is Map<String, dynamic>) {
-              return DutyLocation.fromMap(entry['id']?.toString() ?? entry['name']?.toString() ?? '', entry);
+              return DutyLocation.fromMap(
+                  entry['id']?.toString() ?? entry['name']?.toString() ?? '',
+                  entry);
             }
             return DutyLocation(id: entry.toString(), name: entry.toString());
           }).toList()
         : <DutyLocation>[];
 
     final assignments = <String, List<String>>{};
-    final rawAssignments = data['teacherAssignments'] ?? data['assignedTeachers'];
+    final rawAssignments =
+        data['teacherAssignments'] ?? data['assignedTeachers'];
     if (rawAssignments is Map) {
       rawAssignments.forEach((key, value) {
-        assignments[key.toString()] = value is List ? value.map((e) => e.toString()).toList() : <String>[];
+        assignments[key.toString()] = value is List
+            ? value.map((e) => e.toString()).toList()
+            : <String>[];
       });
     }
 
     return Duty(
       id: id,
-      title: data['title']?.toString() ?? data['taskName']?.toString() ?? 'Untitled duty',
+      title: data['title']?.toString() ??
+          data['taskName']?.toString() ??
+          'Untitled duty',
       date: _dateFromAny(data['date']) ?? DateTime.now(),
       timeStart: data['timeStart']?.toString() ?? '07:00',
       timeEnd: data['timeEnd']?.toString() ?? '08:00',
       isAllDay: data['isAllDay'] == true,
       locations: locations,
       teacherAssignments: assignments,
-      teacherNames: (data['teacherNames'] as Map?)?.map((key, value) => MapEntry(key.toString(), value.toString())) ?? {},
+      teacherNames: (data['teacherNames'] as Map?)?.map(
+              (key, value) => MapEntry(key.toString(), value.toString())) ??
+          {},
       tasks: (data['tasks'] as List<dynamic>? ?? const [])
           .whereType<Map<String, dynamic>>()
           .map(DutyTask.fromMap)
@@ -197,7 +213,9 @@ class Duty {
       swapStatus: _swapStatusFromString(data['swapStatus']?.toString()),
       status: data['status']?.toString() ?? 'todo',
       type: data['type']?.toString() ?? 'Cleaning Duty',
-      minTeachersPerVenue: int.tryParse(data['minTeachersPerVenue']?.toString() ?? '') ?? 1,
+      minTeachersPerVenue:
+          int.tryParse(data['minTeachersPerVenue']?.toString() ?? '') ?? 1,
+      recurrence: _recurrenceFromString(data['recurrence']?.toString()),
     );
   }
 
@@ -209,7 +227,9 @@ class Duty {
       'timeStart': timeStart,
       'timeEnd': timeEnd,
       'isAllDay': isAllDay,
-      'locations': locations.map((location) => {'id': location.id, ...location.toMap()}).toList(),
+      'locations': locations
+          .map((location) => {'id': location.id, ...location.toMap()})
+          .toList(),
       'teacherAssignments': teacherAssignments,
       'teacherNames': teacherNames,
       'tasks': tasks.map((task) => task.toMap()).toList(),
@@ -218,6 +238,7 @@ class Duty {
       'status': isCompleted ? 'completed' : status,
       'type': type,
       'minTeachersPerVenue': minTeachersPerVenue,
+      'recurrence': recurrence.name,
     };
   }
 
@@ -236,6 +257,7 @@ class Duty {
     String? status,
     String? type,
     int? minTeachersPerVenue,
+    DutyRecurrence? recurrence,
   }) {
     return Duty(
       id: id,
@@ -253,6 +275,7 @@ class Duty {
       status: status ?? this.status,
       type: type ?? this.type,
       minTeachersPerVenue: minTeachersPerVenue ?? this.minTeachersPerVenue,
+      recurrence: recurrence ?? this.recurrence,
     );
   }
 }
@@ -279,12 +302,14 @@ class DutySwap {
   factory DutySwap.fromMap(String id, Map<String, dynamic> data) {
     return DutySwap(
       id: id,
-      dutyId: data['dutyId']?.toString() ?? data['assignmentId']?.toString() ?? '',
+      dutyId:
+          data['dutyId']?.toString() ?? data['assignmentId']?.toString() ?? '',
       fromTeacherId: data['fromTeacherId']?.toString() ?? '',
       toTeacherId: data['toTeacherId']?.toString() ?? '',
       requestedBy: data['requestedBy']?.toString() ?? 'teacher',
       status: _swapStatusFromString(data['status']?.toString()),
-      createdAt: _dateFromAny(data['createdAt'] ?? data['timestamp']) ?? DateTime.now(),
+      createdAt: _dateFromAny(data['createdAt'] ?? data['timestamp']) ??
+          DateTime.now(),
     );
   }
 
@@ -325,6 +350,13 @@ DutySwapStatus _swapStatusFromString(String? value) {
   return DutySwapStatus.values.firstWhere(
     (status) => status.name == value,
     orElse: () => DutySwapStatus.none,
+  );
+}
+
+DutyRecurrence _recurrenceFromString(String? value) {
+  return DutyRecurrence.values.firstWhere(
+    (recurrence) => recurrence.name == value,
+    orElse: () => DutyRecurrence.once,
   );
 }
 

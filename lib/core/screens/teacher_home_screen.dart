@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../app_theme.dart';
 import '../../modules/duty/models/duty.dart';
 import '../../modules/duty/providers/duty_provider.dart';
+import '../../modules/duty/screens/duty_schedule_screen.dart';
 import '../../modules/teachers/models/teacher.dart';
 
 class TeacherHomeScreen extends StatelessWidget {
@@ -16,6 +17,16 @@ class TeacherHomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<DutyProvider>();
+    if (provider.currentTeacherId != user.id) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        context.read<DutyProvider>().setUser(
+              teacherId: user.id,
+              teacherName: user.fullName,
+              role: user.role,
+            );
+      });
+    }
+    final nextDuty = provider.nextUpcomingDuty;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -41,13 +52,15 @@ class TeacherHomeScreen extends StatelessWidget {
               _ShortcutCard(
                 title: 'Schedules',
                 icon: LucideIcons.calendarDays,
-                onTap: () {},
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const DutyScheduleScreen()),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 32),
           const Text(
-            'Today\'s Duties',
+            'Next Duty',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
@@ -55,12 +68,10 @@ class TeacherHomeScreen extends StatelessWidget {
             const Center(child: CircularProgressIndicator())
           else if (provider.error != null)
             _ErrorCard(message: provider.error!)
-          else if (provider.duties.isEmpty)
-            const _EmptyCard(message: 'No duties assigned for today.')
+          else if (nextDuty == null)
+            const _EmptyCard(message: 'No upcoming duty assigned.')
           else
-            ...provider.duties.map(
-              (duty) => _DutyCard(duty: duty, userId: user.id),
-            ),
+            _DutyCard(duty: nextDuty, userId: user.id),
         ],
       ),
     );
@@ -185,7 +196,7 @@ class _ScoreRing extends StatelessWidget {
             CircularProgressIndicator(
               value: score / 100,
               strokeWidth: 16,
-              backgroundColor: const Color(0xFFBCCCDC).withOpacity(0.3),
+              backgroundColor: const Color(0xFFBCCCDC).withValues(alpha: 0.3),
               valueColor:
                   const AlwaysStoppedAnimation<Color>(Color(0xFFBCCCDC)),
             ),
@@ -203,8 +214,8 @@ class _ScoreRing extends StatelessWidget {
                   ),
                   const Text(
                     '/100 pts',
-                    style: TextStyle(
-                        fontSize: 16, color: AppTheme.textLightColor),
+                    style:
+                        TextStyle(fontSize: 16, color: AppTheme.textLightColor),
                   ),
                   const SizedBox(height: 8),
                   const Text(
@@ -247,7 +258,7 @@ class _ShortcutCard extends StatelessWidget {
             border: Border.all(color: const Color(0xFFF0EFEC)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.03),
+                color: Colors.black.withValues(alpha: 0.03),
                 blurRadius: 8,
                 offset: const Offset(0, 4),
               ),
@@ -259,8 +270,8 @@ class _ShortcutCard extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 title,
-                style: const TextStyle(
-                    fontWeight: FontWeight.w600, fontSize: 13),
+                style:
+                    const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -282,73 +293,85 @@ class _DutyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<DutyProvider>();
-    final completedCount = duty.tasks.where((t) => t.isCompleted).length;
-    final totalCount = duty.tasks.length;
-    final locationLabel =
-        duty.locations.map((l) => l.name).join(', ');
+    final locationLabel = duty.locations.map((l) => l.name).join(', ');
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 0,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFF0EFEC)),
-        ),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    duty.title,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 16),
+    return GestureDetector(
+      onTap: () => _showTaskList(context, duty),
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: 0,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFF0EFEC)),
+          ),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      duty.title,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
                   ),
-                ),
-                _StatusBadge(isCompleted: duty.isCompleted),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '$locationLabel  •  ${duty.timeStart} - ${duty.timeEnd}',
-              style: const TextStyle(color: Colors.grey, fontSize: 13),
-            ),
-            if (totalCount > 0) ...[
-              const SizedBox(height: 12),
-              // Progress bar
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: totalCount == 0 ? 0 : completedCount / totalCount,
-                  minHeight: 6,
-                  backgroundColor: Colors.grey.shade200,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    duty.isCompleted ? Colors.green : AppTheme.primaryColor,
-                  ),
-                ),
+                  _StatusBadge(isCompleted: duty.isCompleted),
+                ],
               ),
               const SizedBox(height: 4),
               Text(
-                '$completedCount / $totalCount tasks done',
-                style:
-                    const TextStyle(fontSize: 12, color: Colors.grey),
+                '$locationLabel  •  ${duty.timeStart} - ${duty.timeEnd}',
+                style: const TextStyle(color: Colors.grey, fontSize: 13),
               ),
               const SizedBox(height: 12),
-              // Task list
-              ...duty.tasks.map(
-                (task) => _TaskTile(
-                  task: task,
-                  duty: duty,
-                  canComplete: provider.canCompleteTask(duty),
-                ),
+              Row(
+                children: [
+                  const Icon(Icons.chevron_right, size: 18, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text(
+                    provider.canCompleteTask(duty)
+                        ? 'Open task list'
+                        : 'View task list',
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showTaskList(BuildContext context, Duty duty) {
+    final provider = context.read<DutyProvider>();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(duty.title, style: Theme.of(context).textTheme.titleLarge),
+            Text(
+                '${duty.timeStart} - ${duty.timeEnd}  •  ${duty.locations.map((l) => l.name).join(', ')}'),
+            const SizedBox(height: 12),
+            ...duty.tasks.map(
+              (task) => _TaskTile(
+                task: task,
+                duty: duty,
+                canComplete: provider.canCompleteTask(duty),
+              ),
+            ),
+            const SizedBox(height: 20),
           ],
         ),
       ),
@@ -372,8 +395,8 @@ class _TaskTile extends StatelessWidget {
   Future<void> _captureProof(BuildContext context) async {
     final provider = context.read<DutyProvider>();
     final picker = ImagePicker();
-    final image =
-        await picker.pickImage(source: ImageSource.camera, imageQuality: 78, maxWidth: 1600);
+    final image = await picker.pickImage(
+        source: ImageSource.camera, imageQuality: 78, maxWidth: 1600);
     if (image == null) return;
     await provider.completeTask(
       duty: duty,
@@ -406,8 +429,7 @@ class _TaskTile extends StatelessWidget {
       title: Text(
         task.name,
         style: TextStyle(
-          decoration:
-              task.isCompleted ? TextDecoration.lineThrough : null,
+          decoration: task.isCompleted ? TextDecoration.lineThrough : null,
           color: task.isCompleted ? Colors.grey : null,
         ),
       ),
@@ -443,8 +465,8 @@ class _StatusBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: isCompleted
-            ? Colors.green.withOpacity(0.1)
-            : Colors.orange.withOpacity(0.1),
+            ? Colors.green.withValues(alpha: 0.1)
+            : Colors.orange.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
