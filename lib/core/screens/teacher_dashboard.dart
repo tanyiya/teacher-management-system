@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../providers/app_state_provider.dart';
 import '../models/notification.dart';
@@ -41,7 +42,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
         actions: [
           IconButton(
             icon: const Icon(LucideIcons.logOut),
-            onPressed: () => appState.logout(),
+            onPressed: () => Navigator.of(context).canPop() ? context.go('/logout') : context.go('/logout'),
           )
         ],
       ),
