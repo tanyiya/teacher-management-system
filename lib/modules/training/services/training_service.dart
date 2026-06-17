@@ -46,7 +46,13 @@ class TrainingService {
       final uploadTask = ref.putData(bytes, metadata);
       final snapshot = await uploadTask;
       if (snapshot.state == TaskState.success) {
-        return await ref.getDownloadURL();
+        // use the snapshot ref to get the download URL and log the storage path
+        final url = await snapshot.ref.getDownloadURL();
+        try {
+          print('[TrainingService][uploadImageToStorage] uploaded to: ${snapshot.ref.fullPath}');
+          print('[TrainingService][uploadImageToStorage] downloadUrl: $url');
+        } catch (_) {}
+        return url;
       }
       throw FirebaseException(plugin: 'firebase_storage', message: 'Upload failed');
     } catch (e, s) {
@@ -77,7 +83,12 @@ class TrainingService {
       final uploadTask = ref.putData(bytes, metadata);
       final snapshot = await uploadTask;
       if (snapshot.state == TaskState.success) {
-        return await ref.getDownloadURL();
+        final url = await snapshot.ref.getDownloadURL();
+        try {
+          print('[TrainingService][uploadFileToStorage] uploaded to: ${snapshot.ref.fullPath}');
+          print('[TrainingService][uploadFileToStorage] downloadUrl: $url');
+        } catch (_) {}
+        return url;
       }
       throw FirebaseException(plugin: 'firebase_storage', message: 'Upload failed');
     } catch (e, s) {
@@ -315,33 +326,42 @@ class TrainingService {
     String? teacherId,
     String? postId,
   }) {
-    Query<Map<String, dynamic>> query =
-        _applications.orderBy('createdAt', descending: true);
-    if (status != null) {
-      query = query.where('status', isEqualTo: status);
-    }
-    if (teacherId != null) {
-      query = query.where('teacherId', isEqualTo: teacherId);
-    }
-    if (postId != null) {
-      query = query.where('postId', isEqualTo: postId);
-    }
+    // Fetch ordered applications, then filter client-side to avoid composite
+    // Firestore index errors which would cause the admin UI to receive no data.
+    final query = _applications.orderBy('createdAt', descending: true);
 
-    return query.snapshots().map(
-          (snapshot) => snapshot.docs
-              .map((doc) => TrainingApplication.fromMap(doc.id, doc.data()))
-              .toList(),
-        );
+    return query.snapshots().map((snapshot) {
+      var apps = snapshot.docs
+          .map((doc) => TrainingApplication.fromMap(doc.id, doc.data()))
+          .toList();
+
+      if (status != null) {
+        apps = apps.where((a) => a.status == status).toList();
+      }
+      if (teacherId != null) {
+        apps = apps.where((a) => a.teacherId == teacherId).toList();
+      }
+      if (postId != null) {
+        apps = apps.where((a) => a.postId == postId).toList();
+      }
+
+      try {
+        print('[TrainingService] streamApplications -> ${apps.length} apps (status=$status, teacherId=$teacherId, postId=$postId)');
+      } catch (_) {}
+
+      return apps;
+    });
   }
 
   Stream<List<TrainingPost>> getPostsByAuthor(String authorId) {
-    final query = _posts
-        .where('authorId', isEqualTo: authorId)
-        .orderBy('createdAt', descending: true);
+    // Query ordered by createdAt then filter client-side by authorId to avoid
+    // requiring a composite Firestore index (which resulted in empty UI).
+    final query = _posts.orderBy('createdAt', descending: true);
 
     return query.snapshots().map((snapshot) {
       final posts = snapshot.docs
           .map((doc) => TrainingPost.fromMap(doc.id, doc.data()))
+          .where((p) => p.authorId == authorId)
           .toList();
       try {
         print('[TrainingService] getPostsByAuthor($authorId) -> ${posts.length}');
