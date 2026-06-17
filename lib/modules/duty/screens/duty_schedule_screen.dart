@@ -1,245 +1,757 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
+import '../../../providers/app_state_provider.dart';
+import '../../teachers/models/teacher.dart';
 import '../models/duty.dart';
-import '../services/duty_service.dart';
+import '../providers/duty_provider.dart';
 
-/// =======================
-/// TIME HELPERS (CORE ENGINE)
-/// =======================
-extension TimeX on String {
+extension _TimeX on String {
   int toMinutes() {
-    final parts = split(":");
-    return int.parse(parts[0]) * 60 + int.parse(parts[1]);
+    final parts = split(':').map((part) => int.tryParse(part) ?? 0).toList();
+    return parts.first * 60 + (parts.length > 1 ? parts[1] : 0);
   }
 }
 
-/// =======================
-/// POSITION MODEL
-/// =======================
-class PositionedTask {
-  final DutyAssignment task;
-  final int lane;
-  final int laneCount;
-
-  PositionedTask({
-    required this.task,
-    required this.lane,
-    required this.laneCount,
-  });
-}
-
-/// =======================
-/// CALENDAR ENGINE SCREEN
-/// =======================
 class DutyScheduleScreen extends StatefulWidget {
   const DutyScheduleScreen({super.key});
 
   @override
-  State<DutyScheduleScreen> createState() => _DutyCalendarEngineState();
+  State<DutyScheduleScreen> createState() => _DutyScheduleScreenState();
 }
 
-class _DutyCalendarEngineState extends State<DutyScheduleScreen> {
-  final DutyService db = DutyService();
+class _DutyScheduleScreenState extends State<DutyScheduleScreen> {
+  static const double _hourHeight = 72;
+  static const double _timeWidth = 64;
+  static const double _columnWidth = 220;
+  static const int _startHour = 6;
+  static const int _hourCount = 14;
 
-  bool showByLocation = true;
+  final _picker = ImagePicker();
 
-  static const double hourHeight = 60;
-  static const int startHour = 7;
-
-  /// =======================
-  /// TIME → Y POSITION
-  /// =======================
-  double timeToY(String time) {
-    final minutes = time.toMinutes();
-    return ((minutes - startHour * 60) / 60) * hourHeight;
-  }
-
-  /// =======================
-  /// DURATION → HEIGHT
-  /// =======================
-  double durationHeight(String start, String end) {
-    return (end.toMinutes() - start.toMinutes()) * (hourHeight / 60);
-  }
-
-  /// =======================
-  /// LANE ALLOCATION ENGINE
-  /// =======================
-  List<PositionedTask> allocateLanes(List<DutyAssignment> tasks) {
-    tasks.sort((a, b) =>
-        a.timeStart.toMinutes().compareTo(b.timeStart.toMinutes()));
-
-    List<List<DutyAssignment>> lanes = [];
-
-    for (final task in tasks) {
-      bool placed = false;
-
-      for (int i = 0; i < lanes.length; i++) {
-        final last = lanes[i].last;
-
-        if (task.timeStart.toMinutes() >= last.timeEnd.toMinutes()) {
-          lanes[i].add(task);
-          placed = true;
-          break;
-        }
-      }
-
-      if (!placed) {
-        lanes.add([task]);
-      }
-    }
-
-    final result = <PositionedTask>[];
-
-    for (int i = 0; i < lanes.length; i++) {
-      for (final task in lanes[i]) {
-        result.add(PositionedTask(
-          task: task,
-          lane: i,
-          laneCount: lanes.length,
-        ));
-      }
-    }
-
-    return result;
-  }
-
-  /// =======================
-  /// UI BUILD
-  /// =======================
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AppStateProvider>().currentUser;
+    final provider = context.watch<DutyProvider>();
+    if (provider.currentTeacherId != user?.id ||
+        provider.currentTeacherName != user?.fullName ||
+        provider.userRole != _roleFromUser(user)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        context.read<DutyProvider>().setUser(
+              teacherId: user?.id,
+              teacherName: user?.fullName,
+              role: user?.role ?? 'teacher',
+            );
+      });
+    }
+
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // TODO: create task (principal only)
-        },
-        child: const Icon(Icons.add),
-      ),
-      body: StreamBuilder<List<DutyAssignment>>(
-        stream: db.getAssignmentsForDate(
-          DateFormat('yyyy-MM-dd').format(DateTime.now()),
-        ),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final tasks = snapshot.data!;
-          final positioned = allocateLanes(tasks);
-
-          return SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.vertical,
-              child: SizedBox(
-                width: 1200,
-                height: 12 * hourHeight,
-                child: Stack(
-                  children: [
-                    _buildTimeGrid(),
-
-                    ...positioned.map((p) {
-                      final top = timeToY(p.task.timeStart);
-                      final height = durationHeight(
-                          p.task.timeStart, p.task.timeEnd);
-
-                      const laneWidth = 180.0;
-                      final left = 80 + (p.lane * laneWidth);
-
-                      return Positioned(
-                        top: top,
-                        left: left,
-                        child: _buildTaskBlock(p, height, laneWidth),
-                      );
-                    }),
-                  ],
-                ),
-              ),
+      backgroundColor: const Color(0xfff7f8fb),
+      appBar: AppBar(
+        title: const Text('Duty Management'),
+        actions: [
+          IconButton(
+            tooltip: provider.viewMode == DutyViewMode.calendar ? 'List view' : 'Calendar view',
+            onPressed: provider.toggleViewMode,
+            icon: Icon(provider.viewMode == DutyViewMode.calendar ? Icons.view_agenda_outlined : Icons.calendar_month),
+          ),
+          if (provider.isPrincipal)
+            IconButton(
+              tooltip: 'Filters',
+              onPressed: () => _showFilters(context, provider),
+              icon: const Icon(Icons.filter_list),
             ),
-          );
-        },
+        ],
       ),
-    );
-  }
-
-  /// =======================
-  /// TASK BLOCK UI
-  /// =======================
-  Widget _buildTaskBlock(
-      PositionedTask p, double height, double laneWidth) {
-    return Container(
-      width: laneWidth - 10,
-      height: height,
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        color: Colors.blue.shade400,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      floatingActionButton: provider.isPrincipal
+          ? FloatingActionButton(
+              onPressed: () => _showDutyEditor(context),
+              child: const Icon(Icons.add),
+            )
+          : null,
+      body: Column(
         children: [
-          Text(
-            p.task.taskName,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 11,
+          _TopBar(onAddLocation: provider.isPrincipal && provider.groupingMode == DutyGroupingMode.location
+              ? () => _showAddLocation(context)
+              : null),
+          if (provider.error != null)
+            MaterialBanner(
+              content: Text(provider.error!),
+              actions: [
+                TextButton(onPressed: ScaffoldMessenger.of(context).hideCurrentMaterialBanner, child: const Text('Dismiss')),
+              ],
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            p.task.locationName,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 10,
-            ),
-          ),
-          Text(
-            "${p.task.timeStart} - ${p.task.timeEnd}",
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 10,
-            ),
+          Expanded(
+            child: provider.isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : provider.viewMode == DutyViewMode.calendar
+                    ? _CalendarGrid(onOpen: _showDutyDetail, onEdit: _showDutyEditor)
+                    : _DutyList(onOpen: _showDutyDetail, onEdit: _showDutyEditor, onComplete: _completeTask, onSwap: _showSwapDialog),
           ),
         ],
       ),
     );
   }
 
-  /// =======================
-  /// BACKGROUND GRID
-  /// =======================
-  Widget _buildTimeGrid() {
-    return SizedBox(
-      width: 1200,
-      height: 12 * hourHeight,
-      child: Column(
-        children: List.generate(12, (i) {
-          final hour = startHour + i;
+  Future<void> _completeTask(BuildContext context, Duty duty, DutyTask task) async {
+    final provider = context.read<DutyProvider>();
+    final image = await _picker.pickImage(source: ImageSource.camera, imageQuality: 78, maxWidth: 1600);
+    if (image == null) return;
+    await provider.completeTask(
+      duty: duty,
+      taskId: task.id,
+      imageBytes: await image.readAsBytes(),
+      fileName: image.name,
+    );
+  }
 
-          return Container(
-            height: hourHeight,
-            decoration: BoxDecoration(
-              border: Border(
-                top: BorderSide(color: Colors.grey.shade300),
+  void _showDutyDetail(BuildContext context, Duty duty) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final provider = sheetContext.watch<DutyProvider>();
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.72,
+          minChildSize: 0.45,
+          maxChildSize: 0.92,
+          builder: (_, controller) => ListView(
+            controller: controller,
+            padding: const EdgeInsets.all(20),
+            children: [
+              Row(
+                children: [
+                  Expanded(child: Text(duty.title, style: Theme.of(context).textTheme.headlineSmall)),
+                  if (provider.isPrincipal)
+                    IconButton(
+                      tooltip: 'Edit duty',
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        _showDutyEditor(context, duty: duty);
+                      },
+                      icon: const Icon(Icons.edit_outlined),
+                    ),
+                ],
               ),
-            ),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: const EdgeInsets.only(left: 8),
-                child: Text(
-                  "${hour.toInt()}:00",
-                  style: const TextStyle(fontSize: 12),
-                ),
+              Text('${DateFormat.yMMMd().format(duty.date)}  ${duty.timeStart} - ${duty.timeEnd}'),
+              const SizedBox(height: 16),
+              _InfoSection(
+                title: 'Locations and teachers',
+                children: duty.locations
+                    .map((location) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.place_outlined),
+                          title: Text(location.name),
+                          subtitle: Text(duty.teacherLabelForLocation(location.id)),
+                        ))
+                    .toList(),
               ),
+              _InfoSection(
+                title: 'Tasks',
+                children: duty.tasks
+                    .map((task) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: task.photoUrl == null
+                              ? Icon(task.isCompleted ? Icons.check_circle : Icons.radio_button_unchecked)
+                              : ClipRRect(
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: Image.network(task.photoUrl!, width: 44, height: 44, fit: BoxFit.cover),
+                                ),
+                          title: Text(task.name),
+                          subtitle: Text(task.isCompleted
+                              ? 'Completed ${task.completedAt == null ? '' : DateFormat.jm().format(task.completedAt!)}'
+                              : 'Pending proof photo'),
+                          trailing: !task.isCompleted && provider.canCompleteTask(duty)
+                              ? IconButton(
+                                  tooltip: 'Capture proof',
+                                  onPressed: () => _completeTask(context, duty, task),
+                                  icon: const Icon(Icons.photo_camera_outlined),
+                                )
+                              : null,
+                        ))
+                    .toList(),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showFilters(BuildContext context, DutyProvider provider) {
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            DropdownButtonFormField<String?>(
+              initialValue: provider.teacherFilterId,
+              decoration: const InputDecoration(labelText: 'Teacher'),
+              items: [
+                const DropdownMenuItem<String?>(value: null, child: Text('All teachers')),
+                ...provider.teachers.map((teacher) => DropdownMenuItem(value: teacher.id, child: Text(teacher.fullName))),
+              ],
+              onChanged: provider.setTeacherFilter,
             ),
-          );
-        }),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String?>(
+              initialValue: provider.locationFilterId,
+              decoration: const InputDecoration(labelText: 'Venue'),
+              items: [
+                const DropdownMenuItem<String?>(value: null, child: Text('All venues')),
+                ...provider.locations.map((location) => DropdownMenuItem(value: location.id, child: Text(location.name))),
+              ],
+              onChanged: provider.setLocationFilter,
+            ),
+          ],
+        ),
       ),
     );
   }
+
+  void _showAddLocation(BuildContext context) {
+    final controller = TextEditingController();
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Add location'),
+        content: TextField(controller: controller, decoration: const InputDecoration(labelText: 'Location name')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () async {
+              if (controller.text.trim().isEmpty) return;
+              await context.read<DutyProvider>().addLocation(controller.text);
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSwapDialog(BuildContext context, Duty duty) async {
+    final provider = context.read<DutyProvider>();
+    final ids = await provider.eligibleSwapTeacherIds(duty);
+    if (!context.mounted) return;
+    String? selectedId = ids.isNotEmpty ? ids.first : null;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (_, setState) => AlertDialog(
+          title: const Text('Request swap'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${duty.title}\n${duty.timeStart} - ${duty.timeEnd}\n${duty.locations.map((e) => e.name).join(', ')}'),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                initialValue: selectedId,
+                decoration: const InputDecoration(labelText: 'Eligible teacher'),
+                items: ids
+                    .map((id) => DropdownMenuItem(
+                          value: id,
+                          child: Text(provider.teachers.firstWhere((t) => t.id == id, orElse: () => _fallbackTeacher(id)).fullName),
+                        ))
+                    .toList(),
+                onChanged: (value) => setState(() => selectedId = value),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: selectedId == null
+                  ? null
+                  : () async {
+                      await provider.requestSwap(duty, selectedId!);
+                      if (dialogContext.mounted) Navigator.pop(dialogContext);
+                    },
+              child: Text(provider.isPrincipal ? 'Swap now' : 'Request'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDutyEditor(BuildContext context, {Duty? duty}) {
+    final provider = context.read<DutyProvider>();
+    final title = TextEditingController(text: duty?.title ?? '');
+    final start = TextEditingController(text: duty?.timeStart ?? '07:00');
+    final end = TextEditingController(text: duty?.timeEnd ?? '08:00');
+    final taskText = TextEditingController(text: duty?.tasks.map((task) => task.name).join('\n') ?? 'Inspect area\nSubmit photo proof');
+    var selectedDate = duty?.date ?? provider.selectedDate;
+    var isAllDay = duty?.isAllDay ?? false;
+    var minTeachers = duty?.minTeachersPerVenue ?? 1;
+    var selectedLocations = duty?.locations.map((e) => e.id).toSet() ?? <String>{};
+    var selectedTeachers = duty?.teacherIds.toSet() ?? <String>{};
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (_, setState) => AlertDialog(
+          title: Text(duty == null ? 'Create duty' : 'Edit duty'),
+          content: SizedBox(
+            width: 520,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(controller: title, decoration: const InputDecoration(labelText: 'Duty name')),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              firstDate: DateTime.now().subtract(const Duration(days: 10)),
+                              lastDate: DateTime.now().add(const Duration(days: 10)),
+                              initialDate: selectedDate,
+                            );
+                            if (picked != null) setState(() => selectedDate = picked);
+                          },
+                          icon: const Icon(Icons.event_outlined),
+                          label: Text(DateFormat.yMMMd().format(selectedDate)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      FilterChip(
+                        label: const Text('All day'),
+                        selected: isAllDay,
+                        onSelected: (value) => setState(() => isAllDay = value),
+                      ),
+                    ],
+                  ),
+                  if (!isAllDay) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(child: TextField(controller: start, decoration: const InputDecoration(labelText: 'Start HH:mm'))),
+                        const SizedBox(width: 12),
+                        Expanded(child: TextField(controller: end, decoration: const InputDecoration(labelText: 'End HH:mm'))),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Locations', style: Theme.of(context).textTheme.titleSmall),
+                  ),
+                  Wrap(
+                    spacing: 8,
+                    children: provider.locations
+                        .map((location) => FilterChip(
+                              label: Text(location.name),
+                              selected: selectedLocations.contains(location.id),
+                              onSelected: (value) => setState(() {
+                                value ? selectedLocations.add(location.id) : selectedLocations.remove(location.id);
+                              }),
+                            ))
+                        .toList(),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Expanded(child: Text('Minimum teachers per venue')),
+                      IconButton(onPressed: minTeachers > 1 ? () => setState(() => minTeachers--) : null, icon: const Icon(Icons.remove)),
+                      Text('$minTeachers'),
+                      IconButton(onPressed: () => setState(() => minTeachers++), icon: const Icon(Icons.add)),
+                    ],
+                  ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Teachers', style: Theme.of(context).textTheme.titleSmall),
+                  ),
+                  Wrap(
+                    spacing: 8,
+                    children: provider.teachers
+                        .map((teacher) => FilterChip(
+                              label: Text(teacher.fullName),
+                              selected: selectedTeachers.contains(teacher.id),
+                              onSelected: (value) => setState(() {
+                                value ? selectedTeachers.add(teacher.id) : selectedTeachers.remove(teacher.id);
+                              }),
+                            ))
+                        .toList(),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: taskText,
+                    minLines: 3,
+                    maxLines: 6,
+                    decoration: const InputDecoration(labelText: 'Task checklist, one per line'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            if (duty != null)
+              TextButton(
+                onPressed: () async {
+                  await provider.deleteDuty(duty.id);
+                  if (dialogContext.mounted) Navigator.pop(dialogContext);
+                },
+                child: const Text('Delete'),
+              ),
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () async {
+                final locations = provider.locations.where((location) => selectedLocations.contains(location.id)).toList();
+                final teachers = provider.teachers.where((teacher) => selectedTeachers.contains(teacher.id)).toList();
+                final assignments = {
+                  for (final location in locations) location.id: teachers.map((teacher) => teacher.id).take(minTeachers).toList(),
+                };
+                final names = {for (final teacher in teachers) teacher.id: teacher.fullName};
+                final tasks = taskText.text
+                    .split('\n')
+                    .map((line) => line.trim())
+                    .where((line) => line.isNotEmpty)
+                    .map((line) => DutyTask(id: line.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_'), name: line))
+                    .toList();
+                final next = Duty(
+                  id: duty?.id ?? '',
+                  title: title.text.trim().isEmpty ? 'Untitled duty' : title.text.trim(),
+                  date: selectedDate,
+                  timeStart: isAllDay ? '00:00' : start.text.trim(),
+                  timeEnd: isAllDay ? '23:59' : end.text.trim(),
+                  isAllDay: isAllDay,
+                  locations: locations,
+                  teacherAssignments: assignments,
+                  teacherNames: names,
+                  tasks: tasks,
+                  thumbnailUrl: duty?.thumbnailUrl,
+                  minTeachersPerVenue: minTeachers,
+                );
+                duty == null ? await provider.createDuty(next) : await provider.updateDuty(next);
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TopBar extends StatelessWidget {
+  const _TopBar({this.onAddLocation});
+
+  final VoidCallback? onAddLocation;
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<DutyProvider>();
+    final date = provider.selectedDate;
+    return Material(
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        child: Wrap(
+          spacing: 12,
+          runSpacing: 10,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            IconButton(
+              tooltip: 'Previous day',
+              onPressed: () => provider.setSelectedDate(date.subtract(const Duration(days: 1))),
+              icon: const Icon(Icons.chevron_left),
+            ),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  firstDate: DateTime.now().subtract(const Duration(days: 10)),
+                  lastDate: DateTime.now().add(const Duration(days: 10)),
+                  initialDate: date,
+                );
+                if (picked != null) provider.setSelectedDate(picked);
+              },
+              icon: const Icon(Icons.event_outlined),
+              label: Text(DateFormat('EEE, d MMM').format(date)),
+            ),
+            IconButton(
+              tooltip: 'Next day',
+              onPressed: () => provider.setSelectedDate(date.add(const Duration(days: 1))),
+              icon: const Icon(Icons.chevron_right),
+            ),
+            SegmentedButton<DutyGroupingMode>(
+              segments: const [
+                ButtonSegment(value: DutyGroupingMode.location, label: Text('Locations'), icon: Icon(Icons.place_outlined)),
+                ButtonSegment(value: DutyGroupingMode.teacher, label: Text('Teachers'), icon: Icon(Icons.people_outline)),
+              ],
+              selected: {provider.groupingMode},
+              onSelectionChanged: (value) => provider.setGroupingMode(value.first),
+            ),
+            if (onAddLocation != null)
+              IconButton.filledTonal(
+                tooltip: 'Add location',
+                onPressed: onAddLocation,
+                icon: const Icon(Icons.add_location_alt_outlined),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CalendarGrid extends StatelessWidget {
+  const _CalendarGrid({required this.onOpen, required this.onEdit});
+
+  final void Function(BuildContext context, Duty duty) onOpen;
+  final void Function(BuildContext context, {Duty? duty}) onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<DutyProvider>();
+    final columns = provider.groupingMode == DutyGroupingMode.location
+        ? provider.locations.map((location) => _ColumnMeta(location.id, location.name)).toList()
+        : provider.teachers.map((teacher) => _ColumnMeta(teacher.id, teacher.fullName)).toList();
+    if (columns.isEmpty) {
+      return const Center(child: Text('No locations or teachers available yet.'));
+    }
+
+    return Scrollbar(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SingleChildScrollView(
+          child: SizedBox(
+            width: _DutyScheduleScreenState._timeWidth + columns.length * _DutyScheduleScreenState._columnWidth,
+            height: 48 + _DutyScheduleScreenState._hourCount * _DutyScheduleScreenState._hourHeight,
+            child: Stack(
+              children: [
+                _CalendarBackground(columns: columns),
+                ...provider.duties.expand((duty) => _blocksForDuty(context, provider, duty, columns)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Iterable<Widget> _blocksForDuty(BuildContext context, DutyProvider provider, Duty duty, List<_ColumnMeta> columns) {
+    final ids = provider.groupingMode == DutyGroupingMode.location ? duty.locations.map((e) => e.id) : duty.teacherIds;
+    return ids.map((id) {
+      final index = columns.indexWhere((column) => column.id == id);
+      if (index < 0) return const SizedBox.shrink();
+      final top = 48 + (duty.timeStart.toMinutes() - _DutyScheduleScreenState._startHour * 60) * (_DutyScheduleScreenState._hourHeight / 60);
+      final height = ((duty.timeEnd.toMinutes() - duty.timeStart.toMinutes()) * (_DutyScheduleScreenState._hourHeight / 60)).clamp(44, 240).toDouble();
+      final color = provider.groupingMode == DutyGroupingMode.location
+          ? provider.colorForTeacher(duty.teacherIds.isEmpty ? duty.id : duty.teacherIds.first)
+          : provider.colorForLocation(duty.locations.isEmpty ? duty.id : duty.locations.first.id);
+      return Positioned(
+        top: top,
+        left: _DutyScheduleScreenState._timeWidth + index * _DutyScheduleScreenState._columnWidth + 8,
+        width: _DutyScheduleScreenState._columnWidth - 16,
+        height: height,
+        child: InkWell(
+          onTap: () => onOpen(context, duty),
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(8)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(child: Text(duty.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700))),
+                    if (provider.isPrincipal)
+                      InkWell(
+                        onTap: () => onEdit(context, duty: duty),
+                        child: const Icon(Icons.edit_outlined, color: Colors.white, size: 16),
+                      ),
+                  ],
+                ),
+                Text(duty.teacherIds.map((id) => duty.teacherNames[id] ?? id).join(', '), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white)),
+                Text(duty.locations.map((e) => e.name).join(', '), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70)),
+              ],
+            ),
+          ),
+        ),
+      );
+    });
+  }
+}
+
+class _CalendarBackground extends StatelessWidget {
+  const _CalendarBackground({required this.columns});
+
+  final List<_ColumnMeta> columns;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            const SizedBox(width: _DutyScheduleScreenState._timeWidth, height: 48),
+            ...columns.map((column) => Container(
+                  width: _DutyScheduleScreenState._columnWidth,
+                  height: 48,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(border: Border.all(color: const Color(0xffe5e7eb)), color: Colors.white),
+                  child: Text(column.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
+                )),
+          ],
+        ),
+        ...List.generate(_DutyScheduleScreenState._hourCount, (index) {
+          final hour = _DutyScheduleScreenState._startHour + index;
+          return Row(
+            children: [
+              Container(width: _DutyScheduleScreenState._timeWidth, height: _DutyScheduleScreenState._hourHeight, alignment: Alignment.topCenter, child: Text('${hour.toString().padLeft(2, '0')}:00')),
+              ...columns.map((_) => Container(
+                    width: _DutyScheduleScreenState._columnWidth,
+                    height: _DutyScheduleScreenState._hourHeight,
+                    decoration: BoxDecoration(border: Border.all(color: const Color(0xffe5e7eb)), color: Colors.white),
+                  )),
+            ],
+          );
+        }),
+      ],
+    );
+  }
+}
+
+class _DutyList extends StatelessWidget {
+  const _DutyList({required this.onOpen, required this.onEdit, required this.onComplete, required this.onSwap});
+
+  final void Function(BuildContext context, Duty duty) onOpen;
+  final void Function(BuildContext context, {Duty? duty}) onEdit;
+  final Future<void> Function(BuildContext context, Duty duty, DutyTask task) onComplete;
+  final void Function(BuildContext context, Duty duty) onSwap;
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<DutyProvider>();
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _DutyListSection(title: 'TODO', duties: provider.todoDuties, onOpen: onOpen, onEdit: onEdit, onComplete: onComplete, onSwap: onSwap),
+        const SizedBox(height: 16),
+        _DutyListSection(title: 'COMPLETED', duties: provider.completedDuties, onOpen: onOpen, onEdit: onEdit, onComplete: onComplete, onSwap: onSwap),
+      ],
+    );
+  }
+}
+
+class _DutyListSection extends StatelessWidget {
+  const _DutyListSection({required this.title, required this.duties, required this.onOpen, required this.onEdit, required this.onComplete, required this.onSwap});
+
+  final String title;
+  final List<Duty> duties;
+  final void Function(BuildContext context, Duty duty) onOpen;
+  final void Function(BuildContext context, {Duty? duty}) onEdit;
+  final Future<void> Function(BuildContext context, Duty duty, DutyTask task) onComplete;
+  final void Function(BuildContext context, Duty duty) onSwap;
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<DutyProvider>();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        if (duties.isEmpty) const Text('No duties here.'),
+        ...duties.map((duty) => Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              child: ExpansionTile(
+                leading: duty.thumbnailUrl == null
+                    ? const Icon(Icons.assignment_outlined)
+                    : ClipRRect(borderRadius: BorderRadius.circular(6), child: Image.network(duty.thumbnailUrl!, width: 44, height: 44, fit: BoxFit.cover)),
+                title: Text(duty.title),
+                subtitle: Text('${duty.timeStart} - ${duty.timeEnd}  •  ${duty.locations.map((e) => e.name).join(', ')}\n${duty.teacherIds.map((id) => duty.teacherNames[id] ?? id).join(', ')}'),
+                trailing: Wrap(
+                  spacing: 4,
+                  children: [
+                    if (provider.canRequestSwap(duty)) IconButton(tooltip: 'Swap', onPressed: () => onSwap(context, duty), icon: const Icon(Icons.swap_horiz)),
+                    if (provider.isPrincipal) IconButton(tooltip: 'Edit', onPressed: () => onEdit(context, duty: duty), icon: const Icon(Icons.edit_outlined)),
+                    IconButton(tooltip: 'Details', onPressed: () => onOpen(context, duty), icon: const Icon(Icons.chevron_right)),
+                  ],
+                ),
+                children: duty.tasks
+                    .map((task) => ListTile(
+                          title: Text(task.name),
+                          subtitle: Text(task.isCompleted ? 'Completed' : 'Needs camera proof'),
+                          leading: Icon(task.isCompleted ? Icons.check_circle : Icons.radio_button_unchecked),
+                          trailing: !task.isCompleted && provider.canCompleteTask(duty)
+                              ? IconButton(tooltip: 'Capture proof', onPressed: () => onComplete(context, duty, task), icon: const Icon(Icons.photo_camera_outlined))
+                              : null,
+                        ))
+                    .toList(),
+              ),
+            )),
+      ],
+    );
+  }
+}
+
+class _InfoSection extends StatelessWidget {
+  const _InfoSection({required this.title, required this.children});
+
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 6),
+        ...children,
+        const SizedBox(height: 12),
+      ],
+    );
+  }
+}
+
+class _ColumnMeta {
+  final String id;
+  final String label;
+
+  const _ColumnMeta(this.id, this.label);
+}
+
+TeacherRecord _fallbackTeacher(String id) {
+  return TeacherRecord(
+    id: id,
+    username: id,
+    email: '',
+    fullName: id,
+    role: 'teacher',
+    icNumber: '',
+    gender: '',
+    dob: '',
+    address: '',
+    phoneNumber: '',
+    maritalStatus: '',
+    emergencyContactName: '',
+    emergencyContactNumber: '',
+    currentScore: 0,
+    yearlyKpi: 0,
+    status: 'active',
+    documents: const {},
+  );
+}
+
+DutyUserRole _roleFromUser(TeacherRecord? user) {
+  final role = user?.role.toLowerCase() ?? 'teacher';
+  return role == 'principal' || role == 'admin' ? DutyUserRole.principal : DutyUserRole.teacher;
 }

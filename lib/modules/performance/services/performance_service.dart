@@ -47,62 +47,64 @@ class PerformanceService {
     return _db
         .collection('performance_logs')
         .where('teacherId', isEqualTo: teacherId)
-        .orderBy('timestamp', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => PerformanceLog.fromMap(doc.id, doc.data()))
-            .toList());
+        .map((snapshot) {
+          final logs = snapshot.docs
+              .map((doc) => PerformanceLog.fromMap(doc.id, doc.data()))
+              .toList();
+          logs.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+          return logs;
+        });
   }
 
   Stream<List<PerformanceLog>> getPerformanceLogsForTeacherInYear(
       String teacherId, int year) {
-    final startDate = DateTime(year, 1, 1);
-    final endDate = DateTime(year, 12, 31, 23, 59, 59);
-
-    return _db
-        .collection('performance_logs')
-        .where('teacherId', isEqualTo: teacherId)
-        .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
-        .where('timestamp', isLessThanOrEqualTo: Timestamp.fromDate(endDate))
-        .orderBy('timestamp', descending: true)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => PerformanceLog.fromMap(doc.id, doc.data()))
-            .toList());
+    return getPerformanceLogsForTeacher(teacherId).map((logs) {
+      return logs.where((log) => log.timestamp.year == year).toList();
+    });
   }
 
   Stream<List<WarningRecord>> getWarningsForTeacher(String teacherId) {
     return _db
         .collection('warnings')
         .where('teacherId', isEqualTo: teacherId)
-        .orderBy('issueDate', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => WarningRecord.fromMap(doc.id, doc.data()))
-            .toList());
+        .map((snapshot) {
+          final warnings = snapshot.docs
+              .map((doc) => WarningRecord.fromMap(doc.id, doc.data()))
+              .toList();
+          warnings.sort((a, b) => b.issueDate.compareTo(a.issueDate));
+          return warnings;
+        });
   }
 
   Stream<List<KpiNotification>> getNotificationsForTeacher(String teacherId) {
     return _db
         .collection('notifications')
         .where('teacherId', isEqualTo: teacherId)
-        .orderBy('timestamp', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => KpiNotification.fromMap(doc.id, doc.data()))
-            .toList());
+        .map((snapshot) {
+          final notifications = snapshot.docs
+              .map((doc) => KpiNotification.fromMap(doc.id, doc.data()))
+              .toList();
+          notifications.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+          return notifications;
+        });
   }
 
   Stream<YearlyKpiRecord?> getYearlyKpi(String teacherId, int year) {
     return _db
         .collection('yearly_kpis')
         .where('teacherId', isEqualTo: teacherId)
-        .where('year', isEqualTo: year)
-        .limit(1)
         .snapshots()
         .map((snapshot) {
-      if (snapshot.docs.isEmpty) return null;
-      return YearlyKpiRecord.fromMap(snapshot.docs.first.id, snapshot.docs.first.data());
+      final records = snapshot.docs
+          .map((doc) => YearlyKpiRecord.fromMap(doc.id, doc.data()))
+          .where((record) => record.year == year)
+          .toList();
+      if (records.isEmpty) return null;
+      records.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      return records.first;
     });
   }
 
@@ -113,7 +115,7 @@ class PerformanceService {
     await _db.runTransaction((transaction) async {
       final teacherSnapshot = await transaction.get(teacherRef);
       final currentScore =
-          ((teacherSnapshot.data()?['currentScore'] ?? 0) as num).toDouble();
+          ((teacherSnapshot.data()?['currentScore'] ?? 100) as num).toDouble();
       final newScore = currentScore + log.amount;
 
       transaction.set(logRef, log.toMap());
@@ -135,35 +137,32 @@ class PerformanceService {
     DateTime? startDate,
     DateTime? endDate,
   }) async {
-    Query<Map<String, dynamic>> query =
-        _db.collection('performance_logs').where('teacherId', isEqualTo: teacherId);
+    final snapshot = await _db
+        .collection('performance_logs')
+        .where('teacherId', isEqualTo: teacherId)
+        .get();
 
-    if (severity != null && severity != 'All') {
-      query = query.where('severity', isEqualTo: severity);
-    }
-
-    if (category != null && category != 'All') {
-      query = query.where('category', isEqualTo: category);
-    }
-
-    if (startDate != null) {
-      query = query.where(
-        'timestamp',
-        isGreaterThanOrEqualTo: Timestamp.fromDate(startDate),
-      );
-    }
-
-    if (endDate != null) {
-      query = query.where(
-        'timestamp',
-        isLessThanOrEqualTo: Timestamp.fromDate(endDate),
-      );
-    }
-
-    final snapshot = await query.orderBy('timestamp', descending: true).get();
-    return snapshot.docs
+    final logs = snapshot.docs
         .map((doc) => PerformanceLog.fromMap(doc.id, doc.data()))
+        .where((log) {
+          if (severity != null && severity != 'All' && log.severity != severity) {
+            return false;
+          }
+          if (category != null && category != 'All' && log.category != category) {
+            return false;
+          }
+          if (startDate != null && log.timestamp.isBefore(startDate)) {
+            return false;
+          }
+          if (endDate != null && log.timestamp.isAfter(endDate)) {
+            return false;
+          }
+          return true;
+        })
         .toList();
+
+    logs.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return logs;
   }
 
   Future<Map<int, double>> calculateMonthlyScores(String teacherId, int year) async {
@@ -272,16 +271,15 @@ class PerformanceService {
     final startOfDay = DateTime(today.year, today.month, today.day);
     final endOfDay = DateTime(today.year, today.month, today.day, 23, 59, 59);
 
-    final todayLogs = await _db
-        .collection('performance_logs')
-        .where('teacherId', isEqualTo: log.teacherId)
-        .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
-        .where('timestamp', isLessThanOrEqualTo: Timestamp.fromDate(endOfDay))
-        .get();
+    final todayLogs = (await fetchTeacherLogs(log.teacherId))
+        .where((logEntry) =>
+            !logEntry.timestamp.isBefore(startOfDay) &&
+            !logEntry.timestamp.isAfter(endOfDay))
+        .toList();
 
     double dailyDeductionTotal = 0;
-    for (final doc in todayLogs.docs) {
-      final amount = (doc.data()['amount'] as num).toDouble();
+    for (final logEntry in todayLogs) {
+      final amount = logEntry.amount;
       if (amount < 0) dailyDeductionTotal += amount;
     }
 
@@ -337,9 +335,14 @@ class PerformanceService {
     final kpiSnapshot = await _db
         .collection('yearly_kpis')
         .where('teacherId', isEqualTo: teacherId)
-        .where('year', isEqualTo: year)
-        .limit(1)
         .get();
+
+    final yearlyRecords = kpiSnapshot.docs
+        .map((doc) => YearlyKpiRecord.fromMap(doc.id, doc.data()))
+        .where((record) => record.year == year)
+        .toList();
+
+    yearlyRecords.sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
     return {
       'teacher': teacher.exists
@@ -347,12 +350,7 @@ class PerformanceService {
           : null,
       'logs': logs,
       'monthlyScores': monthlyScores,
-      'yearlyKpi': kpiSnapshot.docs.isEmpty
-          ? null
-          : YearlyKpiRecord.fromMap(
-              kpiSnapshot.docs.first.id,
-              kpiSnapshot.docs.first.data(),
-            ),
+      'yearlyKpi': yearlyRecords.isEmpty ? null : yearlyRecords.first,
     };
   }
 

@@ -1,229 +1,335 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+enum DutyViewMode { calendar, list }
+
+enum DutyGroupingMode { location, teacher }
+
+enum DutyUserRole { teacher, principal }
+
+enum DutySwapStatus { none, pending, approved, rejected }
+
+typedef DutyAssignment = Duty;
+
 class DutyLocation {
   final String id;
   final String name;
   final String description;
 
-  DutyLocation({required this.id, required this.name, required this.description});
+  const DutyLocation({
+    required this.id,
+    required this.name,
+    this.description = '',
+  });
 
   factory DutyLocation.fromMap(String id, Map<String, dynamic> data) {
     return DutyLocation(
       id: id,
-      name: data['name'] ?? '',
-      description: data['description'] ?? '',
+      name: data['name']?.toString() ?? '',
+      description: data['description']?.toString() ?? '',
     );
   }
 
   Map<String, dynamic> toMap() {
-    return {
-      'name': name,
-      'description': description,
-    };
+    return {'name': name, 'description': description};
   }
 }
 
 class DutyTask {
   final String id;
   final String name;
-  final String timeStart;
-  final String timeEnd;
-  final String frequency;
-  final List<String> locations;
-  final int minPeople;
-  final List<String> checklistTemplates;
-  final String? genderRequirement;
-  final int? dayOfWeek;
-  final int? dayOfMonth;
-
-  DutyTask({
-    required this.id,
-    required this.name,
-    required this.timeStart,
-    required this.timeEnd,
-    required this.frequency,
-    required this.locations,
-    required this.minPeople,
-    required this.checklistTemplates,
-    this.genderRequirement,
-    this.dayOfWeek,
-    this.dayOfMonth,
-  });
-
-  factory DutyTask.fromMap(String id, Map<String, dynamic> data) {
-    return DutyTask(
-      id: id,
-      name: data['name'] ?? '',
-      timeStart: data['timeStart'] ?? '',
-      timeEnd: data['timeEnd'] ?? '',
-      frequency: data['frequency'] ?? 'Daily',
-      locations: List<String>.from(data['locations'] ?? []),
-      minPeople: data['minPeople']?.toInt() ?? 1,
-      checklistTemplates: List<String>.from(data['checklistTemplates'] ?? []),
-      genderRequirement: data['genderRequirement'],
-      dayOfWeek: data['dayOfWeek']?.toInt(),
-      dayOfMonth: data['dayOfMonth']?.toInt(),
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'name': name,
-      'timeStart': timeStart,
-      'timeEnd': timeEnd,
-      'frequency': frequency,
-      'locations': locations,
-      'minPeople': minPeople,
-      'checklistTemplates': checklistTemplates,
-      'genderRequirement': genderRequirement,
-      'dayOfWeek': dayOfWeek,
-      'dayOfMonth': dayOfMonth,
-    };
-  }
-}
-
-class DutyChecklistItem {
-  final String id;
-  final String description;
   final bool isCompleted;
   final String? photoUrl;
   final DateTime? completedAt;
+  final String? timeStart;
+  final String? timeEnd;
+  final String? teacherId;
+  final String? teacherName;
+  final String? locationId;
+  final String? locationName;
 
-  DutyChecklistItem({
+  const DutyTask({
     required this.id,
-    required this.description,
-    required this.isCompleted,
+    required this.name,
+    this.isCompleted = false,
     this.photoUrl,
     this.completedAt,
+    this.timeStart,
+    this.timeEnd,
+    this.teacherId,
+    this.teacherName,
+    this.locationId,
+    this.locationName,
   });
 
-  factory DutyChecklistItem.fromMap(Map<String, dynamic> data) {
-    return DutyChecklistItem(
-      id: data['id'] ?? '',
-      description: data['description'] ?? '',
-      isCompleted: data['isCompleted'] ?? false,
-      photoUrl: data['photoUrl'],
-      completedAt: data['completedAt'] != null 
-          ? (data['completedAt'] as Timestamp).toDate() 
-          : null,
+  factory DutyTask.fromMap(Map<String, dynamic> data) {
+    return DutyTask(
+      id: data['id']?.toString() ?? '',
+      name: data['name']?.toString() ?? '',
+      isCompleted: data['isCompleted'] == true || data['completed'] == true,
+      photoUrl: data['photoUrl']?.toString(),
+      completedAt: _dateFromAny(data['completedAt'] ?? data['timestamp']),
+      teacherId: data['teacherId']?.toString() ?? data['teacher']?.toString(),
+      teacherName: data['teacherName']?.toString(),
+      locationId: data['locationId']?.toString() ?? data['location']?.toString(),
+      locationName: data['locationName']?.toString(),
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
       'id': id,
-      'description': description,
+      'name': name,
       'isCompleted': isCompleted,
       'photoUrl': photoUrl,
-      'completedAt': completedAt != null ? Timestamp.fromDate(completedAt!) : null,
+      'completedAt': completedAt == null ? null : Timestamp.fromDate(completedAt!),
+      'teacherId': teacherId,
+      'teacherName': teacherName,
+      'locationId': locationId,
+      'locationName': locationName,
     };
+  }
+
+  DutyTask copyWith({
+    String? name,
+    bool? isCompleted,
+    String? photoUrl,
+    DateTime? completedAt,
+    String? teacherId,
+    String? teacherName,
+    String? locationId,
+    String? locationName,
+  }) {
+    return DutyTask(
+      id: id,
+      name: name ?? this.name,
+      isCompleted: isCompleted ?? this.isCompleted,
+      photoUrl: photoUrl ?? this.photoUrl,
+      completedAt: completedAt ?? this.completedAt,
+      teacherId: teacherId ?? this.teacherId,
+      teacherName: teacherName ?? this.teacherName,
+      locationId: locationId ?? this.locationId,
+      locationName: locationName ?? this.locationName,
+    );
   }
 }
 
-class DutyAssignment {
+class Duty {
   final String id;
-  final String taskId;
-  final String taskName;
-  final String date;
-  final String locationId;
-  final String locationName;
-  final List<String> teacherIds;
-  final String status;
+  final String title;
+  final DateTime date;
   final String timeStart;
   final String timeEnd;
-  final bool isReplacement;
-  final List<DutyChecklistItem> checklist;
+  final bool isAllDay;
+  final List<DutyLocation> locations;
+  final Map<String, List<String>> teacherAssignments;
+  final Map<String, String> teacherNames;
+  final List<DutyTask> tasks;
+  final String? thumbnailUrl;
+  final DutySwapStatus swapStatus;
+  final String status;
+  final String type;
+  final int minTeachersPerVenue;
 
-  DutyAssignment({
+  const Duty({
     required this.id,
-    required this.taskId,
-    required this.taskName,
+    required this.title,
     required this.date,
-    required this.locationId,
-    required this.locationName,
-    required this.teacherIds,
-    required this.status,
     required this.timeStart,
     required this.timeEnd,
-    required this.isReplacement,
-    required this.checklist,
+    this.isAllDay = false,
+    this.locations = const [],
+    this.teacherAssignments = const {},
+    this.teacherNames = const {},
+    this.tasks = const [],
+    this.thumbnailUrl,
+    this.swapStatus = DutySwapStatus.none,
+    this.status = 'todo',
+    this.type = 'Cleaning Duty',
+    this.minTeachersPerVenue = 1,
   });
 
-  factory DutyAssignment.fromMap(String id, Map<String, dynamic> data) {
-    return DutyAssignment(
+  bool get isCompleted => tasks.isNotEmpty && tasks.every((task) => task.isCompleted);
+
+  List<String> get teacherIds {
+    return teacherAssignments.values.expand((ids) => ids).toSet().toList();
+  }
+
+  String teacherLabelForLocation(String locationId) {
+    final ids = teacherAssignments[locationId] ?? const <String>[];
+    if (ids.isEmpty) return 'Unassigned';
+    return ids.map((id) => teacherNames[id] ?? id).join(', ');
+  }
+
+  factory Duty.fromMap(String id, Map<String, dynamic> data) {
+    final rawLocations = data['locations'];
+    final locations = rawLocations is List
+        ? rawLocations.map((entry) {
+            if (entry is Map<String, dynamic>) {
+              return DutyLocation.fromMap(entry['id']?.toString() ?? entry['name']?.toString() ?? '', entry);
+            }
+            return DutyLocation(id: entry.toString(), name: entry.toString());
+          }).toList()
+        : <DutyLocation>[];
+
+    final assignments = <String, List<String>>{};
+    final rawAssignments = data['teacherAssignments'] ?? data['assignedTeachers'];
+    if (rawAssignments is Map) {
+      rawAssignments.forEach((key, value) {
+        assignments[key.toString()] = value is List ? value.map((e) => e.toString()).toList() : <String>[];
+      });
+    }
+
+    return Duty(
       id: id,
-      taskId: data['taskId'] ?? '',
-      taskName: data['taskName'] ?? '',
-      date: data['date'] ?? '',
-      locationId: data['locationId'] ?? '',
-      locationName: data['locationName'] ?? '',
-      teacherIds: List<String>.from(data['teacherIds'] ?? []),
-      status: data['status'] ?? 'pending',
-      timeStart: data['timeStart'] ?? '',
-      timeEnd: data['timeEnd'] ?? '',
-      isReplacement: data['isReplacement'] ?? false,
-      checklist: (data['checklist'] as List<dynamic>? ?? [])
-          .map((item) => DutyChecklistItem.fromMap(item as Map<String, dynamic>))
+      title: data['title']?.toString() ?? data['taskName']?.toString() ?? 'Untitled duty',
+      date: _dateFromAny(data['date']) ?? DateTime.now(),
+      timeStart: data['timeStart']?.toString() ?? '07:00',
+      timeEnd: data['timeEnd']?.toString() ?? '08:00',
+      isAllDay: data['isAllDay'] == true,
+      locations: locations,
+      teacherAssignments: assignments,
+      teacherNames: (data['teacherNames'] as Map?)?.map((key, value) => MapEntry(key.toString(), value.toString())) ?? {},
+      tasks: (data['tasks'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(DutyTask.fromMap)
           .toList(),
+      thumbnailUrl: data['thumbnailUrl']?.toString(),
+      swapStatus: _swapStatusFromString(data['swapStatus']?.toString()),
+      status: data['status']?.toString() ?? 'todo',
+      type: data['type']?.toString() ?? 'Cleaning Duty',
+      minTeachersPerVenue: int.tryParse(data['minTeachersPerVenue']?.toString() ?? '') ?? 1,
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
-      'taskId': taskId,
-      'taskName': taskName,
-      'date': date,
-      'locationId': locationId,
-      'locationName': locationName,
-      'teacherIds': teacherIds,
-      'status': status,
+      'title': title,
+      'date': Timestamp.fromDate(DateTime(date.year, date.month, date.day)),
+      'dateKey': dateKey(date),
       'timeStart': timeStart,
       'timeEnd': timeEnd,
-      'isReplacement': isReplacement,
-      'checklist': checklist.map((c) => c.toMap()).toList(),
+      'isAllDay': isAllDay,
+      'locations': locations.map((location) => {'id': location.id, ...location.toMap()}).toList(),
+      'teacherAssignments': teacherAssignments,
+      'teacherNames': teacherNames,
+      'tasks': tasks.map((task) => task.toMap()).toList(),
+      'thumbnailUrl': thumbnailUrl,
+      'swapStatus': swapStatus.name,
+      'status': isCompleted ? 'completed' : status,
+      'type': type,
+      'minTeachersPerVenue': minTeachersPerVenue,
     };
+  }
+
+  Duty copyWith({
+    String? title,
+    DateTime? date,
+    String? timeStart,
+    String? timeEnd,
+    bool? isAllDay,
+    List<DutyLocation>? locations,
+    Map<String, List<String>>? teacherAssignments,
+    Map<String, String>? teacherNames,
+    List<DutyTask>? tasks,
+    String? thumbnailUrl,
+    DutySwapStatus? swapStatus,
+    String? status,
+    String? type,
+    int? minTeachersPerVenue,
+  }) {
+    return Duty(
+      id: id,
+      title: title ?? this.title,
+      date: date ?? this.date,
+      timeStart: timeStart ?? this.timeStart,
+      timeEnd: timeEnd ?? this.timeEnd,
+      isAllDay: isAllDay ?? this.isAllDay,
+      locations: locations ?? this.locations,
+      teacherAssignments: teacherAssignments ?? this.teacherAssignments,
+      teacherNames: teacherNames ?? this.teacherNames,
+      tasks: tasks ?? this.tasks,
+      thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      swapStatus: swapStatus ?? this.swapStatus,
+      status: status ?? this.status,
+      type: type ?? this.type,
+      minTeachersPerVenue: minTeachersPerVenue ?? this.minTeachersPerVenue,
+    );
   }
 }
 
 class DutySwap {
   final String id;
-  final String assignmentId;
+  final String dutyId;
   final String fromTeacherId;
   final String toTeacherId;
-  final String status;
-  final DateTime timestamp;
   final String requestedBy;
+  final DutySwapStatus status;
+  final DateTime createdAt;
 
-  DutySwap({
+  const DutySwap({
     required this.id,
-    required this.assignmentId,
+    required this.dutyId,
     required this.fromTeacherId,
     required this.toTeacherId,
-    required this.status,
-    required this.timestamp,
     required this.requestedBy,
+    this.status = DutySwapStatus.pending,
+    required this.createdAt,
   });
 
   factory DutySwap.fromMap(String id, Map<String, dynamic> data) {
     return DutySwap(
       id: id,
-      assignmentId: data['assignmentId'] ?? '',
-      fromTeacherId: data['fromTeacherId'] ?? '',
-      toTeacherId: data['toTeacherId'] ?? '',
-      status: data['status'] ?? 'pending',
-      timestamp: (data['timestamp'] as Timestamp).toDate(),
-      requestedBy: data['requestedBy'] ?? 'teacher',
+      dutyId: data['dutyId']?.toString() ?? data['assignmentId']?.toString() ?? '',
+      fromTeacherId: data['fromTeacherId']?.toString() ?? '',
+      toTeacherId: data['toTeacherId']?.toString() ?? '',
+      requestedBy: data['requestedBy']?.toString() ?? 'teacher',
+      status: _swapStatusFromString(data['status']?.toString()),
+      createdAt: _dateFromAny(data['createdAt'] ?? data['timestamp']) ?? DateTime.now(),
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
-      'assignmentId': assignmentId,
+      'dutyId': dutyId,
       'fromTeacherId': fromTeacherId,
       'toTeacherId': toTeacherId,
-      'status': status,
-      'timestamp': Timestamp.fromDate(timestamp),
       'requestedBy': requestedBy,
+      'status': status.name,
+      'createdAt': Timestamp.fromDate(createdAt),
     };
   }
+}
+
+class DutyTemplate {
+  final String id;
+  final String name;
+  final String frequency;
+  final List<String> checklist;
+
+  const DutyTemplate({
+    required this.id,
+    required this.name,
+    required this.frequency,
+    this.checklist = const [],
+  });
+}
+
+DateTime? _dateFromAny(dynamic value) {
+  if (value is Timestamp) return value.toDate();
+  if (value is DateTime) return value;
+  if (value is String) return DateTime.tryParse(value);
+  return null;
+}
+
+DutySwapStatus _swapStatusFromString(String? value) {
+  return DutySwapStatus.values.firstWhere(
+    (status) => status.name == value,
+    orElse: () => DutySwapStatus.none,
+  );
+}
+
+String dateKey(DateTime date) {
+  return '${date.year.toString().padLeft(4, '0')}-'
+      '${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
 }
