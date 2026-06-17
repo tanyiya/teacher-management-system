@@ -20,13 +20,23 @@ class AlertNotification {
   });
 
   factory AlertNotification.fromMap(String id, Map<String, dynamic> data) {
+    // timestamp arrives as Firestore Timestamp (SDK) or ISO-8601 string (REST).
+    final raw = data['timestamp'];
+    DateTime ts;
+    if (raw is Timestamp) {
+      ts = raw.toDate();
+    } else if (raw is String && raw.isNotEmpty) {
+      ts = DateTime.tryParse(raw) ?? DateTime.now();
+    } else {
+      ts = DateTime.now();
+    }
     return AlertNotification(
       id: id,
       userId: data['userId'] ?? '',
       title: data['title'] ?? '',
       message: data['message'] ?? '',
       read: data['read'] ?? false,
-      timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      timestamp: ts,
       type: data['type'] ?? 'admin',
     );
   }

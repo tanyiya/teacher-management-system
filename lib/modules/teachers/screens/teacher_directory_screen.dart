@@ -244,7 +244,7 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen>
           CircleAvatar(
             radius: 18,
             backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.15),
-            child: Text(t.fullName[0].toUpperCase(),
+            child: Text(t.fullName.isNotEmpty ? t.fullName[0].toUpperCase() : '?',
                 style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 14)),
           ),
           const SizedBox(width: 12),
@@ -300,7 +300,7 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen>
                 CircleAvatar(
                   radius: 22,
                   backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.15),
-                  child: Text(t.fullName[0].toUpperCase(),
+                  child: Text(t.fullName.isNotEmpty ? t.fullName[0].toUpperCase() : '?',
                       style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 18)),
                 ),
                 const SizedBox(width: 12),
@@ -575,20 +575,22 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen>
                 },
               ),
             const Spacer(),
-            if (status == 'uploaded')
+            // Verify and Reject are only relevant while the doc is pending review.
+            if (status == 'uploaded') ...[
               OutlinedButton.icon(
                 icon: const Icon(LucideIcons.checkCircle, size: 13),
                 label: const Text('Verify', style: TextStyle(fontSize: 12)),
                 style: OutlinedButton.styleFrom(foregroundColor: Colors.green),
                 onPressed: () => _verifyDoc(t, docKey),
               ),
-            const SizedBox(width: 8),
-            OutlinedButton.icon(
-              icon: const Icon(LucideIcons.xCircle, size: 13),
-              label: const Text('Reject', style: TextStyle(fontSize: 12)),
-              style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
-              onPressed: () => _rejectDoc(t, docKey, docName),
-            ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                icon: const Icon(LucideIcons.xCircle, size: 13),
+                label: const Text('Reject', style: TextStyle(fontSize: 12)),
+                style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                onPressed: () => _rejectDoc(t, docKey, docName),
+              ),
+            ],
           ]),
         ],
       ]),
@@ -703,48 +705,101 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen>
 
   // ── Admin actions ─────────────────────────────────────────────────────────
 
+  // Optimistically update _selected so the UI reflects changes immediately
+  // without waiting for the gRPC stream (which may be blocked on Android).
+  void _applyDocStatus(TeacherRecord t, String docKey, String status, {String reason = ''}) {
+    if (!mounted || _selected?.id != t.id) return;
+    final docs = Map<String, DocumentRecord>.from(t.documents);
+    if (docs.containsKey(docKey)) {
+      docs[docKey] = docs[docKey]!.copyWith(status: status, rejectionReason: reason);
+    }
+    setState(() => _selected = t.copyWith(documents: docs));
+  }
+
+  void _applyVerificationStatus(TeacherRecord t, String status, {String reason = ''}) {
+    if (!mounted || _selected?.id != t.id) return;
+    setState(() => _selected = t.copyWith(
+      verificationStatus: status,
+      verificationRejectionReason: reason,
+    ));
+  }
+
   Future<void> _approveRecord(TeacherRecord t) async {
     final ok = await _confirmDialog('Approve Record',
         'Approve ${t.fullName}\'s record? This confirms all submitted information is verified.');
     if (ok != true) return;
-    await _service.updateVerificationStatus(t.id, 'approved');
-    _showSnack('Record approved.', isError: false);
+    try {
+      await _service.updateVerificationStatus(t.id, 'approved')
+          .timeout(const Duration(seconds: 3), onTimeout: () {});
+      _applyVerificationStatus(t, 'approved');
+      _showSnack('Record approved.', isError: false);
+    } catch (e) {
+      if (mounted) _showSnack('Failed: $e', isError: true);
+    }
   }
 
   Future<void> _rejectRecord(TeacherRecord t) async {
     final reason = await _reasonDialog('Reject Record', 'Enter the reason for rejection:');
     if (reason == null) return;
-    await _service.updateVerificationStatus(t.id, 'rejected', rejectionReason: reason);
-    _showSnack('Record rejected.', isError: false);
+    try {
+      await _service.updateVerificationStatus(t.id, 'rejected', rejectionReason: reason)
+          .timeout(const Duration(seconds: 3), onTimeout: () {});
+      _applyVerificationStatus(t, 'rejected', reason: reason);
+      _showSnack('Record rejected.', isError: false);
+    } catch (e) {
+      if (mounted) _showSnack('Failed: $e', isError: true);
+    }
   }
 
   Future<void> _verifyDoc(TeacherRecord t, String docKey) async {
-    await _service.updateDocumentStatus(t.id, docKey, 'verified');
-    _showSnack('Document verified.', isError: false);
+    try {
+      await _service.updateDocumentStatus(t.id, docKey, 'verified')
+          .timeout(const Duration(seconds: 3), onTimeout: () {});
+      _applyDocStatus(t, docKey, 'verified');
+      _showSnack('Document verified.', isError: false);
+    } catch (e) {
+      if (mounted) _showSnack('Failed: $e', isError: true);
+    }
   }
 
   Future<void> _rejectDoc(TeacherRecord t, String docKey, String docName) async {
     final reason = await _reasonDialog('Reject Document', 'Enter the reason for rejecting "$docName":');
     if (reason == null) return;
-    await _service.updateDocumentStatus(t.id, docKey, 'rejected', rejectionReason: reason);
-    _showSnack('Document rejected.', isError: false);
+    try {
+      await _service.updateDocumentStatus(t.id, docKey, 'rejected', rejectionReason: reason)
+          .timeout(const Duration(seconds: 3), onTimeout: () {});
+      _applyDocStatus(t, docKey, 'rejected', reason: reason);
+      _showSnack('Document rejected.', isError: false);
+    } catch (e) {
+      if (mounted) _showSnack('Failed: $e', isError: true);
+    }
   }
 
   Future<void> _approveChangeRequest(ChangeRequest r, String adminName) async {
     final ok = await _confirmDialog('Approve Change Request',
         'Approve changing ${r.fieldLabel} from "${r.oldValue}" to "${r.newValue}"?');
     if (ok != true) return;
-    await _service.reviewChangeRequest(r.id, r.teacherId, r.field, r.newValue, true,
-        reviewedBy: adminName);
-    _showSnack('Change request approved.', isError: false);
+    try {
+      await _service.reviewChangeRequest(r.id, r.teacherId, r.field, r.newValue, true,
+          reviewedBy: adminName)
+          .timeout(const Duration(seconds: 3), onTimeout: () {});
+      _showSnack('Change request approved.', isError: false);
+    } catch (e) {
+      if (mounted) _showSnack('Failed: $e', isError: true);
+    }
   }
 
   Future<void> _rejectChangeRequest(ChangeRequest r, String adminName) async {
     final reason = await _reasonDialog('Reject Change Request', 'Enter the reason for rejection:');
     if (reason == null) return;
-    await _service.reviewChangeRequest(r.id, r.teacherId, r.field, r.newValue, false,
-        rejectionReason: reason, reviewedBy: adminName);
-    _showSnack('Change request rejected.', isError: false);
+    try {
+      await _service.reviewChangeRequest(r.id, r.teacherId, r.field, r.newValue, false,
+          rejectionReason: reason, reviewedBy: adminName)
+          .timeout(const Duration(seconds: 3), onTimeout: () {});
+      _showSnack('Change request rejected.', isError: false);
+    } catch (e) {
+      if (mounted) _showSnack('Failed: $e', isError: true);
+    }
   }
 
   Future<void> _showEditDialog(TeacherRecord t) async {
@@ -770,9 +825,13 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen>
     );
   }
 
-  Future<String?> _reasonDialog(String title, String hint) async {
+  Future<String?> _reasonDialog(String title, String hint) {
+    // Do not dispose ctrl here — the dialog may still be animating out when
+    // this function returns, so the TextField is still subscribed to the
+    // controller. Disposing early triggers '_dependents.isEmpty' assertion.
+    // The controller is a short-lived local and will be GC'd automatically.
     final ctrl = TextEditingController();
-    final result = await showDialog<String>(
+    return showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(title),
@@ -793,8 +852,6 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen>
         ],
       ),
     );
-    ctrl.dispose();
-    return result;
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -908,7 +965,9 @@ class _EditTeacherDialogState extends State<_EditTeacherDialog> {
 
   @override
   void dispose() {
-    for (final c in _ctrls.values) c.dispose();
+    for (final c in _ctrls.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -923,9 +982,16 @@ class _EditTeacherDialogState extends State<_EditTeacherDialog> {
       for (final e in _ctrls.entries) {
         fields[e.key] = e.value.text.trim();
       }
-      await widget.service.adminUpdateTeacher(widget.teacher.id, fields);
+      // Timeout after 3 s — on Android the gRPC backend may be unreachable
+      // and Firestore blocks the Future while retrying. The write is already
+      // queued in the local cache and will sync when connectivity is restored.
+      await widget.service
+          .adminUpdateTeacher(widget.teacher.id, fields)
+          .timeout(const Duration(seconds: 3), onTimeout: () {});
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
     } catch (e) {
+      // Close the dialog even on error so the user is not stuck.
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Save failed: $e')),

@@ -115,7 +115,8 @@ class _ChangeRequestScreenState extends State<ChangeRequestScreen> {
         submittedAt: DateTime.now().toIso8601String(),
       );
 
-      await _service.submitChangeRequest(request);
+      await _service.submitChangeRequest(request)
+          .timeout(const Duration(seconds: 3), onTimeout: () {});
       if (mounted) setState(() => _submitted = true);
     } catch (_) {
       if (mounted) _showSnack('Submission failed. Please try again.', isError: true);

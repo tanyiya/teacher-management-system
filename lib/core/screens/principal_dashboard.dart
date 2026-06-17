@@ -5,6 +5,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../providers/app_state_provider.dart';
 import '../../app_theme.dart';
+import '../models/notification.dart';
+import '../services/notification_service.dart';
+import 'alerts_screen.dart';
 import '../../modules/teachers/screens/teacher_directory_screen.dart';
 import '../../modules/training/screens/admin_training_screen.dart';
 import '../../modules/duty/screens/duty_schedule_screen.dart';
@@ -21,6 +24,7 @@ class PrincipalDashboard extends StatefulWidget {
 
 class _PrincipalDashboardState extends State<PrincipalDashboard> {
   int _currentIndex = 0;
+  final NotificationService _notifSvc = NotificationService();
 
   void _goTo(int index) => setState(() => _currentIndex = index);
 
@@ -55,10 +59,36 @@ class _PrincipalDashboardState extends State<PrincipalDashboard> {
             backgroundColor: Colors.white,
             elevation: 0.5,
             actions: [
+              StreamBuilder<List<AlertNotification>>(
+                stream: _notifSvc.getNotifications(user.id),
+                builder: (context, snap) {
+                  final unread = snap.data?.where((n) => !n.isRead).length ?? 0;
+                  return IconButton(
+                    icon: Badge(
+                      isLabelVisible: unread > 0,
+                      label: Text(unread > 9 ? '9+' : '$unread'),
+                      child: const Icon(LucideIcons.bell),
+                    ),
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => Scaffold(
+                          appBar: AppBar(
+                            title: const Text('Notifications'),
+                            backgroundColor: Colors.white,
+                            elevation: 0.5,
+                          ),
+                          body: AlertsScreen(user: user),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
               IconButton(
                 icon: const Icon(LucideIcons.logOut),
                 onPressed: () => context.go('/logout'),
-              )
+              ),
             ],
           ),
           body: isNarrow
@@ -177,7 +207,7 @@ class _AdminHomeScreen extends StatelessWidget {
             physics: const NeverScrollableScrollPhysics(),
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
-            childAspectRatio: 1.6,
+            childAspectRatio: 1.4,
             children: [
               _quickCard(context, LucideIcons.users, 'Teachers',
                   'View & manage records', AppTheme.primaryColor, () => onNavigate(1)),
@@ -225,7 +255,9 @@ class _AdminHomeScreen extends StatelessWidget {
                     const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
             const SizedBox(height: 2),
             Text(subtitle,
-                style: TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
           ],
         ),
       ),

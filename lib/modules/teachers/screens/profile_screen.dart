@@ -32,7 +32,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool _isSaving = false;
   String? _uploadingDocKey;
-  late Stream<TeacherRecord?> _stream;
 
   static const _maritalOptions = ['Single', 'Married', 'Divorced', 'Widowed'];
 
@@ -40,7 +39,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _initControllers(widget.user);
-    _stream = _service.getTeacherStream(widget.user.id);
   }
 
   void _initControllers(TeacherRecord u) {
@@ -75,8 +73,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'maritalStatus': _maritalStatus ?? '',
         'emergencyContactName': _emergencyNameCtrl.text.trim(),
         'emergencyContactNumber': _emergencyNumCtrl.text.trim(),
-      });
-      await appState.refreshCurrentUser();
+      }).timeout(const Duration(seconds: 3), onTimeout: () {});
+      // Update provider directly from the values we just saved.
+      // Do NOT call refreshCurrentUser() — it reads from the Firestore SDK
+      // local cache which is empty (we use REST for reads), so it would
+      // return a partial document and wipe the user's identity fields.
+      appState.updateCurrentUser(widget.user.copyWith(
+        phoneNumber: _phoneCtrl.text.trim(),
+        email: _emailCtrl.text.trim(),
+        address: _addressCtrl.text.trim(),
+        maritalStatus: _maritalStatus ?? widget.user.maritalStatus,
+        emergencyContactName: _emergencyNameCtrl.text.trim(),
+        emergencyContactNumber: _emergencyNumCtrl.text.trim(),
+      ));
       if (mounted) _showSnack('Profile updated successfully.', isError: false);
     } catch (_) {
       if (mounted) _showSnack('Failed to save. Please try again.', isError: true);
@@ -86,6 +95,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _uploadDocument(String docKey, String docName) async {
+    final appState = Provider.of<AppStateProvider>(context, listen: false);
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
@@ -146,6 +156,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ocrWarnings: ocrWarnings,
       );
 
+      // Optimistic UI update — reflect the new status locally so the teacher
+      // sees "Pending Review" immediately without waiting for a stream re-read.
+      final updatedDocs =
+          Map<String, DocumentRecord>.from(widget.user.documents);
+      if (updatedDocs.containsKey(docKey)) {
+        updatedDocs[docKey] = updatedDocs[docKey]!.copyWith(
+          status: 'uploaded',
+          url: url,
+          uploadedAt: DateTime.now().toIso8601String(),
+          rejectionReason: '',
+        );
+      }
+      appState.updateCurrentUser(
+          widget.user.copyWith(documents: updatedDocs));
+
       if (mounted) _showSnack('$docName uploaded successfully.', isError: false);
     } catch (e) {
       if (mounted) _showSnack('Upload failed: $e', isError: true);
@@ -195,34 +220,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<TeacherRecord?>(
-      stream: _stream,
-      builder: (ctx, snap) {
-        final teacher = snap.data ?? widget.user;
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 820),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeader(teacher),
-                  const SizedBox(height: 20),
-                  _buildVerificationBanner(teacher),
-                  const SizedBox(height: 20),
-                  _buildIdentitySection(teacher),
-                  const SizedBox(height: 20),
-                  _buildPersonalInfoSection(),
-                  const SizedBox(height: 20),
-                  _buildDocumentsSection(teacher),
-                  const SizedBox(height: 40),
-                ],
-              ),
-            ),
+    // widget.user is kept up-to-date by the provider (optimistic updates on
+    // profile save and document upload). Using it directly means any
+    // updateCurrentUser() call immediately reflects here without needing a
+    // stream re-read that would lag behind or show stale SDK cache data.
+    final teacher = widget.user;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 820),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeader(teacher),
+              const SizedBox(height: 20),
+              _buildVerificationBanner(teacher),
+              const SizedBox(height: 20),
+              _buildIdentitySection(teacher),
+              const SizedBox(height: 20),
+              _buildPersonalInfoSection(),
+              const SizedBox(height: 20),
+              _buildDocumentsSection(teacher),
+              const SizedBox(height: 40),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 

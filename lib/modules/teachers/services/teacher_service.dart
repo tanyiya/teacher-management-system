@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import '../models/teacher.dart';
 import '../models/change_request.dart';
+import '../../../core/services/notification_service.dart';
 
 const _projectId = 'teacher-management-syste-f8043';
 
@@ -49,32 +50,77 @@ Future<List<TeacherRecord>> _fetchTeachersRest() async {
   }).toList();
 }
 
+const _docLabels = {
+  'myKad': 'MyKad (IC)',
+  'passportPhoto': 'Passport Photo',
+  'resume': 'Resume / CV',
+  'academicCertificates': 'Academic Certificates',
+  'medicalReport': 'Medical Report',
+  'bankStatement': 'Bank Statement',
+};
+
 class TeacherService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final NotificationService _notif = NotificationService();
+
+  Future<TeacherRecord?> _fetchTeacherRest(String id) async {
+    final uri = Uri.parse(
+      'https://firestore.googleapis.com/v1/projects/$_projectId'
+      '/databases/(default)/documents/teachers/$id',
+    );
+    final res = await http.get(uri).timeout(const Duration(seconds: 10));
+    if (res.statusCode != 200) return null;
+    final body = json.decode(res.body) as Map<String, dynamic>;
+    if (!body.containsKey('fields')) return null;
+    final fields = Map<String, dynamic>.fromEntries(
+      ((body['fields'] as Map?) ?? {})
+          .entries
+          .map((e) => MapEntry(e.key as String, _fromRestValue(e.value))),
+    );
+    return TeacherRecord.fromMap(id, fields);
+  }
 
   // ── Queries ────────────────────────────────────────────────────────────────
 
   Stream<List<TeacherRecord>> getTeachers() async* {
-    // REST fetch first — bypasses gRPC so it works on Android devices where
-    // the Firestore gRPC backend is unreachable but standard HTTPS works fine.
+    // Try REST first (plain HTTPS — works even when gRPC is blocked on Android).
+    // If it returns data, yield it and return so the Firestore SDK snapshots()
+    // stream is never started — this prevents stale local cache from
+    // overwriting fresh server data.
     try {
       final list = await _fetchTeachersRest();
-      if (list.isNotEmpty) yield list;
+      if (list.isNotEmpty) {
+        yield list;
+        return;
+      }
     } catch (_) {}
-    // Then emit real-time updates via the SDK stream.
+    // Fallback: real-time stream for environments where gRPC works (e.g. Chrome).
     yield* _db.collection('teachers').snapshots().map(
           (s) => s.docs.map((d) => TeacherRecord.fromMap(d.id, d.data())).toList(),
         );
   }
 
-  Stream<TeacherRecord?> getTeacherStream(String id) {
-    return _db.collection('teachers').doc(id).snapshots().map((doc) {
+  Stream<TeacherRecord?> getTeacherStream(String id) async* {
+    // REST first — bypasses gRPC/local-cache so we always show server data.
+    try {
+      final record = await _fetchTeacherRest(id);
+      if (record != null) {
+        yield record;
+        return;
+      }
+    } catch (_) {}
+    // Fallback: real-time stream for environments where gRPC works (e.g. Chrome).
+    yield* _db.collection('teachers').doc(id).snapshots().map((doc) {
       if (!doc.exists) return null;
       return TeacherRecord.fromMap(doc.id, doc.data()!);
     });
   }
 
   Future<TeacherRecord?> getTeacherById(String id) async {
+    try {
+      final record = await _fetchTeacherRest(id);
+      if (record != null) return record;
+    } catch (_) {}
     final doc = await _db.collection('teachers').doc(id).get();
     if (!doc.exists) return null;
     return TeacherRecord.fromMap(doc.id, doc.data()!);
@@ -96,7 +142,10 @@ class TeacherService {
       fields.entries.where((e) => allowed.contains(e.key)),
     );
     if (safe.isNotEmpty) {
-      await _db.collection('teachers').doc(id).update(safe);
+      // set+merge instead of update() so the write succeeds even when the
+      // document is absent from the Firestore SDK's local cache (which is
+      // always the case here because we use REST for reads, not the SDK).
+      await _db.collection('teachers').doc(id).set(safe, SetOptions(merge: true));
     }
   }
 
@@ -107,7 +156,10 @@ class TeacherService {
 
   // ── Document management ───────────────────────────────────────────────────
 
-  Future<void> updateDocumentStatus(
+  // Writes nested document sub-fields via Firestore REST PATCH + updateMask.
+  // This avoids gRPC (which is blocked on some Android devices) and avoids
+  // the SDK update() dot-notation path that requires local cache presence.
+  Future<void> _updateDocumentStatusRest(
     String teacherId,
     String docKey,
     String status, {
@@ -116,19 +168,114 @@ class TeacherService {
     List<String> ocrWarnings = const [],
   }) async {
     final now = DateTime.now().toIso8601String();
-    final data = <String, dynamic>{
-      'documents.$docKey.status': status,
-      'documents.$docKey.rejectionReason': rejectionReason,
-      'documents.$docKey.ocrWarnings': ocrWarnings,
-    };
+
+    final maskFields = <String>[
+      'documents.$docKey.status',
+      'documents.$docKey.rejectionReason',
+      'documents.$docKey.ocrWarnings',
+    ];
     if (url.isNotEmpty) {
-      data['documents.$docKey.url'] = url;
-      data['documents.$docKey.uploadedAt'] = now;
+      maskFields.add('documents.$docKey.url');
+      maskFields.add('documents.$docKey.uploadedAt');
     }
     if (status == 'verified') {
-      data['documents.$docKey.verifiedAt'] = now;
+      maskFields.add('documents.$docKey.verifiedAt');
     }
-    await _db.collection('teachers').doc(teacherId).update(data);
+
+    final docFields = <String, dynamic>{
+      'status': {'stringValue': status},
+      'rejectionReason': {'stringValue': rejectionReason},
+      'ocrWarnings': {
+        'arrayValue': {
+          'values': ocrWarnings.map((w) => {'stringValue': w}).toList(),
+        },
+      },
+    };
+    if (url.isNotEmpty) {
+      docFields['url'] = {'stringValue': url};
+      docFields['uploadedAt'] = {'stringValue': now};
+    }
+    if (status == 'verified') {
+      docFields['verifiedAt'] = {'stringValue': now};
+    }
+
+    final queryString =
+        maskFields.map((f) => 'updateMask.fieldPaths=$f').join('&');
+    final uri = Uri.parse(
+      'https://firestore.googleapis.com/v1/projects/$_projectId'
+      '/databases/(default)/documents/teachers/$teacherId?$queryString',
+    );
+    final res = await http.patch(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'fields': {
+          'documents': {
+            'mapValue': {
+              'fields': {
+                docKey: {'mapValue': {'fields': docFields}},
+              },
+            },
+          },
+        },
+      }),
+    ).timeout(const Duration(seconds: 10));
+    if (res.statusCode != 200) {
+      throw Exception('updateDocumentStatus REST ${res.statusCode}');
+    }
+  }
+
+  Future<void> updateDocumentStatus(
+    String teacherId,
+    String docKey,
+    String status, {
+    String rejectionReason = '',
+    String url = '',
+    List<String> ocrWarnings = const [],
+  }) async {
+    // Try REST first — works on Android where gRPC is blocked.
+    try {
+      await _updateDocumentStatusRest(
+        teacherId, docKey, status,
+        rejectionReason: rejectionReason,
+        url: url,
+        ocrWarnings: ocrWarnings,
+      );
+    } catch (_) {
+      // Fallback: SDK dot-notation update (works on Chrome / when gRPC available).
+      final now = DateTime.now().toIso8601String();
+      final data = <String, dynamic>{
+        'documents.$docKey.status': status,
+        'documents.$docKey.rejectionReason': rejectionReason,
+        'documents.$docKey.ocrWarnings': ocrWarnings,
+      };
+      if (url.isNotEmpty) {
+        data['documents.$docKey.url'] = url;
+        data['documents.$docKey.uploadedAt'] = now;
+      }
+      if (status == 'verified') {
+        data['documents.$docKey.verifiedAt'] = now;
+      }
+      await _db.collection('teachers').doc(teacherId).update(data);
+    }
+    // Notify teacher of document verification result.
+    final label = _docLabels[docKey] ?? docKey;
+    if (status == 'verified') {
+      await _notif.send(
+        userId: teacherId,
+        title: 'Document Verified',
+        message: 'Your $label has been verified.',
+        type: 'document_verified',
+      );
+    } else if (status == 'rejected') {
+      await _notif.send(
+        userId: teacherId,
+        title: 'Document Rejected',
+        message: 'Your $label was rejected.'
+            '${rejectionReason.isNotEmpty ? ' Reason: $rejectionReason' : ''}',
+        type: 'document_rejected',
+      );
+    }
   }
 
   // ── Verification status ───────────────────────────────────────────────────
@@ -138,16 +285,38 @@ class TeacherService {
     String status, {
     String rejectionReason = '',
   }) async {
-    await _db.collection('teachers').doc(teacherId).update({
+    await _db.collection('teachers').doc(teacherId).set({
       'verificationStatus': status,
       'verificationRejectionReason': rejectionReason,
-    });
+    }, SetOptions(merge: true));
+    if (status == 'approved') {
+      await _notif.send(
+        userId: teacherId,
+        title: 'Record Approved',
+        message: 'Your teacher record has been approved.',
+        type: 'record_approved',
+      );
+    } else if (status == 'rejected') {
+      await _notif.send(
+        userId: teacherId,
+        title: 'Record Rejected',
+        message: 'Your record was rejected.'
+            '${rejectionReason.isNotEmpty ? ' Reason: $rejectionReason' : ''}',
+        type: 'record_rejected',
+      );
+    }
   }
 
   // ── Change requests ───────────────────────────────────────────────────────
 
   Future<void> submitChangeRequest(ChangeRequest request) async {
     await _db.collection('change_requests').doc(request.id).set(request.toMap());
+    // Notify all principals that a change request is pending review.
+    await _notif.sendToAdmins(
+      title: 'New Change Request',
+      message: '${request.teacherName} requested a change to "${request.fieldLabel}".',
+      type: 'change_request',
+    );
   }
 
   Stream<List<ChangeRequest>> getChangeRequestsForTeacher(String teacherId) {
@@ -189,6 +358,23 @@ class TeacherService {
     });
     if (approved) {
       await _db.collection('teachers').doc(teacherId).update({field: newValue});
+    }
+    // Notify the teacher of the review outcome.
+    if (approved) {
+      await _notif.send(
+        userId: teacherId,
+        title: 'Change Request Approved',
+        message: 'Your request to change "$field" has been approved.',
+        type: 'change_approved',
+      );
+    } else {
+      await _notif.send(
+        userId: teacherId,
+        title: 'Change Request Rejected',
+        message: 'Your request to change "$field" was rejected.'
+            '${rejectionReason.isNotEmpty ? ' Reason: $rejectionReason' : ''}',
+        type: 'change_rejected',
+      );
     }
   }
 }
