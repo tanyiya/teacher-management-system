@@ -121,8 +121,8 @@ class TeacherRecord {
       maritalStatus: data['maritalStatus'] ?? '',
       emergencyContactName: data['emergencyContactName'] ?? '',
       emergencyContactNumber: data['emergencyContactNumber'] ?? '',
-      currentScore: data['currentScore']?.toInt() ?? 0,
-      yearlyKpi: data['yearlyKpi']?.toInt() ?? 0,
+      currentScore: int.tryParse(data['currentScore']?.toString() ?? '') ?? 0,
+      yearlyKpi: int.tryParse(data['yearlyKpi']?.toString() ?? '') ?? 0,
       status: data['status'] ?? 'active',
       documents: docs,
     );
