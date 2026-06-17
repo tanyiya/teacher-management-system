@@ -37,6 +37,10 @@ class PerformanceLog {
     );
   }
 
+  factory PerformanceLog.fromJson(String id, Map<String, dynamic> data) {
+    return PerformanceLog.fromMap(id, data);
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'teacherId': teacherId,
@@ -49,6 +53,8 @@ class PerformanceLog {
       'timestamp': Timestamp.fromDate(timestamp),
     };
   }
+
+  Map<String, dynamic> toJson() => toMap();
 }
 
 class WarningRecord {
@@ -79,6 +85,10 @@ class WarningRecord {
     );
   }
 
+  factory WarningRecord.fromJson(String id, Map<String, dynamic> data) {
+    return WarningRecord.fromMap(id, data);
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'teacherId': teacherId,
@@ -88,4 +98,113 @@ class WarningRecord {
       'severity': severity,
     };
   }
+
+  Map<String, dynamic> toJson() => toMap();
+}
+
+class KpiNotification {
+  final String id;
+  final String teacherId;
+  final String title;
+  final String message;
+  final bool isRead;
+  final DateTime timestamp;
+
+  KpiNotification({
+    required this.id,
+    required this.teacherId,
+    required this.title,
+    required this.message,
+    required this.isRead,
+    required this.timestamp,
+  });
+
+  factory KpiNotification.fromMap(String id, Map<String, dynamic> data) {
+    return KpiNotification(
+      id: id,
+      teacherId: data['teacherId'] ?? data['userId'] ?? '',
+      title: data['title'] ?? '',
+      message: data['message'] ?? '',
+      isRead: data['read'] == true || data['isRead'] == true,
+      timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
+    );
+  }
+
+  factory KpiNotification.fromJson(String id, Map<String, dynamic> data) {
+    return KpiNotification.fromMap(id, data);
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'teacherId': teacherId,
+      'userId': teacherId,
+      'title': title,
+      'message': message,
+      'read': isRead,
+      'timestamp': Timestamp.fromDate(timestamp),
+    };
+  }
+
+  Map<String, dynamic> toJson() => toMap();
+}
+
+class YearlyKpiRecord {
+  final String id;
+  final String teacherId;
+  final int year;
+  final double averageMonthlyScore;
+  final double trendFactor;
+  final double finalScore;
+  final String rating;
+  final String status;
+  final String notes;
+  final DateTime timestamp;
+
+  YearlyKpiRecord({
+    required this.id,
+    required this.teacherId,
+    required this.year,
+    required this.averageMonthlyScore,
+    required this.trendFactor,
+    required this.finalScore,
+    required this.rating,
+    required this.status,
+    required this.notes,
+    required this.timestamp,
+  });
+
+  factory YearlyKpiRecord.fromMap(String id, Map<String, dynamic> data) {
+    return YearlyKpiRecord(
+      id: id,
+      teacherId: data['teacherId'] ?? '',
+      year: data['year'] ?? DateTime.now().year,
+      averageMonthlyScore: (data['averageMonthlyScore'] ?? 0.0).toDouble(),
+      trendFactor: (data['trendFactor'] ?? 1.0).toDouble(),
+      finalScore: (data['finalScore'] ?? 0.0).toDouble(),
+      rating: data['rating'] ?? 'C',
+      status: data['status'] ?? 'Pending',
+      notes: data['notes'] ?? '',
+      timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
+    );
+  }
+
+  factory YearlyKpiRecord.fromJson(String id, Map<String, dynamic> data) {
+    return YearlyKpiRecord.fromMap(id, data);
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'teacherId': teacherId,
+      'year': year,
+      'averageMonthlyScore': averageMonthlyScore,
+      'trendFactor': trendFactor,
+      'finalScore': finalScore,
+      'rating': rating,
+      'status': status,
+      'notes': notes,
+      'timestamp': Timestamp.fromDate(timestamp),
+    };
+  }
+
+  Map<String, dynamic> toJson() => toMap();
 }
