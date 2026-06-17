@@ -22,11 +22,16 @@ class AppTheme {
   // iOS-inspired Shadow
   static final List<BoxShadow> iosBoxShadow = [
     BoxShadow(
-      color: Colors.black.withValues(alpha: 0.03),
+      color: Colors.black.withOpacity(0.03),
       offset: const Offset(0, 4),
       blurRadius: 12,
     ),
   ];
+
+  // Backwards-compatible aliases used across the app (const so usable in const contexts)
+  static const Color primaryColor = primaryActive;
+  static const Color textLightColor = textMuted;
+  static const Color textColor = textCore;
 
   static ThemeData get lightTheme {
     return ThemeData(

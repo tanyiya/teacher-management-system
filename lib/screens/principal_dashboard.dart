@@ -7,8 +7,6 @@ import '../providers/app_state_provider.dart';
 import '../services/database_service.dart';
 import '../models/teacher.dart';
 import '../models/duty.dart';
-import '../models/training.dart';
-import '../models/leave.dart';
 import '../models/report.dart';
 import '../app_theme.dart';
 
@@ -259,7 +257,7 @@ class _AdminTrainingTabState extends State<_AdminTrainingTab> {
                     const SizedBox(width: 16),
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _recruitmentType,
+                        initialValue: _recruitmentType,
                         items: ['Open for Volunteers', 'Assign Trainees'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                         onChanged: (v) => setState(() => _recruitmentType = v!),
                         decoration: const InputDecoration(border: OutlineInputBorder()),
@@ -492,15 +490,15 @@ class _AdminLeavesTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
+    return const Padding(
+      padding: EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Leave Requests Directory', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 24),
+          Text('Leave Requests Directory', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          SizedBox(height: 24),
           // Need a global leaves stream. Mocking it here as empty state.
-          const Center(child: Text('No active leave requests.'))
+          Center(child: Text('No active leave requests.'))
         ],
       ),
     );
@@ -543,8 +541,8 @@ class _AdminReportsTab extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Reported by: ${report.reportedByName}'),
-                            if (report.photoUrl != null) const Text('Photo attached.'),
+                            Text('Reported by: ${report.teacherName}'),
+                            if (report.photoUrl.isNotEmpty) const Text('Photo attached.'),
                             const SizedBox(height: 16),
                             Row(
                               children: [

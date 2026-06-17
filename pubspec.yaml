@@ -40,6 +40,7 @@ dependencies:
   # Caching and local persistence
   shared_preferences: ^2.2.2
   firebase_auth: ^6.5.2
+  intl: ^0.18.1
 
 dev_dependencies:
   flutter_test:

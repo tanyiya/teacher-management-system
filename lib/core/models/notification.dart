@@ -41,4 +41,7 @@ class AlertNotification {
       'type': type,
     };
   }
+
+  // Backwards-compatible alias used by UI code
+  bool get isRead => read;
 }

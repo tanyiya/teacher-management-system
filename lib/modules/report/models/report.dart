@@ -57,4 +57,7 @@ class FacilityReport {
       'lastUpdated': Timestamp.fromDate(lastUpdated),
     };
   }
+
+  // Backwards-compatible alias used in some screens
+  String get reportedByName => teacherName;
 }

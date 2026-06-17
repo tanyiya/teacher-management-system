@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
@@ -13,9 +12,6 @@ import '../models/teacher.dart';
 import '../models/duty.dart';
 import '../models/training.dart';
 import '../models/notification.dart';
-import '../models/performance.dart';
-import '../models/report.dart';
-import '../models/leave.dart';
 import '../app_theme.dart';
 
 class TeacherDashboard extends StatefulWidget {
@@ -621,10 +617,10 @@ class _TeacherPerformanceTab extends StatelessWidget {
             ),
             child: LineChart(
               LineChartData(
-                gridData: FlGridData(show: false),
+                gridData: const FlGridData(show: false),
                 titlesData: FlTitlesData(
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
@@ -642,7 +638,7 @@ class _TeacherPerformanceTab extends StatelessWidget {
                     isCurved: true,
                     color: AppTheme.primaryColor,
                     barWidth: 4,
-                    dotData: FlDotData(show: true),
+                    dotData: const FlDotData(show: true),
                     belowBarData: BarAreaData(show: true, color: AppTheme.primaryColor.withOpacity(0.1)),
                   ),
                 ],
