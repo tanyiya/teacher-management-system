@@ -13,7 +13,7 @@ import '../../modules/training/screens/admin_training_screen.dart';
 import '../../modules/duty/screens/duty_schedule_screen.dart';
 import '../../modules/performance/screens/kpi_screen.dart';
 import '../../modules/leave/screens/leave_screen.dart';
-import '../../modules/report/screens/report_screen.dart';
+import '../../modules/report/screens/my_reports_screen.dart';
 import '../../modules/leave/models/leave.dart';
 import '../../modules/leave/services/leave_service.dart';
 
@@ -39,7 +39,7 @@ class _PrincipalDashboardState extends State<PrincipalDashboard> {
       return const Scaffold(body: Center(child: Text("Not logged in")));
     }
 
-    final screens = [
+    final List<Widget> screens = [
       _AdminHomeScreen(user: user, onNavigate: _goTo),
       const TeacherDirectoryScreen(),
       AdminTrainingScreen(user: user),

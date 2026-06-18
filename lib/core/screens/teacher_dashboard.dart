@@ -55,7 +55,6 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
           PerformanceScreen(user: user),
           AlertsScreen(user: user),
           ProfileScreen(user: user),
-          TeacherReportScreen(user: user),
         ],
       ),
       bottomNavigationBar: Container(
@@ -79,7 +78,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
             const BottomNavigationBarItem(icon: Icon(LucideIcons.home), label: 'Home'),
             const BottomNavigationBarItem(icon: Icon(LucideIcons.bookOpen), label: 'Training'),
             const BottomNavigationBarItem(icon: Icon(LucideIcons.barChart), label: 'Performance'),
-            const BottomNavigationBarItem(icon: Icon(LucideIcons.clipboardList),label: 'Reports'),
+            const BottomNavigationBarItem(icon: Icon(LucideIcons.clipboardList), label: 'Reports'),
             BottomNavigationBarItem(
               icon: StreamBuilder<List<AlertNotification>>(
                 stream: _notificationService.getNotifications(user.id),

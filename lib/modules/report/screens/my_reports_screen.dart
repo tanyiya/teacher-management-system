@@ -26,32 +26,18 @@ class _ReportScreenState extends State<ReportScreen> {
       builder: (context, snapshot) {
         final all = snapshot.data ?? [];
 
-        // KPI counts
         final pending = all.where((r) => r.status == 'Submitted').length;
         final critical = all
             .where((r) => r.priority == 'High' && r.status != 'Resolved')
             .length;
         final resolved = all.where((r) => r.status == 'Resolved').length;
 
-        // Build category list
-        final categories = [
-          'All Categories',
-          ...{...all.map((r) => r.category)}
-        ];
-        final statuses = [
-          'All Statuses',
-          'Submitted',
-          'Under Review',
-          'Action Taken',
-          'Resolved'
-        ];
+        final categories = ['All Categories', ...{...all.map((r) => r.category)}];
+        final statuses = ['All Statuses', 'Submitted', 'Under Review', 'Action Taken', 'Resolved'];
 
-        // Filtered list
         final filtered = all.where((r) {
-          final matchStatus = _filterStatus == 'All Statuses' ||
-              r.status == _filterStatus;
-          final matchCat = _filterCategory == 'All Categories' ||
-              r.category == _filterCategory;
+          final matchStatus = _filterStatus == 'All Statuses' || r.status == _filterStatus;
+          final matchCat = _filterCategory == 'All Categories' || r.category == _filterCategory;
           return matchStatus && matchCat;
         }).toList();
 
@@ -60,7 +46,6 @@ class _ReportScreenState extends State<ReportScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Header ────────────────────────────────────────────
               Container(
                 color: const Color(0xFFF2F1EE),
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
@@ -86,8 +71,6 @@ class _ReportScreenState extends State<ReportScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-
-                    // ── KPI Cards ──────────────────────────────────
                     Row(
                       children: [
                         _KpiCard(
@@ -102,9 +85,7 @@ class _ReportScreenState extends State<ReportScreen> {
                           label: 'CRITICAL\nALERTS',
                           value: '$critical',
                           icon: LucideIcons.clock,
-                          valueColor: critical > 0
-                              ? Colors.red.shade300
-                              : Colors.red.shade200,
+                          valueColor: critical > 0 ? Colors.red.shade300 : Colors.red.shade200,
                           iconColor: Colors.red.shade200,
                         ),
                         const SizedBox(width: 10),
@@ -112,16 +93,12 @@ class _ReportScreenState extends State<ReportScreen> {
                           label: 'RESOLVED\n(TOTAL)',
                           value: '$resolved',
                           icon: LucideIcons.checkCircle,
-                          valueColor: resolved > 0
-                              ? Colors.blue.shade400
-                              : Colors.blue.shade200,
+                          valueColor: resolved > 0 ? Colors.blue.shade400 : Colors.blue.shade200,
                           iconColor: Colors.blue.shade200,
                         ),
                       ],
                     ),
                     const SizedBox(height: 14),
-
-                    // ── Filter Box ─────────────────────────────────
                     Container(
                       decoration: BoxDecoration(
                         color: Colors.white,
@@ -180,8 +157,7 @@ class _ReportScreenState extends State<ReportScreen> {
                                       value: _filterCategory,
                                       items: categories,
                                       onChanged: (v) => setState(
-                                          () => _filterCategory =
-                                              v ?? 'All Categories'),
+                                          () => _filterCategory = v ?? 'All Categories'),
                                     ),
                                   ],
                                 ),
@@ -195,8 +171,6 @@ class _ReportScreenState extends State<ReportScreen> {
                   ],
                 ),
               ),
-
-              // ── Reports Directory ──────────────────────────────────
               Expanded(
                 child: Container(
                   margin: const EdgeInsets.symmetric(horizontal: 20),
@@ -208,7 +182,6 @@ class _ReportScreenState extends State<ReportScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Table header
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
                         child: Text(
@@ -222,57 +195,31 @@ class _ReportScreenState extends State<ReportScreen> {
                         ),
                       ),
                       const SizedBox(height: 10),
-                      // Column headers
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Row(
                           children: [
-                            Expanded(
-                              flex: 3,
-                              child: Text('REPORT DETAILS',
-                                  style: _colHeaderStyle()),
-                            ),
-                            Expanded(
-                              flex: 2,
-                              child: Text('SUBMITTED\nBY',
-                                  style: _colHeaderStyle()),
-                            ),
-                            Expanded(
-                              flex: 2,
-                              child: Text('PRIORITY',
-                                  style: _colHeaderStyle()),
-                            ),
-                            Expanded(
-                              flex: 1,
-                              child: Text('C\nS',
-                                  style: _colHeaderStyle()),
-                            ),
+                            Expanded(flex: 3, child: Text('REPORT DETAILS', style: _colHeaderStyle())),
+                            Expanded(flex: 2, child: Text('SUBMITTED\nBY', style: _colHeaderStyle())),
+                            Expanded(flex: 2, child: Text('PRIORITY', style: _colHeaderStyle())),
+                            Expanded(flex: 1, child: Text('STATUS', style: _colHeaderStyle())),
                           ],
                         ),
                       ),
                       const SizedBox(height: 8),
                       const Divider(height: 1, color: Color(0xFFF0EFEC)),
-
-                      // List
                       Expanded(
-                        child: snapshot.connectionState ==
-                                ConnectionState.waiting
-                            ? const Center(
-                                child: CircularProgressIndicator())
+                        child: snapshot.connectionState == ConnectionState.waiting
+                            ? const Center(child: CircularProgressIndicator())
                             : filtered.isEmpty
                                 ? Center(
                                     child: Column(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Icon(LucideIcons.inbox,
-                                            size: 40,
-                                            color: Colors.grey.shade300),
+                                        Icon(LucideIcons.inbox, size: 40, color: Colors.grey.shade300),
                                         const SizedBox(height: 10),
                                         Text('No reports found',
-                                            style: TextStyle(
-                                                color:
-                                                    Colors.grey.shade400,
-                                                fontSize: 13)),
+                                            style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
                                       ],
                                     ),
                                   )
@@ -280,14 +227,11 @@ class _ReportScreenState extends State<ReportScreen> {
                                     padding: EdgeInsets.zero,
                                     itemCount: filtered.length,
                                     separatorBuilder: (_, __) =>
-                                        const Divider(
-                                            height: 1,
-                                            color: Color(0xFFF0EFEC)),
-                                    itemBuilder: (_, i) =>
-                                        _ReportRow(
-                                          report: filtered[i],
-                                          svc: _svc,
-                                        ),
+                                        const Divider(height: 1, color: Color(0xFFF0EFEC)),
+                                    itemBuilder: (_, i) => _ReportRow(
+                                      report: filtered[i],
+                                      svc: _svc,
+                                    ),
                                   ),
                       ),
                     ],
@@ -389,7 +333,6 @@ class _FilterDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Ensure value is valid
     final safeValue = items.contains(value) ? value : items.first;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
@@ -404,9 +347,7 @@ class _FilterDropdown extends StatelessWidget {
           isExpanded: true,
           icon: const Icon(Icons.keyboard_arrow_down, size: 18),
           style: const TextStyle(
-              fontSize: 13,
-              color: Color(0xFF1A1A1A),
-              fontWeight: FontWeight.w500),
+              fontSize: 13, color: Color(0xFF1A1A1A), fontWeight: FontWeight.w500),
           items: items
               .map((s) => DropdownMenuItem(
                     value: s,
@@ -452,7 +393,6 @@ class _ReportRow extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Priority color bar + title
             Expanded(
               flex: 3,
               child: Row(
@@ -484,8 +424,7 @@ class _ReportRow extends StatelessWidget {
                           report.description,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 11, color: Colors.grey.shade500),
+                          style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
                         ),
                       ],
                     ),
@@ -493,7 +432,6 @@ class _ReportRow extends StatelessWidget {
                 ],
               ),
             ),
-            // Submitted by
             Expanded(
               flex: 2,
               child: Column(
@@ -502,19 +440,15 @@ class _ReportRow extends StatelessWidget {
                   Text(
                     report.teacherName,
                     style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF1A1A1A)),
+                        fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF1A1A1A)),
                   ),
                   Text(
                     DateFormat('M/d/yy').format(report.createdAt),
-                    style: TextStyle(
-                        fontSize: 11, color: Colors.grey.shade500),
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
                   ),
                 ],
               ),
             ),
-            // Priority
             Expanded(
               flex: 2,
               child: Text(
@@ -527,12 +461,10 @@ class _ReportRow extends StatelessWidget {
                 ),
               ),
             ),
-            // Status initial badge
             Expanded(
               flex: 1,
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                 decoration: BoxDecoration(
                   color: statusInfo.color.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(6),
