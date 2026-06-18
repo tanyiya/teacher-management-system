@@ -73,7 +73,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ).animate().scale(duration: 400.ms, curve: Curves.easeOutBack),
                 const SizedBox(height: 24),
                 Text(
-                  'GENIUS AQILOS',
+                  'GENIUS AQIL',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.bold,
                         letterSpacing: 2,
