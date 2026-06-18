@@ -10,6 +10,7 @@ import '../../modules/duty/providers/duty_provider.dart';
 import '../../modules/duty/screens/duty_schedule_screen.dart';
 import '../../modules/teachers/models/teacher.dart';
 import '../../modules/leave/screens/leave_screen.dart';
+import '../../modules/report/screens/teacher_report_screen.dart';
 
 class TeacherHomeScreen extends StatelessWidget {
   final TeacherRecord user;
@@ -39,12 +40,16 @@ class TeacherHomeScreen extends StatelessWidget {
           Row(
             children: [
               _ShortcutCard(
-                title: 'File Report',
-                icon: LucideIcons.alertTriangle,
-                onTap: () => _showReportForm(context),
-              ),
-              const SizedBox(width: 12),
-              _ShortcutCard(
+                  title: 'Reports',
+                  icon: LucideIcons.clipboardList,
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => TeacherReportScreen(user: user),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                _ShortcutCard(
                 title: 'Leaves',
                 icon: LucideIcons.calendarOff,
                 onTap: () => Navigator.of(context).push(
@@ -79,60 +84,6 @@ class TeacherHomeScreen extends StatelessWidget {
       ),
     );
   }
-
-  void _showReportForm(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-          left: 24,
-          right: 24,
-          top: 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'File Facility Report',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            const TextField(
-              decoration: InputDecoration(
-                labelText: 'Description',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () {},
-              icon: const Icon(LucideIcons.paperclip),
-              label: const Text('Attach File'),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Submit Report'),
-              ),
-            ),
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
-    );
-  }
-
 }
 
 // ── Score ring ──────────────────────────────────────────────────────────────
