@@ -28,7 +28,7 @@ final List<LeaveSpec> leaveSpecs = [
   LeaveSpec(type: 'compassionate', name: 'Compassionate Leave', quota: 2, docRequired: true, docLabel: 'Death certificate / Official notice'),
   LeaveSpec(type: 'umrah', name: 'Umrah Leave', quota: 14, docRequired: true, docLabel: 'Travel itinerary / Flight booking'),
   LeaveSpec(type: 'haji', name: 'Haji Leave', quota: 40, docRequired: true, docLabel: 'Official pilgrim allocation letter'),
-  LeaveSpec(type: 'birthday', name: 'Birthday Leave', quota: 1, docRequired: false, docLabel: 'None (System validates via Birth Date)'),
+  LeaveSpec(type: 'birthday', name: 'Birthday Leave', quota: 1, docRequired: false, docLabel: 'None (Can be utilized anytime)'),
   LeaveSpec(type: 'halfday', name: 'Half Day Leave', quota: 2, docRequired: false, docLabel: 'None (Quota resets monthly)')
 ];
 
@@ -196,10 +196,10 @@ class _LeaveScreenState extends State<LeaveScreen> {
                         mainAxisSpacing: 10,
                         childAspectRatio: 1.35,
                       ),
-                      itemCount: LeaveType.values.length,
+                      itemCount: leaveSpecs.length,
                       itemBuilder: (context, index) {
-                        final type = LeaveType.values[index];
-                        final spec = leaveSpecs.firstWhere((s) => s.type == type.dbValue, orElse: () => leaveSpecs[0]);
+                        final spec = leaveSpecs[index];
+                        final type = LeaveTypeExtension.fromDbValue(spec.type);
                         final balance = getLeaveBalance(type);
 
                         return Container(
@@ -504,7 +504,6 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
       _errorMessage = null;
     });
 
-    // FIX 1: Added 'orElse' fallback to prevent "Bad state: No element" crashes
     final spec = leaveSpecs.firstWhere((s) => s.type == _selectedType.dbValue, orElse: () => leaveSpecs.first);
     
     // Duration
@@ -537,25 +536,6 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
         _errorMessage = 'Supporting document is mandatory for ${spec.name}. Please generate or attach a document.';
       });
       return;
-    }
-
-    // Birthday validation
-    if (_selectedType == LeaveType.birthday) {
-      if (widget.teacher.dob.isEmpty) {
-        setState(() {
-          _errorMessage = "Please configure Date of Birth in Profile Info before applying.";
-        });
-        return;
-      }
-      final dobDate = DateTime.tryParse(widget.teacher.dob);
-      if (dobDate != null) {
-        if (_startDate.day != dobDate.day || _startDate.month != dobDate.month) {
-          setState(() {
-            _errorMessage = "Birthday leave must match birth date (${widget.teacher.dob.substring(5)}).";
-          });
-          return;
-        }
-      }
     }
 
     setState(() {
@@ -592,7 +572,6 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
 
   @override
   Widget build(BuildContext context) {
-    // FIX 2: Added 'orElse' fallback here as well
     final spec = leaveSpecs.firstWhere((s) => s.type == _selectedType.dbValue, orElse: () => leaveSpecs.first);
 
     return AlertDialog(
@@ -637,8 +616,6 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
                   border: OutlineInputBorder(),
                 ),
                 style: const TextStyle(fontSize: 11, color: Color(0xFF1E241E), fontWeight: FontWeight.bold),
-                
-                // FIX 3: Generate the dropdown items directly from `leaveSpecs` to ensure a 1-to-1 match
                 items: leaveSpecs.map((s) {
                   final type = LeaveTypeExtension.fromDbValue(s.type);
                   final bal = widget.getLeaveBalance(type);
@@ -647,7 +624,6 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
                     child: Text('${s.name} (${bal['remaining']!.toInt()} left)'),
                   );
                 }).toList(),
-                
                 onChanged: (val) {
                   if (val != null) {
                     setState(() {
