@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'app_theme.dart';
@@ -16,16 +17,18 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await _initFirebase();
+  final appStateProvider = AppStateProvider();
+  final router = createAppRouter(appStateProvider);
 
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AppStateProvider()),
+        ChangeNotifierProvider.value(value: appStateProvider),
         ChangeNotifierProvider(create: (_) => DutyProvider()),
         ChangeNotifierProvider(create: (_) => PerformanceProvider()),
         ChangeNotifierProvider(create: (_) => TrainingProvider()),
       ],
-      child: const TeacherManagementApp(),
+      child: TeacherManagementApp(router: router),
     ),
   );
 }
@@ -43,7 +46,9 @@ Future<void> _initFirebase() async {
 }
 
 class TeacherManagementApp extends StatelessWidget {
-  const TeacherManagementApp({super.key}); // prefer super.key over Key? key
+  const TeacherManagementApp({super.key, required this.router});
+
+  final GoRouter router;
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +56,7 @@ class TeacherManagementApp extends StatelessWidget {
       title: 'Teacher Management System',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      routerConfig: appRouter,
+      routerConfig: router,
     );
   }
 }

@@ -1,70 +1,100 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+import 'package:provider/provider.dart';
 
-import '../../providers/app_state_provider.dart';
 import '../../app_theme.dart';
+import '../../providers/app_state_provider.dart';
 
 class LogoutScreen extends StatefulWidget {
-  const LogoutScreen({Key? key}) : super(key: key);
+  const LogoutScreen({super.key});
 
   @override
   State<LogoutScreen> createState() => _LogoutScreenState();
 }
 
 class _LogoutScreenState extends State<LogoutScreen> {
-  bool _done = false;
+  bool _dialogShown = false;
 
   @override
-  void initState() {
-    super.initState();
-    _performLogout();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_dialogShown) {
+      _dialogShown = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _confirmSignOut());
+    }
   }
 
-  Future<void> _performLogout() async {
-    final appState = Provider.of<AppStateProvider>(context, listen: false);
-    await appState.logout();
+  Future<void> _confirmSignOut() async {
+    final shouldSignOut = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Sign Out'),
+        content: const Text('Are you sure you want to sign out?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            icon: const Icon(LucideIcons.logOut, size: 18),
+            label: const Text('Sign Out'),
+          ),
+        ],
+      ),
+    );
+
     if (!mounted) return;
-    setState(() => _done = true);
-    // navigate to login
+    if (shouldSignOut != true) {
+      final appState = context.read<AppStateProvider>();
+      context.go(appState.homeRouteForCurrentUser());
+      return;
+    }
+
+    await context.read<AppStateProvider>().logout();
+    if (!mounted) return;
     context.go('/');
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F3),
-      body: Center(
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 12)],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(width: 8),
-              _done
-                  ? Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Icon(Icons.check_circle_outline, color: Colors.green, size: 48),
-                        SizedBox(height: 8),
-                        Text('Logged out', style: TextStyle(fontWeight: FontWeight.bold)),
-                      ],
-                    )
-                  : Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        SizedBox(width: 48, height: 48, child: CircularProgressIndicator()),
-                        SizedBox(height: 8),
-                        Text('Signing out...'),
-                      ],
-                    ),
-              const SizedBox(width: 8),
-            ],
+    final isLoggingOut = context.watch<AppStateProvider>().isLoggingOut;
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF5F5F3),
+        body: Center(
+          child: Container(
+            width: 280,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE8E6E1)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  offset: const Offset(0, 8),
+                  blurRadius: 24,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LucideIcons.logOut, color: AppTheme.primaryColor, size: 34),
+                const SizedBox(height: 16),
+                Text(
+                  isLoggingOut ? 'Signing out...' : 'Preparing sign out...',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 16),
+                const LinearProgressIndicator(minHeight: 3),
+              ],
+            ),
           ),
         ),
       ),
