@@ -1,19 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:io';
+
+import '../../../core/services/cloudinary_service.dart';
 
 import '../../teachers/models/teacher.dart';
 import '../models/training.dart';
 
 class TrainingService {
-  TrainingService({FirebaseFirestore? firestore, FirebaseStorage? storage})
-      : _db = firestore ?? FirebaseFirestore.instance,
-        _storage = storage ?? FirebaseStorage.instance;
+  TrainingService({FirebaseFirestore? firestore})
+      : _db = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseFirestore _db;
-  final FirebaseStorage _storage;
 
   CollectionReference<Map<String, dynamic>> get _posts =>
       _db.collection('training_posts');
@@ -38,23 +37,18 @@ class TrainingService {
         : 'jpg';
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final filename = '$timestamp.${extension}';
-    final ref = _storage.ref().child(folder).child(authorId).child(filename);
     final bytes = await image.readAsBytes();
-    final metadata = SettableMetadata(contentType: image.mimeType ?? 'image/jpeg');
-
     try {
-      final uploadTask = ref.putData(bytes, metadata);
-      final snapshot = await uploadTask;
-      if (snapshot.state == TaskState.success) {
-        // use the snapshot ref to get the download URL and log the storage path
-        final url = await snapshot.ref.getDownloadURL();
+      final cloudFolder = '$folder/$authorId';
+      final url = await CloudinaryService.uploadFile(bytes, filename, folder: cloudFolder);
+      if (url != null && url.isNotEmpty) {
         try {
-          print('[TrainingService][uploadImageToStorage] uploaded to: ${snapshot.ref.fullPath}');
-          print('[TrainingService][uploadImageToStorage] downloadUrl: $url');
+          print('[TrainingService][uploadImageToStorage] uploaded to Cloudinary folder: $cloudFolder');
+          print('[TrainingService][uploadImageToStorage] secureUrl: $url');
         } catch (_) {}
         return url;
       }
-      throw FirebaseException(plugin: 'firebase_storage', message: 'Upload failed');
+      throw Exception('Cloudinary upload failed');
     } catch (e, s) {
       try {
         print('[TrainingService][uploadImageToStorage] error: $e');
@@ -75,22 +69,18 @@ class TrainingService {
         : 'jpg';
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final filename = '$timestamp.${extension}';
-    final ref = _storage.ref().child(folder).child(authorId).child(filename);
     final bytes = await imageFile.readAsBytes();
-    final metadata = SettableMetadata(contentType: _mimeTypeForExtension(extension));
-
     try {
-      final uploadTask = ref.putData(bytes, metadata);
-      final snapshot = await uploadTask;
-      if (snapshot.state == TaskState.success) {
-        final url = await snapshot.ref.getDownloadURL();
+      final cloudFolder = '$folder/$authorId';
+      final url = await CloudinaryService.uploadFile(bytes, filename, folder: cloudFolder);
+      if (url != null && url.isNotEmpty) {
         try {
-          print('[TrainingService][uploadFileToStorage] uploaded to: ${snapshot.ref.fullPath}');
-          print('[TrainingService][uploadFileToStorage] downloadUrl: $url');
+          print('[TrainingService][uploadFileToStorage] uploaded to Cloudinary folder: $cloudFolder');
+          print('[TrainingService][uploadFileToStorage] secureUrl: $url');
         } catch (_) {}
         return url;
       }
-      throw FirebaseException(plugin: 'firebase_storage', message: 'Upload failed');
+      throw Exception('Cloudinary upload failed');
     } catch (e, s) {
       try {
         print('[TrainingService][uploadFileToStorage] error: $e');
@@ -100,17 +90,7 @@ class TrainingService {
     }
   }
 
-  String _mimeTypeForExtension(String ext) {
-    switch (ext.toLowerCase()) {
-      case 'png':
-        return 'image/png';
-      case 'jpg':
-      case 'jpeg':
-        return 'image/jpeg';
-      default:
-        return 'image/jpeg';
-    }
-  }
+  // _mimeTypeForExtension removed — Cloudinary handles content types.
 
   /// Open a URL in external browser. Returns true if opened.
   Future<bool> openUrl(String url) async {
