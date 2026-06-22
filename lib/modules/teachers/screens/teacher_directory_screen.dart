@@ -571,6 +571,12 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen>
                   final uri = Uri.tryParse(rec!.url);
                   if (uri != null && await canLaunchUrl(uri)) {
                     await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  } else {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Could not open file. No app available to view this type.')),
+                      );
+                    }
                   }
                 },
               ),
