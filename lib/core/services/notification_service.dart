@@ -46,6 +46,7 @@ Future<void> _postNotificationRest({
   required String title,
   required String message,
   required String type,
+  String relatedId = '',
 }) async {
   final uri = Uri.parse('$_restBase/notifications');
   await http.post(
@@ -59,6 +60,7 @@ Future<void> _postNotificationRest({
         'read':      _toRestField(false),
         'timestamp': _toRestField(DateTime.now()),
         'type':      _toRestField(type),
+        'relatedId': _toRestField(relatedId),
       },
     }),
   ).timeout(const Duration(seconds: 10));
@@ -136,7 +138,16 @@ class NotificationService {
 
   // ── Read ──────────────────────────────────────────────────────────────────
 
-  Stream<List<AlertNotification>> getNotifications(String userId) async* {
+  // Wrapped in asBroadcastStream() because async* generators are
+  // single-subscription by default (even though the SDK fallback below is
+  // broadcast) — callers rebuild a fresh StreamBuilder around this on every
+  // parent rebuild (bell badge, AlertsScreen embedded in an IndexedStack),
+  // which can otherwise try to listen to the same instance twice and throw
+  // "Stream has already been listened to".
+  Stream<List<AlertNotification>> getNotifications(String userId) =>
+      _getNotificationsImpl(userId).asBroadcastStream();
+
+  Stream<List<AlertNotification>> _getNotificationsImpl(String userId) async* {
     // REST first — works on Android where gRPC is blocked.
     try {
       final list = await _fetchNotificationsRest(userId);
@@ -166,12 +177,14 @@ class NotificationService {
     required String title,
     required String message,
     String type = 'general',
+    String relatedId = '',
   }) async {
     await _postNotificationRest(
       userId: userId,
       title: title,
       message: message,
       type: type,
+      relatedId: relatedId,
     );
   }
 
@@ -180,10 +193,12 @@ class NotificationService {
     required String title,
     required String message,
     String type = 'broadcast',
+    String relatedId = '',
   }) async {
     final ids = await _fetchIdsByRoleRest('teacher');
     for (final id in ids) {
-      await _postNotificationRest(userId: id, title: title, message: message, type: type);
+      await _postNotificationRest(
+          userId: id, title: title, message: message, type: type, relatedId: relatedId);
     }
   }
 
@@ -192,10 +207,12 @@ class NotificationService {
     required String title,
     required String message,
     String type = 'admin',
+    String relatedId = '',
   }) async {
     final ids = await _fetchIdsByRoleRest('principal');
     for (final id in ids) {
-      await _postNotificationRest(userId: id, title: title, message: message, type: type);
+      await _postNotificationRest(
+          userId: id, title: title, message: message, type: type, relatedId: relatedId);
     }
   }
 

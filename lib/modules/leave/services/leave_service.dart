@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../core/services/notification_service.dart';
 import '../models/leave.dart';
 
 class LeaveService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final NotificationService _notif = NotificationService();
 
   /// Applies for a new leave request and registers a notification for the principal
   Future<String> applyLeave(LeaveRecord leave) async {
@@ -22,15 +24,14 @@ class LeaveService {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      // Submit an alert notification for the Principal / Admin
-      await _db.collection('notifications').add({
-        'userId': 'admin-id', // Target principal
-        'title': 'New Leave Application: ${leave.teacherName}',
-        'message': '${leave.teacherName} applied for ${leave.duration} day(s) of ${leave.type.name} starting ${leave.startDate}.',
-        'read': false,
-        'timestamp': FieldValue.serverTimestamp(),
-        'type': 'leave'
-      });
+      // Notify every principal — was previously hardcoded to a literal
+      // 'admin-id' that matched no real user, so these never arrived.
+      await _notif.sendToAdmins(
+        title: 'New Leave Application: ${leave.teacherName}',
+        message: '${leave.teacherName} applied for ${leave.duration} day(s) of ${leave.type.name} starting ${leave.startDate}.',
+        type: 'leave',
+        relatedId: leave.teacherId,
+      );
 
       return docRef.id;
     } catch (e) {
@@ -86,6 +87,7 @@ class LeaveService {
         'read': false,
         'timestamp': FieldValue.serverTimestamp(),
         'type': 'leave',
+        'relatedId': teacherId,
       });
     } catch (e) {
       throw Exception('Failed to update leave status: $e');

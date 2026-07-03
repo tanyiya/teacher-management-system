@@ -7,6 +7,7 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:provider/provider.dart';
 
 import '../../../app_theme.dart';
+import '../../../core/services/notification_service.dart';
 import '../../../modules/teachers/models/teacher.dart';
 import '../../../modules/teachers/services/teacher_service.dart';
 import '../models/training.dart';
@@ -579,7 +580,13 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen> {
           : await provider.uploadImageToStorage(
               _selectedImage!, widget.user.id);
 
-      await provider.createPost(TrainingPost(
+      final trainingTitle = _titleController.text.trim();
+      final trainingDescription = _descriptionController.text.trim();
+      final assignedTraineeIds = List<String>.from(_selectedTraineeIds);
+      final enrollmentMode = _enrollmentMode;
+      final isTraining = _isCpd;
+
+      final postId = await provider.createPost(TrainingPost(
         id: '',
         authorId: widget.user.id,
         authorName: widget.user.fullName,
@@ -590,16 +597,42 @@ class _AdminTrainingScreenState extends State<AdminTrainingScreen> {
         commentsCount: 0,
         createdAt: DateTime.now(),
         fontStyle: 'sans',
-        isTraining: _isCpd,
-        trainingTitle: _isCpd ? _titleController.text.trim() : null,
-        trainingDescription: _isCpd ? _descriptionController.text.trim() : null,
-        maxTrainees: _isCpd ? maxSeats : null,
-        type: _isCpd ? _enrollmentMode : null,
-        enrollmentMode: _isCpd ? _enrollmentMode : 'open_volunteer',
-        traineeIds: _isCpd && _enrollmentMode == 'assigned'
-            ? List<String>.from(_selectedTraineeIds)
+        isTraining: isTraining,
+        trainingTitle: isTraining ? trainingTitle : null,
+        trainingDescription: isTraining ? trainingDescription : null,
+        maxTrainees: isTraining ? maxSeats : null,
+        type: isTraining ? enrollmentMode : null,
+        enrollmentMode: isTraining ? enrollmentMode : 'open_volunteer',
+        traineeIds: isTraining && enrollmentMode == 'assigned'
+            ? assignedTraineeIds
             : const [],
       ));
+
+      if (isTraining) {
+        final notif = NotificationService();
+        final title = 'New Training: ${trainingTitle.isNotEmpty ? trainingTitle : 'Untitled'}';
+        final message = trainingDescription.isNotEmpty
+            ? trainingDescription
+            : 'A new training session has been posted.';
+        if (enrollmentMode == 'assigned') {
+          for (final teacherId in assignedTraineeIds) {
+            await notif.send(
+              userId: teacherId,
+              title: title,
+              message: message,
+              type: 'training',
+              relatedId: postId,
+            );
+          }
+        } else {
+          await notif.sendToAllTeachers(
+            title: title,
+            message: message,
+            type: 'training',
+            relatedId: postId,
+          );
+        }
+      }
 
       _contentController.clear();
       _titleController.clear();

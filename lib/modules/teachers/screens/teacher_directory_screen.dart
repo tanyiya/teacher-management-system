@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:provider/provider.dart';
@@ -10,35 +12,64 @@ import '../models/teacher.dart';
 import '../services/teacher_service.dart';
 
 class TeacherDirectoryScreen extends StatefulWidget {
-  const TeacherDirectoryScreen({super.key});
+  // When set, the screen jumps straight to this teacher's case (e.g. when
+  // opened via a notification tap) instead of waiting for a manual selection.
+  final String? initialTeacherId;
+  final int initialTab;
+  const TeacherDirectoryScreen({super.key, this.initialTeacherId, this.initialTab = 0});
 
   @override
   State<TeacherDirectoryScreen> createState() => _TeacherDirectoryScreenState();
 }
 
-class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen>
-    with SingleTickerProviderStateMixin {
+class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen> {
   final _service = TeacherService();
   final _searchCtrl = TextEditingController();
 
   TeacherRecord? _selected;
+  int _selectedInitialTab = 0;
   String _statusFilter = 'All';
   String _searchQuery = '';
-  late TabController _tabCtrl;
 
   static const _filters = ['All', 'Pending', 'Approved', 'Rejected'];
 
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this);
+    if (widget.initialTeacherId != null) {
+      WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _openTeacherById(widget.initialTeacherId!, tab: widget.initialTab));
+    }
   }
 
   @override
   void dispose() {
     _searchCtrl.dispose();
-    _tabCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _openTeacherById(String id, {int tab = 0}) async {
+    final t = await _service.getTeacherById(id);
+    if (t == null || !mounted) return;
+    setState(() {
+      _selected = t;
+      _selectedInitialTab = tab;
+    });
+    if (MediaQuery.of(context).size.width <= 660) {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.white,
+        shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        builder: (_) => DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.9,
+          builder: (_, __) =>
+              _TeacherDetailPanel(key: ValueKey(t.id), initial: t, initialTabIndex: tab),
+        ),
+      );
+    }
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
@@ -90,12 +121,10 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen>
         Expanded(
           child: _selected == null
               ? _buildEmptyDetail()
-              : StreamBuilder<TeacherRecord?>(
-                  stream: _service.getTeacherStream(_selected!.id),
-                  builder: (ctx, snap) {
-                    final t = snap.data ?? _selected!;
-                    return _buildDetail(t);
-                  },
+              : _TeacherDetailPanel(
+                  key: ValueKey(_selected!.id),
+                  initial: _selected!,
+                  initialTabIndex: _selectedInitialTab,
                 ),
         ),
       ],
@@ -216,9 +245,13 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen>
     final isSelected = _selected?.id == t.id;
     return InkWell(
       onTap: () {
-        setState(() => _selected = t);
-        _tabCtrl.index = 0;
-        // On narrow: open bottom sheet
+        setState(() {
+          _selected = t;
+          _selectedInitialTab = 0;
+        });
+        // On narrow: open bottom sheet. The panel owns its own state so
+        // verify/reject/approve actions update the sheet immediately without
+        // needing to close and reopen it.
         if (MediaQuery.of(context).size.width <= 660) {
           showModalBottomSheet(
             context: context,
@@ -229,10 +262,7 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen>
             builder: (_) => DraggableScrollableSheet(
               expand: false,
               initialChildSize: 0.9,
-              builder: (_, ctrl) => StreamBuilder<TeacherRecord?>(
-                stream: _service.getTeacherStream(t.id),
-                builder: (ctx, snap) => _buildDetail(snap.data ?? t),
-              ),
+              builder: (_, __) => _TeacherDetailPanel(key: ValueKey(t.id), initial: t),
             ),
           );
         }
@@ -270,8 +300,6 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen>
     );
   }
 
-  // ── Detail panel ──────────────────────────────────────────────────────────
-
   Widget _buildEmptyDetail() {
     return const Center(
       child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -283,7 +311,127 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen>
     );
   }
 
-  Widget _buildDetail(TeacherRecord t) {
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  List<TeacherRecord> _filter(List<TeacherRecord> all) {
+    return all.where((t) {
+      final matchesSearch = _searchQuery.isEmpty ||
+          t.fullName.toLowerCase().contains(_searchQuery) ||
+          t.email.toLowerCase().contains(_searchQuery);
+      final matchesStatus = _statusFilter == 'All' ||
+          t.verificationStatus.toLowerCase() == _statusFilter.toLowerCase();
+      return matchesSearch && matchesStatus;
+    }).toList();
+  }
+}
+
+// ── Shared badge / formatting helpers ───────────────────────────────────────
+// Used by both the teacher list tile and the detail panel below.
+
+Widget _verificationBadge(String status, {bool small = false}) {
+  Color color;
+  String label;
+  IconData icon;
+  switch (status) {
+    case 'approved':
+      color = Colors.green;
+      label = 'Approved';
+      icon = LucideIcons.checkCircle;
+      break;
+    case 'rejected':
+      color = Colors.red;
+      label = 'Rejected';
+      icon = LucideIcons.xCircle;
+      break;
+    default:
+      color = Colors.amber;
+      label = 'Pending';
+      icon = LucideIcons.clock;
+  }
+  return Container(
+    padding: EdgeInsets.symmetric(horizontal: small ? 6 : 8, vertical: small ? 2 : 3),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: color.withValues(alpha: 0.3)),
+    ),
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: small ? 10 : 12, color: color),
+      SizedBox(width: small ? 3 : 4),
+      Text(label,
+          style: TextStyle(
+              fontSize: small ? 10 : 11, color: color, fontWeight: FontWeight.w600)),
+    ]),
+  );
+}
+
+String _formatDate(String iso) {
+  try {
+    final dt = DateTime.parse(iso);
+    return '${dt.day}/${dt.month}/${dt.year}';
+  } catch (_) {
+    return iso;
+  }
+}
+
+// ── Teacher detail panel ─────────────────────────────────────────────────────
+// Owns its own local (optimistic) copy of the teacher record so admin actions
+// (verify/reject document, approve/reject record or change request) reflect
+// immediately in the UI — whether this panel is shown inline (wide layout) or
+// inside a modal bottom sheet (narrow layout), neither of which rebuilds when
+// the parent screen's state changes.
+
+class _TeacherDetailPanel extends StatefulWidget {
+  final TeacherRecord initial;
+  final int initialTabIndex;
+  const _TeacherDetailPanel({
+    required super.key,
+    required this.initial,
+    this.initialTabIndex = 0,
+  });
+
+  @override
+  State<_TeacherDetailPanel> createState() => _TeacherDetailPanelState();
+}
+
+class _TeacherDetailPanelState extends State<_TeacherDetailPanel>
+    with SingleTickerProviderStateMixin {
+  final _service = TeacherService();
+  late TeacherRecord _teacher;
+  late TabController _tabCtrl;
+  StreamSubscription<TeacherRecord?>? _sub;
+
+  @override
+  void initState() {
+    super.initState();
+    _teacher = widget.initial;
+    _tabCtrl = TabController(
+        length: 3, vsync: this, initialIndex: widget.initialTabIndex);
+    // Live subscription — REST yields once (Android, where gRPC is blocked);
+    // the SDK snapshot fallback keeps pushing updates on platforms where
+    // gRPC works (e.g. Chrome), so other admins' edits still show up here.
+    _sub = _service.getTeacherStream(_teacher.id).listen((fresh) {
+      if (fresh != null && mounted) setState(() => _teacher = fresh);
+    });
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    _tabCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _refreshFromServer() async {
+    try {
+      final fresh = await _service.getTeacherById(_teacher.id);
+      if (fresh != null && mounted) setState(() => _teacher = fresh);
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = _teacher;
     final adminName = Provider.of<AppStateProvider>(context, listen: false).currentUser?.fullName ?? '';
 
     return Column(
@@ -672,6 +820,29 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen>
         _reqRow('Submitted', _formatDate(r.submittedAt)),
         if (r.status == 'rejected' && r.rejectionReason.isNotEmpty)
           _reqRow('Reason', r.rejectionReason),
+        if (r.documentUrl.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: TextButton.icon(
+              icon: const Icon(LucideIcons.externalLink, size: 13),
+              label: const Text('View Supporting Document', style: TextStyle(fontSize: 12)),
+              style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  alignment: Alignment.centerLeft),
+              onPressed: () async {
+                final uri = Uri.tryParse(r.documentUrl);
+                if (uri != null && await canLaunchUrl(uri)) {
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                } else if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Could not open file. No app available to view this type.')),
+                  );
+                }
+              },
+            ),
+          ),
         if (r.status == 'pending') ...[
           const SizedBox(height: 10),
           Row(mainAxisAlignment: MainAxisAlignment.end, children: [
@@ -710,21 +881,22 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen>
   }
 
   // ── Admin actions ─────────────────────────────────────────────────────────
+  // Every action applies its result to local `_teacher` state immediately
+  // (optimistic update) so the panel reflects the change right away instead
+  // of waiting on a server round-trip or a stream re-read.
 
-  // Optimistically update _selected so the UI reflects changes immediately
-  // without waiting for the gRPC stream (which may be blocked on Android).
-  void _applyDocStatus(TeacherRecord t, String docKey, String status, {String reason = ''}) {
-    if (!mounted || _selected?.id != t.id) return;
-    final docs = Map<String, DocumentRecord>.from(t.documents);
+  void _applyDocStatus(String docKey, String status, {String reason = ''}) {
+    if (!mounted) return;
+    final docs = Map<String, DocumentRecord>.from(_teacher.documents);
     if (docs.containsKey(docKey)) {
       docs[docKey] = docs[docKey]!.copyWith(status: status, rejectionReason: reason);
     }
-    setState(() => _selected = t.copyWith(documents: docs));
+    setState(() => _teacher = _teacher.copyWith(documents: docs));
   }
 
-  void _applyVerificationStatus(TeacherRecord t, String status, {String reason = ''}) {
-    if (!mounted || _selected?.id != t.id) return;
-    setState(() => _selected = t.copyWith(
+  void _applyVerificationStatus(String status, {String reason = ''}) {
+    if (!mounted) return;
+    setState(() => _teacher = _teacher.copyWith(
       verificationStatus: status,
       verificationRejectionReason: reason,
     ));
@@ -737,7 +909,7 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen>
     try {
       await _service.updateVerificationStatus(t.id, 'approved')
           .timeout(const Duration(seconds: 3), onTimeout: () {});
-      _applyVerificationStatus(t, 'approved');
+      _applyVerificationStatus('approved');
       _showSnack('Record approved.', isError: false);
     } catch (e) {
       if (mounted) _showSnack('Failed: $e', isError: true);
@@ -750,7 +922,7 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen>
     try {
       await _service.updateVerificationStatus(t.id, 'rejected', rejectionReason: reason)
           .timeout(const Duration(seconds: 3), onTimeout: () {});
-      _applyVerificationStatus(t, 'rejected', reason: reason);
+      _applyVerificationStatus('rejected', reason: reason);
       _showSnack('Record rejected.', isError: false);
     } catch (e) {
       if (mounted) _showSnack('Failed: $e', isError: true);
@@ -761,7 +933,7 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen>
     try {
       await _service.updateDocumentStatus(t.id, docKey, 'verified')
           .timeout(const Duration(seconds: 3), onTimeout: () {});
-      _applyDocStatus(t, docKey, 'verified');
+      _applyDocStatus(docKey, 'verified');
       _showSnack('Document verified.', isError: false);
     } catch (e) {
       if (mounted) _showSnack('Failed: $e', isError: true);
@@ -774,7 +946,7 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen>
     try {
       await _service.updateDocumentStatus(t.id, docKey, 'rejected', rejectionReason: reason)
           .timeout(const Duration(seconds: 3), onTimeout: () {});
-      _applyDocStatus(t, docKey, 'rejected', reason: reason);
+      _applyDocStatus(docKey, 'rejected', reason: reason);
       _showSnack('Document rejected.', isError: false);
     } catch (e) {
       if (mounted) _showSnack('Failed: $e', isError: true);
@@ -789,6 +961,11 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen>
       await _service.reviewChangeRequest(r.id, r.teacherId, r.field, r.newValue, true,
           reviewedBy: adminName)
           .timeout(const Duration(seconds: 3), onTimeout: () {});
+      // Approving updates the teacher's field directly on the backend, and the
+      // change-requests list itself needs a fresh (one-shot REST) fetch since
+      // its stream doesn't push live updates — both need a rebuild to show.
+      await _refreshFromServer();
+      if (mounted) setState(() {});
       _showSnack('Change request approved.', isError: false);
     } catch (e) {
       if (mounted) _showSnack('Failed: $e', isError: true);
@@ -802,6 +979,7 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen>
       await _service.reviewChangeRequest(r.id, r.teacherId, r.field, r.newValue, false,
           rejectionReason: reason, reviewedBy: adminName)
           .timeout(const Duration(seconds: 3), onTimeout: () {});
+      if (mounted) setState(() {});
       _showSnack('Change request rejected.', isError: false);
     } catch (e) {
       if (mounted) _showSnack('Failed: $e', isError: true);
@@ -813,6 +991,7 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen>
       context: context,
       builder: (ctx) => _EditTeacherDialog(teacher: t, service: _service),
     );
+    await _refreshFromServer();
   }
 
   // ── Dialogs ───────────────────────────────────────────────────────────────
@@ -860,71 +1039,12 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen>
     );
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
-
-  List<TeacherRecord> _filter(List<TeacherRecord> all) {
-    return all.where((t) {
-      final matchesSearch = _searchQuery.isEmpty ||
-          t.fullName.toLowerCase().contains(_searchQuery) ||
-          t.email.toLowerCase().contains(_searchQuery);
-      final matchesStatus = _statusFilter == 'All' ||
-          t.verificationStatus.toLowerCase() == _statusFilter.toLowerCase();
-      return matchesSearch && matchesStatus;
-    }).toList();
-  }
-
   void _showSnack(String msg, {required bool isError}) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
       backgroundColor: isError ? Colors.red.shade600 : Colors.green.shade600,
       behavior: SnackBarBehavior.floating,
     ));
-  }
-
-  String _formatDate(String iso) {
-    try {
-      final dt = DateTime.parse(iso);
-      return '${dt.day}/${dt.month}/${dt.year}';
-    } catch (_) {
-      return iso;
-    }
-  }
-
-  Widget _verificationBadge(String status, {bool small = false}) {
-    Color color;
-    String label;
-    IconData icon;
-    switch (status) {
-      case 'approved':
-        color = Colors.green;
-        label = 'Approved';
-        icon = LucideIcons.checkCircle;
-        break;
-      case 'rejected':
-        color = Colors.red;
-        label = 'Rejected';
-        icon = LucideIcons.xCircle;
-        break;
-      default:
-        color = Colors.amber;
-        label = 'Pending';
-        icon = LucideIcons.clock;
-    }
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: small ? 6 : 8, vertical: small ? 2 : 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: small ? 10 : 12, color: color),
-        SizedBox(width: small ? 3 : 4),
-        Text(label,
-            style: TextStyle(
-                fontSize: small ? 10 : 11, color: color, fontWeight: FontWeight.w600)),
-      ]),
-    );
   }
 }
 

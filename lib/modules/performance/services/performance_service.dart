@@ -137,10 +137,14 @@ class PerformanceService {
 
   Future<void> addWarningRecord(WarningRecord warning) async {
     await _db.collection('warnings').doc(warning.id).set(warning.toMap());
+    final detail = warning.message.isNotEmpty
+        ? warning.message
+        : 'A warning has been added to your performance record.';
     await _createNotification(
       warning.teacherId,
       'Warning issued: ${warning.warningType}',
-      'A warning has been added to your performance record.',
+      detail,
+      type: 'warning',
     );
   }
 
@@ -375,6 +379,7 @@ class PerformanceService {
         log.teacherId,
         'Daily Safety Threshold Alert',
         'Deductions exceed -30 points today. Total: ${dailyDeductionTotal.toStringAsFixed(1)}',
+        type: 'warning',
       );
     }
 
@@ -383,6 +388,7 @@ class PerformanceService {
         log.teacherId,
         'CRITICAL ALERT: $teacherName',
         'A critical deduction was recorded in your performance summary.',
+        type: 'warning',
       );
     }
 
@@ -394,6 +400,7 @@ class PerformanceService {
         log.teacherId,
         'Score Threshold Alert: $teacherName',
         'Teacher score has fallen below -30. Current: ${currentScore.toStringAsFixed(1)}',
+        type: 'warning',
       );
     }
   }
@@ -531,7 +538,8 @@ class PerformanceService {
   }
 
   Future<void> _createNotification(
-      String teacherId, String title, String message) async {
+      String teacherId, String title, String message,
+      {String type = 'warning'}) async {
     await _db.collection('notifications').add({
       'teacherId': teacherId,
       'userId': teacherId,
@@ -539,6 +547,8 @@ class PerformanceService {
       'message': message,
       'timestamp': Timestamp.now(),
       'read': false,
+      'type': type,
+      'relatedId': teacherId,
     });
   }
 

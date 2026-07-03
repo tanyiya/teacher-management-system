@@ -13,6 +13,9 @@ import '../../modules/performance/screens/performance_screen.dart';
 import 'alerts_screen.dart';
 import '../../modules/teachers/screens/profile_screen.dart';
 import '../../modules/report/screens/teacher_report_screen.dart';
+import '../../modules/leave/screens/leave_screen.dart';
+import '../../modules/duty/screens/duty_schedule_screen.dart';
+import '../../modules/teachers/models/teacher.dart';
 
 class TeacherDashboard extends StatefulWidget {
   const TeacherDashboard({Key? key}) : super(key: key);
@@ -24,6 +27,44 @@ class TeacherDashboard extends StatefulWidget {
 class _TeacherDashboardState extends State<TeacherDashboard> {
   int _currentIndex = 0;
   final NotificationService _notificationService = NotificationService();
+
+  // Sends the teacher to wherever a notification is actually about. Types
+  // tied to the teacher's own record (documents, verification, identity
+  // changes) just switch tabs; KPI/training likewise. Leave and duty/swap
+  // notifications don't have a dedicated tab, so they push the existing
+  // screen the same way the Home screen's quick-actions do.
+  void _handleNotificationTap(TeacherRecord user, AlertNotification notif) {
+    switch (notif.type) {
+      case 'document_verified':
+      case 'document_rejected':
+      case 'record_approved':
+      case 'record_rejected':
+      case 'change_approved':
+      case 'change_rejected':
+        setState(() => _currentIndex = 4); // Profile tab
+        break;
+      case 'warning':
+      case 'kpi':
+        setState(() => _currentIndex = 2); // Performance tab
+        break;
+      case 'training':
+      case 'broadcast':
+        setState(() => _currentIndex = 1); // Training tab
+        break;
+      case 'leave':
+        Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => LeaveScreen(teacher: user)));
+        break;
+      case 'duty':
+      case 'swap_request':
+      case 'swap_approved':
+        Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const DutyScheduleScreen()));
+        break;
+      default:
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +94,10 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
           TeacherHomeScreen(user: user),
           TeacherTrainingScreen(user: user),
           PerformanceScreen(user: user),
-          AlertsScreen(user: user),
+          AlertsScreen(
+            user: user,
+            onNotificationTap: (notif) => _handleNotificationTap(user, notif),
+          ),
           ProfileScreen(user: user),
         ],
       ),

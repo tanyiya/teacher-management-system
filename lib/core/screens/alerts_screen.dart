@@ -9,7 +9,13 @@ import '../services/notification_service.dart';
 
 class AlertsScreen extends StatelessWidget {
   final TeacherRecord user;
-  const AlertsScreen({Key? key, required this.user}) : super(key: key);
+  // Called whenever a notification is tapped so the host screen (admin or
+  // teacher dashboard) can decide where to navigate based on notif.type —
+  // e.g. a change request opens the teacher's case, a document alert opens
+  // the teacher's own Profile tab. Null when this screen has nowhere to send
+  // the tap (not expected in practice, but keeps this widget decoupled).
+  final void Function(AlertNotification notif)? onNotificationTap;
+  const AlertsScreen({Key? key, required this.user, this.onNotificationTap}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -78,11 +84,11 @@ class AlertsScreen extends StatelessWidget {
                 children: [
                   if (todayItems.isNotEmpty) ...[
                     _sectionHeader('Today'),
-                    ...todayItems.map((n) => _NotifTile(notif: n, svc: svc)),
+                    ...todayItems.map((n) => _NotifTile(notif: n, svc: svc, onTap: onNotificationTap)),
                   ],
                   if (earlierItems.isNotEmpty) ...[
                     _sectionHeader('Earlier'),
-                    ...earlierItems.map((n) => _NotifTile(notif: n, svc: svc)),
+                    ...earlierItems.map((n) => _NotifTile(notif: n, svc: svc, onTap: onNotificationTap)),
                   ],
                 ],
               ),
@@ -107,7 +113,8 @@ class AlertsScreen extends StatelessWidget {
 class _NotifTile extends StatelessWidget {
   final AlertNotification notif;
   final NotificationService svc;
-  const _NotifTile({required this.notif, required this.svc});
+  final void Function(AlertNotification notif)? onTap;
+  const _NotifTile({required this.notif, required this.svc, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -122,7 +129,12 @@ class _NotifTile extends StatelessWidget {
       ),
       onDismissed: (_) => svc.deleteNotification(notif.id),
       child: InkWell(
-        onTap: notif.isRead ? null : () => svc.markAsRead(notif.id),
+        onTap: (notif.isRead && onTap == null)
+            ? null
+            : () {
+                if (!notif.isRead) svc.markAsRead(notif.id);
+                onTap?.call(notif);
+              },
         child: Container(
         color: notif.isRead ? Colors.transparent : AppTheme.primaryColor.withValues(alpha: 0.04),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -199,9 +211,15 @@ class _NotifTile extends StatelessWidget {
       case 'broadcast':
         return LucideIcons.bookOpen;
       case 'duty':
+      case 'swap_request':
+      case 'swap_approved':
         return LucideIcons.calendarDays;
       case 'kpi':
         return LucideIcons.barChart2;
+      case 'warning':
+        return LucideIcons.alertTriangle;
+      case 'leave':
+        return LucideIcons.calendarOff;
       case 'change_request':
       case 'admin':
         return LucideIcons.shieldAlert;
@@ -224,9 +242,15 @@ class _NotifTile extends StatelessWidget {
       case 'broadcast':
         return Colors.indigo;
       case 'duty':
+      case 'swap_request':
+      case 'swap_approved':
         return Colors.teal;
       case 'kpi':
         return Colors.orange;
+      case 'warning':
+        return Colors.deepOrange;
+      case 'leave':
+        return Colors.purple;
       case 'change_request':
       case 'admin':
         return Colors.deepPurple;

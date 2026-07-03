@@ -82,7 +82,17 @@ class TeacherService {
 
   // ── Queries ────────────────────────────────────────────────────────────────
 
-  Stream<List<TeacherRecord>> getTeachers() async* {
+  // async* generators produce single-subscription streams by default — even
+  // though the SDK fallback they wrap is itself broadcast. Callers like
+  // TeacherDirectoryScreen build a fresh StreamBuilder around these on every
+  // rebuild (e.g. after each verify/approve action inside a TabBarView), so
+  // without asBroadcastStream() a widget can end up subscribing to the same
+  // single-subscription instance twice and hit "Stream has already been
+  // listened to".
+  Stream<List<TeacherRecord>> getTeachers() =>
+      _getTeachersImpl().asBroadcastStream();
+
+  Stream<List<TeacherRecord>> _getTeachersImpl() async* {
     // Try REST first (plain HTTPS — works even when gRPC is blocked on Android).
     // If it returns data, yield it and return so the Firestore SDK snapshots()
     // stream is never started — this prevents stale local cache from
@@ -100,7 +110,10 @@ class TeacherService {
         );
   }
 
-  Stream<TeacherRecord?> getTeacherStream(String id) async* {
+  Stream<TeacherRecord?> getTeacherStream(String id) =>
+      _getTeacherStreamImpl(id).asBroadcastStream();
+
+  Stream<TeacherRecord?> _getTeacherStreamImpl(String id) async* {
     // REST first — bypasses gRPC/local-cache so we always show server data.
     try {
       final record = await _fetchTeacherRest(id);
@@ -316,11 +329,65 @@ class TeacherService {
       title: 'New Change Request',
       message: '${request.teacherName} requested a change to "${request.fieldLabel}".',
       type: 'change_request',
+      relatedId: request.teacherId,
     );
   }
 
-  Stream<List<ChangeRequest>> getChangeRequestsForTeacher(String teacherId) {
-    return _db
+  // REST runQuery — bypasses gRPC (blocked on some Android devices). No
+  // orderBy in the query itself to avoid requiring a composite index; results
+  // are sorted client-side instead.
+  Future<List<ChangeRequest>> _fetchChangeRequestsRest({String? teacherId}) async {
+    final uri = Uri.parse(
+      'https://firestore.googleapis.com/v1/projects/$_projectId'
+      '/databases/(default)/documents:runQuery',
+    );
+    final structuredQuery = <String, dynamic>{
+      'from': [{'collectionId': 'change_requests'}],
+      if (teacherId != null)
+        'where': {
+          'fieldFilter': {
+            'field': {'fieldPath': 'teacherId'},
+            'op': 'EQUAL',
+            'value': {'stringValue': teacherId},
+          },
+        },
+    };
+    final res = await http.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({'structuredQuery': structuredQuery}),
+    ).timeout(const Duration(seconds: 10));
+    if (res.statusCode != 200) {
+      throw Exception('getChangeRequests REST ${res.statusCode}');
+    }
+    final rows = (json.decode(res.body) as List).cast<Map<String, dynamic>>();
+    final list = rows
+        .where((r) => r.containsKey('document'))
+        .map((r) {
+          final doc = r['document'] as Map<String, dynamic>;
+          final id = (doc['name'] as String).split('/').last;
+          final fields = Map<String, dynamic>.fromEntries(
+            ((doc['fields'] as Map?) ?? {})
+                .entries
+                .map((e) => MapEntry(e.key as String, _fromRestValue(e.value))),
+          );
+          return ChangeRequest.fromMap(id, fields);
+        })
+        .toList();
+    list.sort((a, b) => b.submittedAt.compareTo(a.submittedAt));
+    return list;
+  }
+
+  Stream<List<ChangeRequest>> getChangeRequestsForTeacher(String teacherId) =>
+      _getChangeRequestsForTeacherImpl(teacherId).asBroadcastStream();
+
+  Stream<List<ChangeRequest>> _getChangeRequestsForTeacherImpl(String teacherId) async* {
+    try {
+      yield await _fetchChangeRequestsRest(teacherId: teacherId);
+      return;
+    } catch (_) {}
+    // Fallback: real-time stream for environments where gRPC works (e.g. Chrome).
+    yield* _db
         .collection('change_requests')
         .where('teacherId', isEqualTo: teacherId)
         .orderBy('submittedAt', descending: true)
@@ -330,8 +397,15 @@ class TeacherService {
             .toList());
   }
 
-  Stream<List<ChangeRequest>> getAllChangeRequests() {
-    return _db
+  Stream<List<ChangeRequest>> getAllChangeRequests() =>
+      _getAllChangeRequestsImpl().asBroadcastStream();
+
+  Stream<List<ChangeRequest>> _getAllChangeRequestsImpl() async* {
+    try {
+      yield await _fetchChangeRequestsRest();
+      return;
+    } catch (_) {}
+    yield* _db
         .collection('change_requests')
         .orderBy('submittedAt', descending: true)
         .snapshots()

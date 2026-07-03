@@ -229,14 +229,43 @@ class DutyService {
       await _applySwap(duty, fromTeacherId, toTeacherId);
     }
 
-    await _notifications.add({
-      'type': requestedByPrincipal ? 'swap_approved' : 'swap_request',
-      'dutyId': duty.id,
-      'fromTeacherId': fromTeacherId,
-      'toTeacherId': toTeacherId,
-      'status': swap.status.name,
-      'createdAt': Timestamp.now(),
-    });
+    final fromName = duty.teacherNames[fromTeacherId] ?? 'A colleague';
+    final when = '${duty.title} on ${dateKey(duty.date)}';
+
+    if (requestedByPrincipal) {
+      // Swap already applied — let both affected teachers know their
+      // assignment changed.
+      for (final recipientId in {fromTeacherId, toTeacherId}) {
+        await _notifications.add({
+          'userId': recipientId,
+          'type': 'swap_approved',
+          'title': 'Duty Swap Applied',
+          'message': 'Your duty "$when" has been reassigned.',
+          'relatedId': duty.id,
+          'dutyId': duty.id,
+          'fromTeacherId': fromTeacherId,
+          'toTeacherId': toTeacherId,
+          'status': swap.status.name,
+          'read': false,
+          'createdAt': Timestamp.now(),
+        });
+      }
+    } else {
+      // Pending request — notify the teacher being asked to cover the duty.
+      await _notifications.add({
+        'userId': toTeacherId,
+        'type': 'swap_request',
+        'title': 'Duty Swap Request',
+        'message': '$fromName requested you cover "$when".',
+        'relatedId': duty.id,
+        'dutyId': duty.id,
+        'fromTeacherId': fromTeacherId,
+        'toTeacherId': toTeacherId,
+        'status': swap.status.name,
+        'read': false,
+        'createdAt': Timestamp.now(),
+      });
+    }
 
     return DutySwap(
       id: doc.id,

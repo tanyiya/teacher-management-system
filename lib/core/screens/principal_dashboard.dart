@@ -8,13 +8,14 @@ import '../../app_theme.dart';
 import '../models/notification.dart';
 import '../services/notification_service.dart';
 import 'alerts_screen.dart';
+import '../../modules/teachers/models/teacher.dart';
 import '../../modules/teachers/screens/teacher_directory_screen.dart';
 import '../../modules/training/screens/admin_training_screen.dart';
 import '../../modules/duty/screens/duty_schedule_screen.dart';
 import '../../modules/performance/screens/kpi_screen.dart';
 import '../../modules/leave/screens/leave_screen.dart';
 import '../../modules/report/screens/my_reports_screen.dart';
-import '../../modules/leave/models/leave.dart';
+import '../../modules/leave/models/leave.dart' hide TeacherRecord;
 import '../../modules/leave/services/leave_service.dart';
 
 class PrincipalDashboard extends StatefulWidget {
@@ -28,7 +29,52 @@ class _PrincipalDashboardState extends State<PrincipalDashboard> {
   int _currentIndex = 0;
   final NotificationService _notifSvc = NotificationService();
 
+  // Set when a notification (e.g. a change request) is tapped, so the
+  // Teachers tab can jump straight to that teacher's case. The token forces
+  // TeacherDirectoryScreen to rebuild fresh even if the same teacher is
+  // opened twice in a row.
+  String? _pendingTeacherId;
+  int _caseRequestToken = 0;
+
   void _goTo(int index) => setState(() => _currentIndex = index);
+
+  void _openNotifications(TeacherRecord user) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          appBar: AppBar(
+            title: const Text('Notifications'),
+            backgroundColor: Colors.white,
+            elevation: 0.5,
+          ),
+          body: AlertsScreen(user: user, onNotificationTap: _handleNotificationTap),
+        ),
+      ),
+    );
+  }
+
+  // Decides where a tapped notification should take the admin, closing the
+  // Notifications page first and then switching to the relevant tab.
+  void _handleNotificationTap(AlertNotification notif) {
+    switch (notif.type) {
+      case 'change_request':
+        if (notif.relatedId.isEmpty) return;
+        Navigator.pop(context);
+        setState(() {
+          _pendingTeacherId = notif.relatedId;
+          _caseRequestToken++;
+          _currentIndex = 1; // Teachers tab
+        });
+        break;
+      case 'leave':
+        Navigator.pop(context);
+        setState(() => _currentIndex = 5); // Leave Management tab
+        break;
+      default:
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +87,11 @@ class _PrincipalDashboardState extends State<PrincipalDashboard> {
 
     final List<Widget> screens = [
       _AdminHomeScreen(user: user, onNavigate: _goTo),
-      const TeacherDirectoryScreen(),
+      TeacherDirectoryScreen(
+        key: _pendingTeacherId == null ? null : ValueKey('teachers-$_caseRequestToken'),
+        initialTeacherId: _pendingTeacherId,
+        initialTab: 2, // Change Requests tab
+      ),
       AdminTrainingScreen(user: user),
       const DutyScheduleScreen(),
       const KpiScreen(),
@@ -71,19 +121,7 @@ class _PrincipalDashboardState extends State<PrincipalDashboard> {
                       label: Text(unread > 9 ? '9+' : '$unread'),
                       child: const Icon(LucideIcons.bell),
                     ),
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => Scaffold(
-                          appBar: AppBar(
-                            title: const Text('Notifications'),
-                            backgroundColor: Colors.white,
-                            elevation: 0.5,
-                          ),
-                          body: AlertsScreen(user: user),
-                        ),
-                      ),
-                    ),
+                    onPressed: () => _openNotifications(user),
                   );
                 },
               ),

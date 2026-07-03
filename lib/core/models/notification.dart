@@ -8,6 +8,7 @@ class AlertNotification {
   final bool read;
   final DateTime timestamp;
   final String type;
+  final String relatedId;
 
   AlertNotification({
     required this.id,
@@ -17,6 +18,7 @@ class AlertNotification {
     required this.read,
     required this.timestamp,
     required this.type,
+    this.relatedId = '',
   });
 
   factory AlertNotification.fromMap(String id, Map<String, dynamic> data) {
@@ -38,6 +40,7 @@ class AlertNotification {
       read: data['read'] ?? false,
       timestamp: ts,
       type: data['type'] ?? 'admin',
+      relatedId: data['relatedId'] ?? '',
     );
   }
 
@@ -49,6 +52,7 @@ class AlertNotification {
       'read': read,
       'timestamp': Timestamp.fromDate(timestamp),
       'type': type,
+      'relatedId': relatedId,
     };
   }
 
