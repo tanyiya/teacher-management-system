@@ -1,7 +1,11 @@
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import '../services/leave_service.dart';
 import '../../teachers/models/teacher.dart';
 import '../models/leave.dart' hide TeacherRecord; 
+import '../../../core/services/cloudinary_service.dart';
 
 class LeaveSpec {
   final String type;
@@ -407,7 +411,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
                                               ),
                                             )
                                           ],
-                                          if (leave.documentName != null && leave.documentName!.isNotEmpty) ...[
+                                          if (leave.documentUrl != null && leave.documentUrl!.isNotEmpty) ...[
                                             const SizedBox(height: 8),
                                             Container(
                                               decoration: BoxDecoration(
@@ -418,11 +422,11 @@ class _LeaveScreenState extends State<LeaveScreen> {
                                               child: Row(
                                                 mainAxisSize: MainAxisSize.min,
                                                 children: [
-                                                  const Icon(Icons.attach_file, size: 10, color: Color(0xFF5A6B5A)),
+                                                  const Icon(Icons.cloud_done, size: 10, color: Color(0xFF5A6B5A)),
                                                   const SizedBox(width: 4),
                                                   Flexible(
                                                     child: Text(
-                                                      leave.documentName!,
+                                                      leave.documentName ?? 'Attached File',
                                                       overflow: TextOverflow.ellipsis,
                                                       style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Color(0xFF5A6B5A), decoration: TextDecoration.underline),
                                                     ),
@@ -487,16 +491,38 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
   LeaveType _selectedType = LeaveType.annual;
   DateTime _startDate = DateTime.now();
   DateTime _endDate = DateTime.now();
+  
+  // Variables for native file picking
+  Uint8List? _fileBytes;
   String? _documentName;
-  String? _documentUrl;
   String? _errorMessage;
   bool _isSubmitting = false;
 
-  void _generateMockAttachment() {
-    setState(() {
-      _documentName = 'Supporting_Doc_${_selectedType.dbValue.toUpperCase()}.pdf';
-      _documentUrl = 'https://school-system.edu/uploads/leaves/mock_file.pdf';
-    });
+  Future<void> _pickDocument() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'],
+        withData: true, 
+      );
+
+      if (result != null) {
+        setState(() {
+          _documentName = result.files.single.name;
+          
+          if (result.files.single.bytes != null) {
+            _fileBytes = result.files.single.bytes;
+          } else if (result.files.single.path != null) {
+            _fileBytes = File(result.files.single.path!).readAsBytesSync();
+          }
+          _errorMessage = null;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Error picking file: $e';
+      });
+    }
   }
 
   Future<void> _submit() async {
@@ -531,9 +557,9 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
     }
 
     // Document validation
-    if (spec.docRequired && (_documentName == null || _documentName!.isEmpty)) {
+    if (spec.docRequired && (_documentName == null || _fileBytes == null)) {
       setState(() {
-        _errorMessage = 'Supporting document is mandatory for ${spec.name}. Please generate or attach a document.';
+        _errorMessage = 'Supporting document is mandatory for ${spec.name}. Please browse and attach a file.';
       });
       return;
     }
@@ -543,6 +569,25 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
     });
 
     try {
+      String? finalDocumentUrl;
+      
+      // Upload file to Cloudinary if one is selected
+      if (_fileBytes != null && _documentName != null) {
+        finalDocumentUrl = await CloudinaryService.uploadFile(
+          _fileBytes!, 
+          _documentName!,
+          folder: 'leave-documents',
+        );
+
+        if (finalDocumentUrl == null) {
+          setState(() {
+            _errorMessage = 'Failed to upload document to Cloudinary.';
+            _isSubmitting = false;
+          });
+          return;
+        }
+      }
+
       final leaveRecord = LeaveRecord(
         id: '',
         teacherId: widget.teacher.id,
@@ -554,14 +599,14 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
         duration: duration,
         type: _selectedType,
         status: 'pending',
-        documentUrl: _documentUrl,
+        documentUrl: finalDocumentUrl, 
         documentName: _documentName,
         remarks: _remarksController.text,
       );
 
       await _leaveService.applyLeave(leaveRecord);
       widget.onSubmitted();
-      Navigator.of(context).pop();
+      if (mounted) Navigator.of(context).pop();
     } catch (e) {
       setState(() {
         _errorMessage = 'Submission failed: $e';
@@ -629,7 +674,7 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
                     setState(() {
                       _selectedType = val;
                       _documentName = null;
-                      _documentUrl = null;
+                      _fileBytes = null; 
                     });
                   }
                 },
@@ -732,7 +777,7 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
                           onPressed: () {
                             setState(() {
                               _documentName = null;
-                              _documentUrl = null;
+                              _fileBytes = null;
                             });
                           },
                         )
@@ -741,9 +786,9 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
                   )
                 else
                   OutlinedButton.icon(
-                    onPressed: _generateMockAttachment,
+                    onPressed: _pickDocument,
                     icon: const Icon(Icons.upload_file, size: 14),
-                    label: const Text('GENERATE / ATTACH SUPPORTING DOCUMENT', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900)),
+                    label: const Text('BROWSE / ATTACH SUPPORTING DOCUMENT', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900)),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFF5A6B5A),
                       side: const BorderSide(color: Color(0xFF5A6B5A)),
