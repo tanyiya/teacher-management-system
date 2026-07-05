@@ -1,11 +1,13 @@
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import '../models/report.dart';
+
+// ── Import your existing Cloudinary service ───────────────
+// Adjust this path if cloudinary_service.dart is in a different folder
+import '../../../core/services/cloudinary_service.dart';
 
 class ReportService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   // ── All reports for principal ─────────────────────────────
   Stream<List<FacilityReport>> getReports() {
@@ -17,24 +19,23 @@ class ReportService {
             s.docs.map((d) => FacilityReport.fromMap(d.id, d.data())).toList());
   }
 
-  // ── FIX: removed .orderBy to avoid composite index requirement ──
-  // We sort client-side instead so no Firestore index is needed
+  // ── Teacher's own reports — sorted client-side to avoid
+  //    requiring a composite Firestore index ─────────────────
   Stream<List<FacilityReport>> getMyReports(String teacherId) {
     return _db
         .collection('reports')
         .where('teacherId', isEqualTo: teacherId)
         .snapshots()
         .map((s) {
-          final list = s.docs
-              .map((d) => FacilityReport.fromMap(d.id, d.data()))
-              .toList();
-          // Sort client-side: newest first
-          list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          return list;
-        });
+      final list = s.docs
+          .map((d) => FacilityReport.fromMap(d.id, d.data()))
+          .toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    });
   }
 
-  // ── Submit report + optional image + notify admin ─────────
+  // ── Submit report — upload image via Cloudinary ───────────
   Future<String> submitReport(
     FacilityReport report, {
     Uint8List? imageBytes,
@@ -43,22 +44,26 @@ class ReportService {
     final docRef = _db.collection('reports').doc();
     String photoUrl = '';
 
-    // Upload image if provided
+    // Upload image to Cloudinary if provided
     if (imageBytes != null && imageBytes.isNotEmpty) {
       try {
-        final ext = fileName?.split('.').last ?? 'jpg';
+        final ext = (fileName?.split('.').last ?? 'jpg').toLowerCase();
         final uniqueName =
             '${DateTime.now().millisecondsSinceEpoch}.$ext';
-        final ref =
-            _storage.ref('report_photos/${docRef.id}/$uniqueName');
-        final uploadTask = await ref.putData(
+
+        final url = await CloudinaryService.uploadFile(
           imageBytes,
-          SettableMetadata(contentType: 'image/$ext'),
+          uniqueName,
+          folder: 'report-photos',
         );
-        photoUrl = await uploadTask.ref.getDownloadURL();
+
+        if (url != null) {
+          photoUrl = url;
+        } else {
+          print('Cloudinary upload returned null — report saved without photo');
+        }
       } catch (e) {
-        // Log but don't block — report saves without photo
-        print('Image upload failed: $e');
+        print('Image upload failed: $e — report saved without photo');
       }
     }
 
@@ -78,7 +83,7 @@ class ReportService {
 
     await docRef.set(finalReport.toMap());
 
-    // ── Notify all admins/principals ──────────────────────────
+    // Notify all admins/principals
     await _notifyAdmins(
       reportId: docRef.id,
       teacherName: report.teacherName,
@@ -104,7 +109,6 @@ class ReportService {
       'lastUpdated': Timestamp.fromDate(DateTime.now()),
     });
 
-    // ── Notify teacher ────────────────────────────────────────
     await _notifyTeacher(
       teacherId: teacherId,
       reportId: reportId,
@@ -114,17 +118,21 @@ class ReportService {
     );
   }
 
-  // ── Send notification to all admin/principal users ────────
+  // ── Notify all admin/principal users ──────────────────────
   Future<void> _notifyAdmins({
     required String reportId,
     required String teacherName,
     required String category,
   }) async {
     try {
-      // Get all principal/admin users
       final admins = await _db
           .collection('teachers')
-          .where('role', whereIn: ['principal', 'admin', 'Principal', 'Admin'])
+          .where('role', whereIn: [
+            'principal',
+            'admin',
+            'Principal',
+            'Admin',
+          ])
           .get();
 
       final batch = _db.batch();
@@ -147,7 +155,7 @@ class ReportService {
     }
   }
 
-  // ── Send notification to teacher when status updated ──────
+  // ── Notify teacher when principal updates status ──────────
   Future<void> _notifyTeacher({
     required String teacherId,
     required String reportId,
