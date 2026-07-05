@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../providers/app_state_provider.dart';
 import '../../app_theme.dart';
@@ -467,14 +468,47 @@ class __AdminLeaveManagementScreenState extends State<_AdminLeaveManagementScree
                           child: Text('Teacher Remarks: “${leave.remarks}”', style: const TextStyle(fontSize: 9, fontStyle: FontStyle.italic, color: Colors.grey)),
                         )
                       ],
-                      if (leave.documentName != null) ...[
+                      if (leave.documentUrl != null && leave.documentUrl!.isNotEmpty) ...[
                         const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            const Icon(Icons.attach_file, size: 11, color: Color(0xFF5A6B5A)),
-                            const SizedBox(width: 4),
-                            Text(leave.documentName!, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Color(0xFF5A6B5A))),
-                          ],
+                        InkWell(
+                          onTap: () async {
+                            final url = Uri.parse(leave.documentUrl!);
+                            if (await canLaunchUrl(url)) {
+                              await launchUrl(url, mode: LaunchMode.externalApplication);
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Could not open document link.')),
+                              );
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(6),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF5A6B5A).withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: const Color(0xFF5A6B5A).withOpacity(0.2)),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.cloud_download, size: 14, color: Color(0xFF5A6B5A)),
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    leave.documentName ?? 'View Attached Document',
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 10, 
+                                      fontWeight: FontWeight.w900, 
+                                      color: Color(0xFF5A6B5A), 
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         )
                       ],
                       const SizedBox(height: 12),

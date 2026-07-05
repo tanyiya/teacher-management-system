@@ -1,10 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../../core/services/notification_service.dart';
 import '../models/leave.dart';
 
 class LeaveService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final NotificationService _notif = NotificationService();
 
   /// Applies for a new leave request and registers a notification for the principal
   Future<String> applyLeave(LeaveRecord leave) async {
@@ -24,14 +22,15 @@ class LeaveService {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      // Notify every principal — was previously hardcoded to a literal
-      // 'admin-id' that matched no real user, so these never arrived.
-      await _notif.sendToAdmins(
-        title: 'New Leave Application: ${leave.teacherName}',
-        message: '${leave.teacherName} applied for ${leave.duration} day(s) of ${leave.type.name} starting ${leave.startDate}.',
-        type: 'leave',
-        relatedId: leave.teacherId,
-      );
+      // Submit an alert notification for the Principal / Admin
+      await _db.collection('notifications').add({
+        'userId': 'admin-id', 
+        'title': 'New Leave Application: ${leave.teacherName}',
+        'message': '${leave.teacherName} applied for ${leave.duration} day(s) of ${leave.type.name} starting ${leave.startDate}.',
+        'read': false,
+        'timestamp': FieldValue.serverTimestamp(),
+        'type': 'leave'
+      });
 
       return docRef.id;
     } catch (e) {
@@ -47,7 +46,6 @@ class LeaveService {
       query = query.where('teacherId', isEqualTo: teacherId);
     }
     
-    // Ordered by latest startDate descending
     query = query.orderBy('startDate', descending: true);
 
     return query.snapshots().map((snapshot) {
@@ -63,7 +61,7 @@ class LeaveService {
   /// Updates status ('approved' or 'rejected') and sends a real-time responsive notification to the teacher
   Future<void> updateLeaveStatus({
     required String leaveId,
-    required String status, // 'approved' or 'rejected'
+    required String status,
     required String principalNotes,
     required String teacherId,
     required String leaveType,
@@ -79,7 +77,6 @@ class LeaveService {
 
       final statusTitle = status == 'approved' ? 'Approved' : 'Rejected';
 
-      // Send responsive notification to the teacher
       await _db.collection('notifications').add({
         'userId': teacherId,
         'title': 'Leave Application $statusTitle',
@@ -87,7 +84,6 @@ class LeaveService {
         'read': false,
         'timestamp': FieldValue.serverTimestamp(),
         'type': 'leave',
-        'relatedId': teacherId,
       });
     } catch (e) {
       throw Exception('Failed to update leave status: $e');
