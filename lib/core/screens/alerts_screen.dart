@@ -201,9 +201,13 @@ class _NotifTile extends StatelessWidget {
       case 'document_rejected':
         return LucideIcons.fileX;
       case 'record_approved':
+      case 'registration_approved':
         return LucideIcons.userCheck;
       case 'record_rejected':
+      case 'registration_rejected':
         return LucideIcons.userX;
+      case 'new_registration':
+        return LucideIcons.userPlus;
       case 'change_approved':
       case 'change_rejected':
         return LucideIcons.clipboardList;
@@ -232,12 +236,16 @@ class _NotifTile extends StatelessWidget {
     switch (type) {
       case 'document_verified':
       case 'record_approved':
+      case 'registration_approved':
       case 'change_approved':
         return Colors.green;
       case 'document_rejected':
       case 'record_rejected':
+      case 'registration_rejected':
       case 'change_rejected':
         return Colors.red;
+      case 'new_registration':
+        return Colors.blueGrey;
       case 'training':
       case 'broadcast':
         return Colors.indigo;
