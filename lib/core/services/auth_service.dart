@@ -18,6 +18,16 @@ class AuthService {
     );
   }
 
+  Future<UserCredential> registerUser({
+    required String email,
+    required String password,
+  }) {
+    return _auth.createUserWithEmailAndPassword(
+      email: email.trim().toLowerCase(),
+      password: password,
+    );
+  }
+
   Future<void> sendPasswordResetEmail(String email) {
     return _auth.sendPasswordResetEmail(email: email.trim().toLowerCase());
   }
@@ -37,7 +47,7 @@ class AuthService {
       case 'invalid-email':
         return 'Enter a valid email address.';
       case 'user-disabled':
-        return 'This account is disabled. Contact an administrator.';
+        return 'Your account has not yet been approved by the administrator.\n\nPlease contact your administrator for assistance.\n\nYou will be able to sign in once your account has been approved.';
       case 'too-many-requests':
         return 'Too many attempts. Please wait and try again.';
       case 'network-request-failed':

@@ -85,12 +85,16 @@ class _LoginScreenState extends State<LoginScreen> {
           body: SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final maxWidth = constraints.maxWidth >= 900 ? 520.0 : constraints.maxWidth - 32;
+                final maxWidth = constraints.maxWidth >= 900
+                    ? 520.0
+                    : constraints.maxWidth - 32;
                 return Center(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 24),
                     child: ConstrainedBox(
-                      constraints: BoxConstraints(maxWidth: maxWidth.clamp(320.0, 520.0)),
+                      constraints: BoxConstraints(
+                          maxWidth: maxWidth.clamp(320.0, 520.0)),
                       child: DecoratedBox(
                         decoration: BoxDecoration(
                           color: Colors.white,
@@ -105,25 +109,34 @@ class _LoginScreenState extends State<LoginScreen> {
                           ],
                         ),
                         child: Padding(
-                          padding: EdgeInsets.all(constraints.maxWidth < 420 ? 20 : 32),
+                          padding: EdgeInsets.all(
+                              constraints.maxWidth < 420 ? 20 : 32),
                           child: FocusTraversalGroup(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                _Header(isRestoring: appState.isLoading && !appState.isAuthenticated),
-                                if (appState.rememberedAccounts.isNotEmpty && !_showManualForm) ...[
+                                _Header(
+                                    isRestoring: appState.isLoading &&
+                                        !appState.isAuthenticated),
+                                if (appState.rememberedAccounts.isNotEmpty &&
+                                    !_showManualForm) ...[
                                   const SizedBox(height: 28),
                                   _RememberedAccountsList(
                                     accounts: appState.rememberedAccounts,
                                     isBusy: appState.isLoading,
                                     onSelect: _selectRememberedAccount,
-                                    onRemove: (uid) => appState.removeRememberedAccount(uid),
+                                    onRemove: (uid) =>
+                                        appState.removeRememberedAccount(uid),
                                   ),
                                   const SizedBox(height: 18),
                                   OutlinedButton.icon(
-                                    onPressed: appState.isLoading ? null : () => setState(() => _showManualForm = true),
-                                    icon: const Icon(LucideIcons.userPlus, size: 18),
+                                    onPressed: appState.isLoading
+                                        ? null
+                                        : () => setState(
+                                            () => _showManualForm = true),
+                                    icon: const Icon(LucideIcons.userPlus,
+                                        size: 18),
                                     label: const Text('Use Another Account'),
                                   ),
                                 ] else ...[
@@ -187,8 +200,12 @@ class _LoginScreenState extends State<LoginScreen> {
               prefixIcon: const Icon(LucideIcons.lock),
               suffixIcon: IconButton(
                 tooltip: _obscurePassword ? 'Show password' : 'Hide password',
-                onPressed: appState.isLoading ? null : () => setState(() => _obscurePassword = !_obscurePassword),
-                icon: Icon(_obscurePassword ? LucideIcons.eye : LucideIcons.eyeOff),
+                onPressed: appState.isLoading
+                    ? null
+                    : () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
+                icon: Icon(
+                    _obscurePassword ? LucideIcons.eye : LucideIcons.eyeOff),
               ),
             ),
             validator: _validatePassword,
@@ -197,17 +214,22 @@ class _LoginScreenState extends State<LoginScreen> {
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
-              onPressed: appState.isLoading ? null : () => _showForgotPasswordDialog(appState),
+              onPressed: appState.isLoading
+                  ? null
+                  : () => _showForgotPasswordDialog(appState),
               child: const Text('Forgot Password?'),
             ),
           ),
           CheckboxListTile(
             value: _rememberMe,
-            onChanged: appState.isLoading ? null : (value) => setState(() => _rememberMe = value ?? false),
+            onChanged: appState.isLoading
+                ? null
+                : (value) => setState(() => _rememberMe = value ?? false),
             contentPadding: EdgeInsets.zero,
             controlAffinity: ListTileControlAffinity.leading,
             title: const Text('Remember Me'),
-            subtitle: const Text('Save this account for quick login on this device.'),
+            subtitle:
+                const Text('Save this account for quick login on this device.'),
           ),
           const SizedBox(height: 18),
           FilledButton.icon(
@@ -216,15 +238,24 @@ class _LoginScreenState extends State<LoginScreen> {
                 ? const SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
                   )
                 : const Icon(LucideIcons.logIn, size: 18),
             label: Text(appState.isLoading ? 'Signing In...' : 'Sign In'),
           ),
+          const SizedBox(height: 12),
+          OutlinedButton(
+            onPressed:
+                appState.isLoading ? null : () => context.push('/register'),
+            child: const Text('Register as Teacher'),
+          ),
           if (appState.rememberedAccounts.isNotEmpty) ...[
             const SizedBox(height: 12),
             TextButton(
-              onPressed: appState.isLoading ? null : () => setState(() => _showManualForm = false),
+              onPressed: appState.isLoading
+                  ? null
+                  : () => setState(() => _showManualForm = false),
               child: const Text('Back to remembered accounts'),
             ),
           ],
@@ -303,14 +334,17 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               actions: [
                 TextButton(
-                  onPressed: isSending ? null : () => Navigator.of(dialogContext).pop(),
+                  onPressed: isSending
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
                   child: const Text('Cancel'),
                 ),
                 FilledButton.icon(
                   onPressed: isSending
                       ? null
                       : () async {
-                          if (!(formKey.currentState?.validate() ?? false)) return;
+                          if (!(formKey.currentState?.validate() ?? false))
+                            return;
                           setDialogState(() => isSending = true);
                           final error = await appState.sendPasswordReset(
                             _sanitizeEmail(controller.text),
@@ -323,7 +357,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       ? const SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
                         )
                       : const Icon(LucideIcons.send, size: 18),
                   label: Text(isSending ? 'Sending...' : 'Send Reset Email'),
@@ -343,7 +378,8 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = _sanitizeEmail(value ?? '');
     if (email.isEmpty) return 'Enter your email address.';
     if (email.length > 254) return 'Email address is too long.';
-    if (_dangerousPayload.hasMatch(email)) return 'Enter a valid email address.';
+    if (_dangerousPayload.hasMatch(email))
+      return 'Enter a valid email address.';
     if (!_emailRegExp.hasMatch(email)) return 'Enter a valid email address.';
     return null;
   }
@@ -352,17 +388,20 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = value ?? '';
     if (password.isEmpty) return 'Enter your password.';
     if (password.length < 8) return 'Password must be at least 8 characters.';
-    if (password.length > 128) return 'Password must be 128 characters or fewer.';
-    if (password.trim() != password) return 'Password cannot start or end with spaces.';
-    if (_dangerousPayload.hasMatch(password)) return 'Password contains unsupported content.';
-    if (_weakPasswords.contains(password.toLowerCase())) return 'Use a stronger password.';
+    if (password.length > 128)
+      return 'Password must be 128 characters or fewer.';
+    if (password.trim() != password)
+      return 'Password cannot start or end with spaces.';
+    if (_dangerousPayload.hasMatch(password))
+      return 'Password contains unsupported content.';
     return null;
   }
 
   String _sanitizeEmail(String value) => value.trim().toLowerCase();
 
   void _showSnack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -402,9 +441,14 @@ class _Header extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(
-          isRestoring ? 'Restoring secure session...' : 'Sign in with your school account',
+          isRestoring
+              ? 'Restoring secure session...'
+              : 'Sign in with your school account',
           textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.textLightColor),
+          style: Theme.of(context)
+              .textTheme
+              .bodyMedium
+              ?.copyWith(color: AppTheme.textLightColor),
         ),
         if (isRestoring) ...[
           const SizedBox(height: 16),
@@ -435,7 +479,10 @@ class _RememberedAccountsList extends StatelessWidget {
       children: [
         Text(
           'Quick Login',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          style: Theme.of(context)
+              .textTheme
+              .titleMedium
+              ?.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 12),
         ...accounts.map(
@@ -446,14 +493,20 @@ class _RememberedAccountsList extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
               child: ListTile(
                 enabled: !isBusy,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 leading: CircleAvatar(
-                  backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.12),
-                  backgroundImage: account.profileImageUrl.isEmpty ? null : NetworkImage(account.profileImageUrl),
+                  backgroundColor:
+                      AppTheme.primaryColor.withValues(alpha: 0.12),
+                  backgroundImage: account.profileImageUrl.isEmpty
+                      ? null
+                      : NetworkImage(account.profileImageUrl),
                   child: account.profileImageUrl.isEmpty
                       ? Text(
                           account.initial,
-                          style: TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                              color: AppTheme.primaryColor,
+                              fontWeight: FontWeight.bold),
                         )
                       : null,
                 ),

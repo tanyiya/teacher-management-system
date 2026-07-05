@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -150,21 +149,6 @@ class AppStateProvider extends ChangeNotifier {
         } catch (e, stack) {
           debugPrint('Login failed: $e');
           debugPrint('$stack');
-          // If Firestore reported UNAVAILABLE (channel shutdown), reset the
-          // Firestore client so subsequent calls create fresh channels.
-          final lower = e.toString().toLowerCase();
-          if (lower.contains('unavailable') || lower.contains('channel shutdown')) {
-            try {
-              await FirebaseFirestore.instance.terminate();
-            } catch (te) {
-              debugPrint('Firestore terminate during login error handling failed: $te');
-            }
-            try {
-              await FirebaseFirestore.instance.clearPersistence();
-            } catch (ce) {
-              debugPrint('Firestore clearPersistence during login error handling failed: $ce');
-            }
-          }
           return 'Unable to sign in. Please try again.';
         }
       })().timeout(timeout);
@@ -325,19 +309,6 @@ class AppStateProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _authService.signOut();
-
-      // Ensure Firestore channels are terminated and local persistence cleared
-      // to avoid re-using stale streams when a new user signs in immediately.
-      try {
-        await FirebaseFirestore.instance.terminate();
-      } catch (e) {
-        debugPrint('Firestore terminate failed during logout: $e');
-      }
-      try {
-        await FirebaseFirestore.instance.clearPersistence();
-      } catch (e) {
-        debugPrint('Firestore clearPersistence failed during logout: $e');
-      }
     } catch (e, stack) {
       debugPrint('Logout failed: $e');
       debugPrint('$stack');

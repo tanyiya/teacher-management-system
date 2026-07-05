@@ -261,6 +261,8 @@ class _AdminHomeScreen extends StatelessWidget {
                   'Leave requests', Colors.purple, () => onNavigate(5)),
               _quickCard(context, LucideIcons.alertTriangle, 'Reports',
                   'Incident reports', Colors.red, () => onNavigate(6)),
+              _quickCard(context, LucideIcons.userCheck, 'Approvals',
+                  'Pending registrations', Colors.blueGrey, () => context.push('/approvals')),
             ],
           ),
         ],
