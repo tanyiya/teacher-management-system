@@ -38,6 +38,11 @@ class _PrincipalDashboardState extends State<PrincipalDashboard> {
   int _pendingTeacherTab = 0;
   int _caseRequestToken = 0;
 
+  // Same idea, for jumping straight to a specific incident report when its
+  // notification is tapped.
+  String? _pendingReportId;
+  int _reportRequestToken = 0;
+
   void _goTo(int index) => setState(() => _currentIndex = index);
 
   void _openNotifications(TeacherRecord user) {
@@ -84,6 +89,15 @@ class _PrincipalDashboardState extends State<PrincipalDashboard> {
         Navigator.pop(context);
         setState(() => _currentIndex = 5); // Leave Management tab
         break;
+      case 'incident_report':
+        if (notif.relatedId.isEmpty) return;
+        Navigator.pop(context);
+        setState(() {
+          _pendingReportId = notif.relatedId;
+          _reportRequestToken++;
+          _currentIndex = 6; // Reports tab
+        });
+        break;
       default:
         break;
     }
@@ -109,7 +123,10 @@ class _PrincipalDashboardState extends State<PrincipalDashboard> {
       const DutyScheduleScreen(),
       const KpiScreen(),
       const _AdminLeaveManagementScreen(),
-      const ReportScreen(), 
+      ReportScreen(
+        key: _pendingReportId == null ? null : ValueKey('report-$_reportRequestToken'),
+        initialReportId: _pendingReportId,
+      ),
     ];
 
     return LayoutBuilder(

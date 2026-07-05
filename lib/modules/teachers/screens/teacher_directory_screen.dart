@@ -611,7 +611,7 @@ class _TeacherDetailPanelState extends State<_TeacherDetailPanel>
       ('Full Name', t.fullName),
       ('IC Number', t.icNumber),
       ('Gender', t.gender),
-      ('Date of Birth', t.dob),
+      ('Date of Birth', t.dob.isEmpty ? '' : _formatDate(t.dob)),
       ('Email', t.email),
       ('Phone Number', t.phoneNumber),
       ('Address', t.address),
@@ -1013,7 +1013,8 @@ class _TeacherDetailPanelState extends State<_TeacherDetailPanel>
         'Approve ${t.fullName}\'s registration? They will be able to log in.');
     if (ok != true) return;
     try {
-      await _service.updateRegistrationStatus(t.id, 'active')
+      await _service
+          .updateRegistrationStatus(t.id, 'active')
           .timeout(const Duration(seconds: 3), onTimeout: () {});
       _applyRegistrationStatus('active');
       widget.onChanged?.call();

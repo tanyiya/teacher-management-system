@@ -7,6 +7,12 @@ class ReportService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
 
+  Future<FacilityReport?> getReportById(String id) async {
+    final doc = await _db.collection('reports').doc(id).get();
+    if (!doc.exists) return null;
+    return FacilityReport.fromMap(doc.id, doc.data()!);
+  }
+
   // ── All reports for principal ─────────────────────────────
   Stream<List<FacilityReport>> getReports() {
     return _db
@@ -135,9 +141,9 @@ class ReportService {
           'title': 'New Incident Report',
           'message':
               '$teacherName submitted a new $category. Tap to review.',
-          'type': 'admin',
-          'isRead': false,
-          'reportId': reportId,
+          'type': 'incident_report',
+          'read': false,
+          'relatedId': reportId,
           'timestamp': Timestamp.fromDate(DateTime.now()),
         });
       }

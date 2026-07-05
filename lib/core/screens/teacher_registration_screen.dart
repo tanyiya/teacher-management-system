@@ -107,7 +107,7 @@ class _TeacherRegistrationScreenState extends State<TeacherRegistrationScreen> {
         'fullName': _nameController.text.trim(),
         'icNumber': _icController.text.trim(),
         'gender': _selectedGender,
-        'dob': _selectedDob!.toIso8601String(),
+        'dob': _formatDob(_selectedDob!),
         'email': normalizedEmail,
         'phoneNumber': _phoneController.text.trim(),
         'address': _addressController.text.trim(),
@@ -150,6 +150,9 @@ class _TeacherRegistrationScreenState extends State<TeacherRegistrationScreen> {
       if (mounted) setState(() => _isLoading = false);
     }
   }
+
+  String _formatDob(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   @override
   Widget build(BuildContext context) {
@@ -239,7 +242,7 @@ class _TeacherRegistrationScreenState extends State<TeacherRegistrationScreen> {
                             child: Text(
                               _selectedDob == null
                                   ? 'Select Date'
-                                  : '${_selectedDob!.year}-${_selectedDob!.month.toString().padLeft(2, '0')}-${_selectedDob!.day.toString().padLeft(2, '0')}',
+                                  : _formatDob(_selectedDob!),
                             ),
                           ),
                         ),

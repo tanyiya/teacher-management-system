@@ -221,6 +221,7 @@ class _NotifTile extends StatelessWidget {
       case 'kpi':
         return LucideIcons.barChart2;
       case 'warning':
+      case 'incident_report':
         return LucideIcons.alertTriangle;
       case 'leave':
         return LucideIcons.calendarOff;
@@ -256,6 +257,7 @@ class _NotifTile extends StatelessWidget {
       case 'kpi':
         return Colors.orange;
       case 'warning':
+      case 'incident_report':
         return Colors.deepOrange;
       case 'leave':
         return Colors.purple;

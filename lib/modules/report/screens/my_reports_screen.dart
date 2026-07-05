@@ -10,7 +10,10 @@ import '../services/report_service.dart';
 import 'report_detail_sheet.dart';
 
 class ReportScreen extends StatefulWidget {
-  const ReportScreen({Key? key}) : super(key: key);
+  // Set when this screen is opened via a notification tap, so it can jump
+  // straight to that report's detail sheet instead of just showing the list.
+  final String? initialReportId;
+  const ReportScreen({Key? key, this.initialReportId}) : super(key: key);
 
   @override
   State<ReportScreen> createState() => _ReportScreenState();
@@ -20,6 +23,25 @@ class _ReportScreenState extends State<ReportScreen> {
   final ReportService _svc = ReportService();
   String _filterStatus = 'All Statuses';
   String _filterCategory = 'All Categories';
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialReportId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _openReportById(widget.initialReportId!));
+    }
+  }
+
+  Future<void> _openReportById(String id) async {
+    final report = await _svc.getReportById(id);
+    if (report == null || !mounted) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => ReportDetailSheet(report: report, svc: _svc),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

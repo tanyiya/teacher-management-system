@@ -22,15 +22,25 @@ class LeaveService {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      // Submit an alert notification for the Principal / Admin
-      await _db.collection('notifications').add({
-        'userId': 'admin-id', 
-        'title': 'New Leave Application: ${leave.teacherName}',
-        'message': '${leave.teacherName} applied for ${leave.duration} day(s) of ${leave.type.name} starting ${leave.startDate}.',
-        'read': false,
-        'timestamp': FieldValue.serverTimestamp(),
-        'type': 'leave'
-      });
+      // Submit an alert notification for every Principal / Admin account.
+      final admins = await _db
+          .collection('teachers')
+          .where('role', whereIn: ['principal', 'admin', 'Principal', 'Admin'])
+          .get();
+      final batch = _db.batch();
+      for (final admin in admins.docs) {
+        final notifRef = _db.collection('notifications').doc();
+        batch.set(notifRef, {
+          'userId': admin.id,
+          'title': 'New Leave Application: ${leave.teacherName}',
+          'message': '${leave.teacherName} applied for ${leave.duration} day(s) of ${leave.type.name} starting ${leave.startDate}.',
+          'read': false,
+          'timestamp': FieldValue.serverTimestamp(),
+          'type': 'leave',
+          'relatedId': docRef.id,
+        });
+      }
+      await batch.commit();
 
       return docRef.id;
     } catch (e) {
@@ -84,6 +94,7 @@ class LeaveService {
         'read': false,
         'timestamp': FieldValue.serverTimestamp(),
         'type': 'leave',
+        'relatedId': leaveId,
       });
     } catch (e) {
       throw Exception('Failed to update leave status: $e');
