@@ -88,8 +88,9 @@ class TeacherRecord {
   final String emergencyContactNumber;
   final int currentScore;
   final int yearlyKpi;
-  final String status;
-  final String verificationStatus; // 'pending', 'approved', 'rejected'
+  final String status; // 'pending', 'active', 'inactive' — gates login
+  final String registrationRejectionReason;
+  final String verificationStatus; // 'pending', 'approved', 'rejected' — document/profile completeness
   final String verificationRejectionReason;
   final Map<String, DocumentRecord> documents;
 
@@ -111,6 +112,7 @@ class TeacherRecord {
     required this.currentScore,
     required this.yearlyKpi,
     required this.status,
+    this.registrationRejectionReason = '',
     this.verificationStatus = 'pending',
     this.verificationRejectionReason = '',
     required this.documents,
@@ -173,6 +175,7 @@ class TeacherRecord {
       currentScore: int.tryParse(data['currentScore']?.toString() ?? '') ?? 100,
       yearlyKpi: int.tryParse(data['yearlyKpi']?.toString() ?? '') ?? 0,
       status: data['status'] ?? 'active',
+      registrationRejectionReason: data['registrationRejectionReason'] ?? '',
       verificationStatus: data['verificationStatus'] ?? 'pending',
       verificationRejectionReason: data['verificationRejectionReason'] ?? '',
       documents: docs,
@@ -197,6 +200,7 @@ class TeacherRecord {
       'currentScore': currentScore,
       'yearlyKpi': yearlyKpi,
       'status': status,
+      'registrationRejectionReason': registrationRejectionReason,
       'verificationStatus': verificationStatus,
       'verificationRejectionReason': verificationRejectionReason,
       'documents': documents.map((key, value) => MapEntry(key, value.toMap())),
@@ -216,6 +220,7 @@ class TeacherRecord {
     int? currentScore,
     int? yearlyKpi,
     String? status,
+    String? registrationRejectionReason,
     String? fullName,
     String? icNumber,
     String? gender,
@@ -240,6 +245,7 @@ class TeacherRecord {
       currentScore: currentScore ?? this.currentScore,
       yearlyKpi: yearlyKpi ?? this.yearlyKpi,
       status: status ?? this.status,
+      registrationRejectionReason: registrationRejectionReason ?? this.registrationRejectionReason,
       verificationStatus: verificationStatus ?? this.verificationStatus,
       verificationRejectionReason: verificationRejectionReason ?? this.verificationRejectionReason,
       documents: documents ?? this.documents,

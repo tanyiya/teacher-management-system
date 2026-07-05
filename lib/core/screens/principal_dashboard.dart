@@ -35,6 +35,7 @@ class _PrincipalDashboardState extends State<PrincipalDashboard> {
   // TeacherDirectoryScreen to rebuild fresh even if the same teacher is
   // opened twice in a row.
   String? _pendingTeacherId;
+  int _pendingTeacherTab = 0;
   int _caseRequestToken = 0;
 
   void _goTo(int index) => setState(() => _currentIndex = index);
@@ -64,6 +65,17 @@ class _PrincipalDashboardState extends State<PrincipalDashboard> {
         Navigator.pop(context);
         setState(() {
           _pendingTeacherId = notif.relatedId;
+          _pendingTeacherTab = 2; // Change Requests tab
+          _caseRequestToken++;
+          _currentIndex = 1; // Teachers tab
+        });
+        break;
+      case 'new_registration':
+        if (notif.relatedId.isEmpty) return;
+        Navigator.pop(context);
+        setState(() {
+          _pendingTeacherId = notif.relatedId;
+          _pendingTeacherTab = 0; // Profile tab (registration approve/reject lives in the header)
           _caseRequestToken++;
           _currentIndex = 1; // Teachers tab
         });
@@ -91,7 +103,7 @@ class _PrincipalDashboardState extends State<PrincipalDashboard> {
       TeacherDirectoryScreen(
         key: _pendingTeacherId == null ? null : ValueKey('teachers-$_caseRequestToken'),
         initialTeacherId: _pendingTeacherId,
-        initialTab: 2, // Change Requests tab
+        initialTab: _pendingTeacherTab,
       ),
       AdminTrainingScreen(user: user),
       const DutyScheduleScreen(),
@@ -262,8 +274,6 @@ class _AdminHomeScreen extends StatelessWidget {
                   'Leave requests', Colors.purple, () => onNavigate(5)),
               _quickCard(context, LucideIcons.alertTriangle, 'Reports',
                   'Incident reports', Colors.red, () => onNavigate(6)),
-              _quickCard(context, LucideIcons.userCheck, 'Approvals',
-                  'Pending registrations', Colors.blueGrey, () => context.push('/approvals')),
             ],
           ),
         ],

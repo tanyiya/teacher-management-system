@@ -65,11 +65,19 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen> {
         builder: (_) => DraggableScrollableSheet(
           expand: false,
           initialChildSize: 0.9,
-          builder: (_, __) =>
-              _TeacherDetailPanel(key: ValueKey(t.id), initial: t, initialTabIndex: tab),
+          builder: (_, __) => _TeacherDetailPanel(
+              key: ValueKey(t.id), initial: t, initialTabIndex: tab, onChanged: _refreshList),
         ),
       );
     }
+  }
+
+  // `getTeachers()` does a one-shot REST fetch on Android (no live listener —
+  // see TeacherService.getTeachers doc), so the left list only reflects a
+  // change once this widget rebuilds and rebinds a fresh stream. Called after
+  // any admin action in the detail panel mutates a teacher.
+  void _refreshList() {
+    if (mounted) setState(() {});
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
@@ -125,6 +133,7 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen> {
                   key: ValueKey(_selected!.id),
                   initial: _selected!,
                   initialTabIndex: _selectedInitialTab,
+                  onChanged: _refreshList,
                 ),
         ),
       ],
@@ -167,11 +176,11 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen> {
           Row(children: [
             _statChip('Total', all.length, Colors.grey),
             const SizedBox(width: 8),
-            _statChip('Pending', all.where((t) => t.verificationStatus == 'pending').length, Colors.amber),
+            _statChip('Pending', all.where((t) => t.status == 'pending').length, Colors.amber),
             const SizedBox(width: 8),
-            _statChip('Approved', all.where((t) => t.verificationStatus == 'approved').length, Colors.green),
+            _statChip('Approved', all.where((t) => t.status == 'active').length, Colors.green),
             const SizedBox(width: 8),
-            _statChip('Rejected', all.where((t) => t.verificationStatus == 'rejected').length, Colors.red),
+            _statChip('Rejected', all.where((t) => t.status == 'inactive').length, Colors.red),
           ]),
           const SizedBox(height: 12),
           // Search
@@ -243,6 +252,7 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen> {
 
   Widget _buildListTile(TeacherRecord t) {
     final isSelected = _selected?.id == t.id;
+    final isPending = t.status == 'pending';
     return InkWell(
       onTap: () {
         setState(() {
@@ -262,14 +272,22 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen> {
             builder: (_) => DraggableScrollableSheet(
               expand: false,
               initialChildSize: 0.9,
-              builder: (_, __) => _TeacherDetailPanel(key: ValueKey(t.id), initial: t),
+              builder: (_, __) =>
+                _TeacherDetailPanel(key: ValueKey(t.id), initial: t, onChanged: _refreshList),
             ),
           );
         }
       },
       child: Container(
-        color: isSelected ? AppTheme.primaryColor.withValues(alpha: 0.06) : null,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppTheme.primaryColor.withValues(alpha: 0.06)
+              : (isPending ? Colors.amber.withValues(alpha: 0.08) : null),
+          border: isPending
+              ? const Border(left: BorderSide(color: Colors.amber, width: 4))
+              : null,
+        ),
+        padding: EdgeInsets.fromLTRB(isPending ? 12 : 16, 12, 16, 12),
         child: Row(children: [
           CircleAvatar(
             radius: 18,
@@ -294,7 +312,7 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen> {
             ]),
           ),
           const SizedBox(width: 8),
-          _verificationBadge(t.verificationStatus, small: true),
+          _verificationBadge(_registrationStatusKey(t.status), small: true),
         ]),
       ),
     );
@@ -314,19 +332,38 @@ class _TeacherDirectoryScreenState extends State<TeacherDirectoryScreen> {
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   List<TeacherRecord> _filter(List<TeacherRecord> all) {
-    return all.where((t) {
+    final result = all.where((t) {
       final matchesSearch = _searchQuery.isEmpty ||
           t.fullName.toLowerCase().contains(_searchQuery) ||
           t.email.toLowerCase().contains(_searchQuery);
       final matchesStatus = _statusFilter == 'All' ||
-          t.verificationStatus.toLowerCase() == _statusFilter.toLowerCase();
+          _registrationStatusKey(t.status) == _statusFilter.toLowerCase();
       return matchesSearch && matchesStatus;
     }).toList();
+
+    // New registrations (pending admin approval to log in) surface at the top.
+    final pending = result.where((t) => t.status == 'pending').toList();
+    final rest = result.where((t) => t.status != 'pending').toList();
+    return [...pending, ...rest];
   }
 }
 
 // ── Shared badge / formatting helpers ───────────────────────────────────────
 // Used by both the teacher list tile and the detail panel below.
+
+// Maps the login-gating `status` field ('pending'/'active'/'inactive') to the
+// same 'pending'/'approved'/'rejected' vocabulary used by _verificationBadge
+// and the status filter chips, so registration approval reuses that styling.
+String _registrationStatusKey(String status) {
+  switch (status) {
+    case 'active':
+      return 'approved';
+    case 'inactive':
+      return 'rejected';
+    default:
+      return 'pending';
+  }
+}
 
 Widget _verificationBadge(String status, {bool small = false}) {
   Color color;
@@ -384,10 +421,17 @@ String _formatDate(String iso) {
 class _TeacherDetailPanel extends StatefulWidget {
   final TeacherRecord initial;
   final int initialTabIndex;
+  // Called after any admin action mutates this teacher (approve/reject,
+  // document verify/reject, edit) so the parent list — which is fed by a
+  // one-shot REST fetch on Android, not a live listener — re-fetches and
+  // reflects the change immediately instead of only on the next unrelated
+  // rebuild.
+  final VoidCallback? onChanged;
   const _TeacherDetailPanel({
     required super.key,
     required this.initial,
     this.initialTabIndex = 0,
+    this.onChanged,
   });
 
   @override
@@ -466,14 +510,14 @@ class _TeacherDetailPanelState extends State<_TeacherDetailPanel>
                 ),
               ]),
               const SizedBox(height: 8),
-              // Row 2: badge + completion + action buttons
+              // Row 2: registration status (gates login) + approve/reject registration
               Row(children: [
-                _verificationBadge(t.verificationStatus),
-                const SizedBox(width: 8),
-                Text('${t.completionProgress}%',
-                    style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+                const Text('Registration:',
+                    style: TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+                const SizedBox(width: 6),
+                _verificationBadge(_registrationStatusKey(t.status)),
                 const Spacer(),
-                if (t.verificationStatus != 'approved')
+                if (t.status != 'active')
                   TextButton.icon(
                     icon: const Icon(LucideIcons.checkCircle, size: 13),
                     label: const Text('Approve', style: TextStyle(fontSize: 11)),
@@ -483,7 +527,7 @@ class _TeacherDetailPanelState extends State<_TeacherDetailPanel>
                         minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
                     onPressed: () => _approveRecord(t),
                   ),
-                if (t.verificationStatus != 'rejected')
+                if (t.status != 'inactive')
                   TextButton.icon(
                     icon: const Icon(LucideIcons.xCircle, size: 13),
                     label: const Text('Reject', style: TextStyle(fontSize: 11)),
@@ -494,6 +538,41 @@ class _TeacherDetailPanelState extends State<_TeacherDetailPanel>
                     onPressed: () => _rejectRecord(t),
                   ),
               ]),
+              if (t.status == 'active') ...[
+                const SizedBox(height: 6),
+                // Row 2b: profile/document completeness review — independent of
+                // registration/login access, only relevant once a teacher is active.
+                Row(children: [
+                  const Text('Profile review:',
+                      style: TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+                  const SizedBox(width: 6),
+                  _verificationBadge(t.verificationStatus),
+                  const SizedBox(width: 8),
+                  Text('${t.completionProgress}%',
+                      style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+                  const Spacer(),
+                  if (t.verificationStatus != 'approved')
+                    TextButton.icon(
+                      icon: const Icon(LucideIcons.checkCircle, size: 13),
+                      label: const Text('Verify', style: TextStyle(fontSize: 11)),
+                      style: TextButton.styleFrom(
+                          foregroundColor: Colors.green,
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                      onPressed: () => _approveVerification(t),
+                    ),
+                  if (t.verificationStatus != 'rejected')
+                    TextButton.icon(
+                      icon: const Icon(LucideIcons.xCircle, size: 13),
+                      label: const Text('Reject', style: TextStyle(fontSize: 11)),
+                      style: TextButton.styleFrom(
+                          foregroundColor: Colors.red,
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                      onPressed: () => _rejectVerification(t),
+                    ),
+                ]),
+              ],
               const SizedBox(height: 8),
               TabBar(
                 controller: _tabCtrl,
@@ -556,6 +635,24 @@ class _TeacherDetailPanelState extends State<_TeacherDetailPanel>
           ),
         ]),
         const SizedBox(height: 14),
+        if (t.registrationRejectionReason.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(bottom: 14),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.red.shade200),
+            ),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Icon(LucideIcons.alertCircle, size: 14, color: Colors.red),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('Registration rejected: ${t.registrationRejectionReason}',
+                    style: const TextStyle(fontSize: 12, color: Colors.red)),
+              ),
+            ]),
+          ),
         if (t.verificationRejectionReason.isNotEmpty)
           Container(
             margin: const EdgeInsets.only(bottom: 14),
@@ -569,7 +666,7 @@ class _TeacherDetailPanelState extends State<_TeacherDetailPanel>
               const Icon(LucideIcons.alertCircle, size: 14, color: Colors.red),
               const SizedBox(width: 8),
               Expanded(
-                child: Text('Rejection reason: ${t.verificationRejectionReason}',
+                child: Text('Profile rejected: ${t.verificationRejectionReason}',
                     style: const TextStyle(fontSize: 12, color: Colors.red)),
               ),
             ]),
@@ -902,27 +999,75 @@ class _TeacherDetailPanelState extends State<_TeacherDetailPanel>
     ));
   }
 
+  void _applyRegistrationStatus(String status, {String reason = ''}) {
+    if (!mounted) return;
+    setState(() => _teacher = _teacher.copyWith(
+      status: status,
+      registrationRejectionReason: reason,
+    ));
+  }
+
+  // Registration approval — gates whether this account can log in at all.
   Future<void> _approveRecord(TeacherRecord t) async {
-    final ok = await _confirmDialog('Approve Record',
-        'Approve ${t.fullName}\'s record? This confirms all submitted information is verified.');
+    final ok = await _confirmDialog('Approve Registration',
+        'Approve ${t.fullName}\'s registration? They will be able to log in.');
     if (ok != true) return;
     try {
-      await _service.updateVerificationStatus(t.id, 'approved')
+      await _service.updateRegistrationStatus(t.id, 'active')
           .timeout(const Duration(seconds: 3), onTimeout: () {});
-      _applyVerificationStatus('approved');
-      _showSnack('Record approved.', isError: false);
+      _applyRegistrationStatus('active');
+      widget.onChanged?.call();
+      _showSnack('Registration approved.', isError: false);
     } catch (e) {
       if (mounted) _showSnack('Failed: $e', isError: true);
     }
   }
 
   Future<void> _rejectRecord(TeacherRecord t) async {
-    final reason = await _reasonDialog('Reject Record', 'Enter the reason for rejection:');
+    final ok = await _confirmDialog('Reject Registration',
+        'Are you sure you want to reject ${t.fullName}\'s registration? '
+        'They will not be able to log in.');
+    if (ok != true) return;
+    final reason = await _reasonDialog('Reject Registration', 'Enter the reason for rejection:');
+    if (reason == null) return;
+    try {
+      await _service.updateRegistrationStatus(t.id, 'inactive', rejectionReason: reason)
+          .timeout(const Duration(seconds: 3), onTimeout: () {});
+      _applyRegistrationStatus('inactive', reason: reason);
+      widget.onChanged?.call();
+      _showSnack('Registration rejected.', isError: false);
+    } catch (e) {
+      if (mounted) _showSnack('Failed: $e', isError: true);
+    }
+  }
+
+  // Profile/document completeness review — independent of login access.
+  Future<void> _approveVerification(TeacherRecord t) async {
+    final ok = await _confirmDialog('Verify Profile',
+        'Verify ${t.fullName}\'s record? This confirms all submitted information and documents are correct.');
+    if (ok != true) return;
+    try {
+      await _service.updateVerificationStatus(t.id, 'approved')
+          .timeout(const Duration(seconds: 3), onTimeout: () {});
+      _applyVerificationStatus('approved');
+      widget.onChanged?.call();
+      _showSnack('Record verified.', isError: false);
+    } catch (e) {
+      if (mounted) _showSnack('Failed: $e', isError: true);
+    }
+  }
+
+  Future<void> _rejectVerification(TeacherRecord t) async {
+    final ok = await _confirmDialog('Reject Profile',
+        'Are you sure you want to reject ${t.fullName}\'s submitted profile/documents?');
+    if (ok != true) return;
+    final reason = await _reasonDialog('Reject Profile', 'Enter the reason for rejection:');
     if (reason == null) return;
     try {
       await _service.updateVerificationStatus(t.id, 'rejected', rejectionReason: reason)
           .timeout(const Duration(seconds: 3), onTimeout: () {});
       _applyVerificationStatus('rejected', reason: reason);
+      widget.onChanged?.call();
       _showSnack('Record rejected.', isError: false);
     } catch (e) {
       if (mounted) _showSnack('Failed: $e', isError: true);
@@ -934,6 +1079,7 @@ class _TeacherDetailPanelState extends State<_TeacherDetailPanel>
       await _service.updateDocumentStatus(t.id, docKey, 'verified')
           .timeout(const Duration(seconds: 3), onTimeout: () {});
       _applyDocStatus(docKey, 'verified');
+      widget.onChanged?.call();
       _showSnack('Document verified.', isError: false);
     } catch (e) {
       if (mounted) _showSnack('Failed: $e', isError: true);
@@ -947,6 +1093,7 @@ class _TeacherDetailPanelState extends State<_TeacherDetailPanel>
       await _service.updateDocumentStatus(t.id, docKey, 'rejected', rejectionReason: reason)
           .timeout(const Duration(seconds: 3), onTimeout: () {});
       _applyDocStatus(docKey, 'rejected', reason: reason);
+      widget.onChanged?.call();
       _showSnack('Document rejected.', isError: false);
     } catch (e) {
       if (mounted) _showSnack('Failed: $e', isError: true);
@@ -966,6 +1113,7 @@ class _TeacherDetailPanelState extends State<_TeacherDetailPanel>
       // its stream doesn't push live updates — both need a rebuild to show.
       await _refreshFromServer();
       if (mounted) setState(() {});
+      widget.onChanged?.call();
       _showSnack('Change request approved.', isError: false);
     } catch (e) {
       if (mounted) _showSnack('Failed: $e', isError: true);
@@ -992,6 +1140,7 @@ class _TeacherDetailPanelState extends State<_TeacherDetailPanel>
       builder: (ctx) => _EditTeacherDialog(teacher: t, service: _service),
     );
     await _refreshFromServer();
+    widget.onChanged?.call();
   }
 
   // ── Dialogs ───────────────────────────────────────────────────────────────

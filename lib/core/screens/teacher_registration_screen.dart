@@ -7,6 +7,7 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../app_theme.dart';
 import '../services/auth_service.dart';
+import '../services/notification_service.dart';
 
 class TeacherRegistrationScreen extends StatefulWidget {
   const TeacherRegistrationScreen({super.key});
@@ -19,6 +20,7 @@ class TeacherRegistrationScreen extends StatefulWidget {
 class _TeacherRegistrationScreenState extends State<TeacherRegistrationScreen> {
   final _formKey = GlobalKey<FormState>();
   final _authService = AuthService();
+  final _notif = NotificationService();
 
   final _nameController = TextEditingController();
   final _icController = TextEditingController();
@@ -120,10 +122,21 @@ class _TeacherRegistrationScreenState extends State<TeacherRegistrationScreen> {
         'documents': {},
       });
 
-      // 4. Sign out immediately
+      // 4. Notify admins so they can review the new registration. Best-effort
+      //    — a failure here shouldn't block the registration from completing.
+      try {
+        await _notif.sendToAdmins(
+          title: 'New Teacher Registration',
+          message: '${_nameController.text.trim()} has registered and is awaiting approval.',
+          type: 'new_registration',
+          relatedId: uid,
+        );
+      } catch (_) {}
+
+      // 5. Sign out immediately
       await _authService.signOut();
 
-      // 4. Navigate to success
+      // 6. Navigate to success
       if (mounted) context.go('/register-success');
     } on FirebaseAuthException catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -188,53 +201,47 @@ class _TeacherRegistrationScreenState extends State<TeacherRegistrationScreen> {
                           keyboardType: TextInputType.number,
                         ),
                         const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: DropdownButtonFormField<String>(
-                                decoration: const InputDecoration(
-                                  labelText: 'Gender',
-                                  prefixIcon: Icon(LucideIcons.users),
-                                ),
-                                value: _selectedGender,
-                                items: const [
-                                  DropdownMenuItem(
-                                      value: 'Male', child: Text('Male')),
-                                  DropdownMenuItem(
-                                      value: 'Female', child: Text('Female')),
-                                ],
-                                onChanged: (v) =>
-                                    setState(() => _selectedGender = v),
-                                validator: (v) => v == null ? 'Required' : null,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: InkWell(
-                                onTap: () async {
-                                  final date = await showDatePicker(
-                                    context: context,
-                                    initialDate: _selectedDob ?? DateTime(2000),
-                                    firstDate: DateTime(1940),
-                                    lastDate: DateTime.now(),
-                                  );
-                                  if (date != null)
-                                    setState(() => _selectedDob = date);
-                                },
-                                child: InputDecorator(
-                                  decoration: const InputDecoration(
-                                    labelText: 'Date of Birth',
-                                    prefixIcon: Icon(LucideIcons.calendar),
-                                  ),
-                                  child: Text(
-                                    _selectedDob == null
-                                        ? 'Select Date'
-                                        : '${_selectedDob!.year}-${_selectedDob!.month.toString().padLeft(2, '0')}-${_selectedDob!.day.toString().padLeft(2, '0')}',
-                                  ),
-                                ),
-                              ),
-                            ),
+                        DropdownButtonFormField<String>(
+                          decoration: const InputDecoration(
+                            labelText: 'Gender',
+                            prefixIcon: Icon(LucideIcons.users),
+                          ),
+                          value: _selectedGender,
+                          isExpanded: true,
+                          items: const [
+                            DropdownMenuItem(
+                                value: 'Male', child: Text('Male')),
+                            DropdownMenuItem(
+                                value: 'Female', child: Text('Female')),
                           ],
+                          onChanged: (v) =>
+                              setState(() => _selectedGender = v),
+                          validator: (v) => v == null ? 'Required' : null,
+                        ),
+                        const SizedBox(height: 16),
+                        InkWell(
+                          onTap: () async {
+                            final date = await showDatePicker(
+                              context: context,
+                              initialDate: _selectedDob ?? DateTime(2000),
+                              firstDate: DateTime(1940),
+                              lastDate: DateTime.now(),
+                            );
+                            if (date != null) {
+                              setState(() => _selectedDob = date);
+                            }
+                          },
+                          child: InputDecorator(
+                            decoration: const InputDecoration(
+                              labelText: 'Date of Birth',
+                              prefixIcon: Icon(LucideIcons.calendar),
+                            ),
+                            child: Text(
+                              _selectedDob == null
+                                  ? 'Select Date'
+                                  : '${_selectedDob!.year}-${_selectedDob!.month.toString().padLeft(2, '0')}-${_selectedDob!.day.toString().padLeft(2, '0')}',
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 32),
                         Text(

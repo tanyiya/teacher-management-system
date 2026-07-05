@@ -293,6 +293,10 @@ class TeacherService {
 
   // ── Verification status ───────────────────────────────────────────────────
 
+  // Document/profile completeness review — shown to the teacher themselves
+  // as the verification banner on their own profile (see
+  // profile_screen.dart _buildVerificationBanner). This is independent of
+  // whether the account can log in at all (see updateRegistrationStatus).
   Future<void> updateVerificationStatus(
     String teacherId,
     String status, {
@@ -316,6 +320,48 @@ class TeacherService {
         message: 'Your record was rejected.'
             '${rejectionReason.isNotEmpty ? ' Reason: $rejectionReason' : ''}',
         type: 'record_rejected',
+      );
+    }
+  }
+
+  // Registration approval — this is the one that gates login. New
+  // self-registered accounts start with `status: 'pending'` (see
+  // teacher_registration_screen.dart) and cannot log in until an admin
+  // approves them here. Distinct from updateVerificationStatus, which is
+  // about document/profile completeness for accounts that are already active.
+  Future<void> updateRegistrationStatus(
+    String teacherId,
+    String status, {
+    String rejectionReason = '',
+  }) async {
+    final active = status == 'active';
+    await _db.collection('teachers').doc(teacherId).set({
+      'status': status,
+      'registrationRejectionReason': rejectionReason,
+    }, SetOptions(merge: true));
+
+    // Mirror into `users/{id}` — this is the doc UserRepository.getUser()
+    // actually checks at login time (AppUser.isActive).
+    await _db.collection('users').doc(teacherId).set({
+      'status': status,
+      'isActive': active,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    if (active) {
+      await _notif.send(
+        userId: teacherId,
+        title: 'Registration Approved',
+        message: 'Your registration has been approved. You can now log in.',
+        type: 'registration_approved',
+      );
+    } else {
+      await _notif.send(
+        userId: teacherId,
+        title: 'Registration Rejected',
+        message: 'Your registration was rejected.'
+            '${rejectionReason.isNotEmpty ? ' Reason: $rejectionReason' : ''}',
+        type: 'registration_rejected',
       );
     }
   }
