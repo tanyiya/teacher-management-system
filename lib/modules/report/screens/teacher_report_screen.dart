@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import '../../../modules/teachers/models/teacher.dart';
 import '../models/report.dart';
 import '../services/report_service.dart';
+import '../../../core/services/cloudinary_service.dart';
 
 const List<String> kReportCategories = [
   'Sexual Harassment Report',

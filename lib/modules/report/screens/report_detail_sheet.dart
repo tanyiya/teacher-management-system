@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../../app_theme.dart';
 import '../models/report.dart';
 import '../services/report_service.dart';
+import '../../../core/services/cloudinary_service.dart';
 
 class ReportDetailSheet extends StatefulWidget {
   final FacilityReport report;
@@ -58,7 +58,6 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
-      // ── FIX: pass teacherId and category for notification ──
       await widget.svc.updateReport(
         reportId: widget.report.id,
         status: _toStoredStatus(_status),
@@ -101,6 +100,7 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
         minChildSize: 0.5,
         builder: (_, ctrl) => Column(
           children: [
+            // ── Drag handle ───────────────────────────────────
             const SizedBox(height: 12),
             Center(
               child: Container(
@@ -113,6 +113,8 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
               ),
             ),
             const SizedBox(height: 16),
+
+            // ── Title row ─────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
@@ -161,12 +163,15 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
               ),
             ),
             const SizedBox(height: 16),
+
+            // ── Scrollable body ───────────────────────────────
             Expanded(
               child: ListView(
                 controller: ctrl,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 children: [
-                  // Reporter info
+
+                  // ── Reporter info card ──────────────────────
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -221,7 +226,7 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Teacher statement
+                  // ── Teacher statement ───────────────────────
                   _SectionLabel('TEACHER STATEMENT'),
                   const SizedBox(height: 8),
                   Container(
@@ -242,43 +247,113 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                           height: 1.5),
                     ),
                   ),
-
-                  // Photo evidence
-                  if (widget.report.photoUrl.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    _SectionLabel('PHOTO EVIDENCE'),
-                    const SizedBox(height: 8),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.network(
-                        widget.report.photoUrl,
-                        width: double.infinity,
-                        height: 200,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          height: 200,
-                          color: Colors.grey.shade100,
-                          child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.broken_image_outlined,
-                                    color: Colors.grey.shade400, size: 36),
-                                const SizedBox(height: 8),
-                                Text('Image unavailable',
-                                    style: TextStyle(
-                                        color: Colors.grey.shade400,
-                                        fontSize: 13)),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
                   const SizedBox(height: 16),
 
-                  // Admin controls
+                  // ── Photo evidence ─────────────────────────
+                  if (widget.report.photoUrl.isNotEmpty) ...[
+                    _SectionLabel('PHOTO EVIDENCE'),
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      // onTap: () => _viewFullImage(context, widget.report.photoUrl),
+                      child: Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.network(
+                              widget.report.photoUrl,
+                              width: double.infinity,
+                              height: 220,
+                              fit: BoxFit.cover,
+                              loadingBuilder: (context, child, progress) {
+                                if (progress == null) return child;
+                                return Container(
+                                  height: 220,
+                                  color: Colors.grey.shade100,
+                                  child: Center(
+                                    child: CircularProgressIndicator(
+                                      value: progress.expectedTotalBytes != null
+                                          ? progress.cumulativeBytesLoaded /
+                                              progress.expectedTotalBytes!
+                                          : null,
+                                      color: const Color(0xFF2D6A4F),
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                );
+                              },
+                              errorBuilder: (_, __, ___) => Container(
+                                height: 220,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.broken_image_outlined,
+                                          color: Colors.grey.shade400, size: 36),
+                                      const SizedBox(height: 8),
+                                      Text('Image unavailable',
+                                          style: TextStyle(
+                                              color: Colors.grey.shade400,
+                                              fontSize: 13)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          // ── Tap to expand hint ──────────────────────────
+                          Positioned(
+                            bottom: 10,
+                            right: 10,
+                            child: Container(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.5),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  Icon(Icons.fullscreen, color: Colors.white, size: 14),
+                                  SizedBox(width: 4),
+                                  Text('Tap to expand',
+                                      style:
+                                          TextStyle(color: Colors.white, fontSize: 11)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ] else ...[
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFE0E0DD)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.image_not_supported_outlined,
+                              size: 18, color: Colors.grey.shade400),
+                          const SizedBox(width: 10),
+                          Text('No photo attached to this report.',
+                              style:
+                                  TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // ── Admin action controls ───────────────────
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -303,7 +378,8 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                           children: [
                             Expanded(
                               child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
                                 children: [
                                   Text('REPORT STATUS',
                                       style: TextStyle(
@@ -315,9 +391,8 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                                   _ActionDropdown<String>(
                                     value: _status,
                                     items: _statuses,
-                                    onChanged: (v) =>
-                                        setState(() => _status = v ?? _status),
-                                    highlightValue: 'Action Taken',
+                                    onChanged: (v) => setState(
+                                        () => _status = v ?? _status),
                                   ),
                                 ],
                               ),
@@ -325,7 +400,8 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
                                 children: [
                                   Text('PRIORITY LEVEL',
                                       style: TextStyle(
@@ -358,13 +434,13 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                                 height: 1.5),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
-                              borderSide:
-                                  const BorderSide(color: Color(0xFFD8D8D5)),
+                              borderSide: const BorderSide(
+                                  color: Color(0xFFD8D8D5)),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
-                              borderSide:
-                                  const BorderSide(color: Color(0xFFD8D8D5)),
+                              borderSide: const BorderSide(
+                                  color: Color(0xFFD8D8D5)),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
@@ -384,13 +460,13 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
               ),
             ),
 
-            // Submit button
+            // ── Update button ─────────────────────────────────
             Container(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
               decoration: const BoxDecoration(
                 color: Colors.white,
-                border:
-                    Border(top: BorderSide(color: Color(0xFFF0EFEC))),
+                border: Border(
+                    top: BorderSide(color: Color(0xFFF0EFEC))),
               ),
               child: SizedBox(
                 width: double.infinity,
@@ -446,9 +522,12 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
   }
 }
 
+// ── Section Label ─────────────────────────────────────────────────────────────
+
 class _SectionLabel extends StatelessWidget {
   final String text;
   const _SectionLabel(this.text);
+
   @override
   Widget build(BuildContext context) {
     return Text(
@@ -463,17 +542,17 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
+// ── Action Dropdown (no highlight) ───────────────────────────────────────────
+
 class _ActionDropdown<T> extends StatelessWidget {
   final T value;
   final List<T> items;
   final ValueChanged<T?> onChanged;
-  final T? highlightValue;
 
   const _ActionDropdown({
     required this.value,
     required this.items,
     required this.onChanged,
-    this.highlightValue,
   });
 
   @override
@@ -492,47 +571,32 @@ class _ActionDropdown<T> extends StatelessWidget {
           icon: const Icon(Icons.keyboard_arrow_down, size: 18),
           style: const TextStyle(
               fontSize: 13,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
               color: Color(0xFF1A1A1A)),
           selectedItemBuilder: (context) => items
               .map((item) => Align(
                     alignment: Alignment.centerLeft,
-                    child: Text(item.toString(),
-                        style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF1A1A1A))),
+                    child: Text(
+                      item.toString(),
+                      style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1A1A1A)),
+                    ),
                   ))
               .toList(),
-          items: items.map((item) {
-            final isHighlighted = item == highlightValue;
-            return DropdownMenuItem<T>(
-              value: item,
-              child: Container(
-                width: double.infinity,
-                padding:
-                    const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
-                decoration: isHighlighted
-                    ? BoxDecoration(
-                        color: Colors.blue.shade600,
-                        borderRadius: BorderRadius.circular(6),
-                      )
-                    : null,
-                child: Text(
-                  item.toString(),
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: isHighlighted
-                        ? Colors.white
-                        : const Color(0xFF1A1A1A),
-                    fontWeight: isHighlighted
-                        ? FontWeight.bold
-                        : FontWeight.normal,
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
+          items: items
+              .map((item) => DropdownMenuItem<T>(
+                    value: item,
+                    child: Text(
+                      item.toString(),
+                      style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF1A1A1A),
+                          fontWeight: FontWeight.normal),
+                    ),
+                  ))
+              .toList(),
           onChanged: onChanged,
         ),
       ),
