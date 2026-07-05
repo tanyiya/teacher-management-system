@@ -31,7 +31,6 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
   ];
   static const _priorities = ['Low', 'Medium', 'High'];
 
-  // Map display label → stored value
   String _toStoredStatus(String display) {
     if (display == 'Submitted (Pending)') return 'Submitted';
     return display;
@@ -47,8 +46,7 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
     super.initState();
     _status = _toDisplayStatus(widget.report.status);
     _priority = widget.report.priority;
-    _notesCtrl =
-        TextEditingController(text: widget.report.managementNotes);
+    _notesCtrl = TextEditingController(text: widget.report.managementNotes);
   }
 
   @override
@@ -60,11 +58,14 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
+      // ── FIX: pass teacherId and category for notification ──
       await widget.svc.updateReport(
         reportId: widget.report.id,
         status: _toStoredStatus(_status),
         managementNotes: _notesCtrl.text.trim(),
         priority: _priority,
+        teacherId: widget.report.teacherId,
+        category: widget.report.category,
       );
       if (!mounted) return;
       Navigator.pop(context);
@@ -77,18 +78,16 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
     } catch (e) {
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('Error: $e'), backgroundColor: Colors.red),
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final caseId =
-        '#${widget.report.id.substring(0, 8).toUpperCase()}';
-    final timestamp = DateFormat('MMM d, yyyy, h:mm a')
-        .format(widget.report.createdAt);
+    final caseId = '#${widget.report.id.substring(0, 8).toUpperCase()}';
+    final timestamp =
+        DateFormat('MMM d, yyyy, h:mm a').format(widget.report.createdAt);
 
     return Container(
       decoration: const BoxDecoration(
@@ -102,7 +101,6 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
         minChildSize: 0.5,
         builder: (_, ctrl) => Column(
           children: [
-            // ── Drag handle ──────────────────────────────────────
             const SizedBox(height: 12),
             Center(
               child: Container(
@@ -115,8 +113,6 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
               ),
             ),
             const SizedBox(height: 16),
-
-            // ── Title row ────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
@@ -165,14 +161,12 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
               ),
             ),
             const SizedBox(height: 16),
-
-            // ── Scrollable body ──────────────────────────────────
             Expanded(
               child: ListView(
                 controller: ctrl,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 children: [
-                  // Reporter info card
+                  // Reporter info
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -228,52 +222,31 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                   const SizedBox(height: 16),
 
                   // Teacher statement
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'TEACHER STATEMENT',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.grey.shade400,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFFE0E0DD)),
-                        ),
-                        child: Text(
-                          widget.report.description.isEmpty
-                              ? '—'
-                              : widget.report.description,
-                          style: const TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF1A1A1A),
-                              height: 1.5),
-                        ),
-                      ),
-                    ],
+                  _SectionLabel('TEACHER STATEMENT'),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFE0E0DD)),
+                    ),
+                    child: Text(
+                      widget.report.description.isEmpty
+                          ? '—'
+                          : widget.report.description,
+                      style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF1A1A1A),
+                          height: 1.5),
+                    ),
                   ),
 
                   // Photo evidence
                   if (widget.report.photoUrl.isNotEmpty) ...[
                     const SizedBox(height: 16),
-                    Text(
-                      'PHOTO EVIDENCE',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.grey.shade400,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
+                    _SectionLabel('PHOTO EVIDENCE'),
                     const SizedBox(height: 8),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
@@ -282,12 +255,30 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                         width: double.infinity,
                         height: 200,
                         fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          height: 200,
+                          color: Colors.grey.shade100,
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.broken_image_outlined,
+                                    color: Colors.grey.shade400, size: 36),
+                                const SizedBox(height: 8),
+                                Text('Image unavailable',
+                                    style: TextStyle(
+                                        color: Colors.grey.shade400,
+                                        fontSize: 13)),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ],
                   const SizedBox(height: 16),
 
-                  // Admin action controls
+                  // Admin controls
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -308,28 +299,24 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                           ),
                         ),
                         const SizedBox(height: 14),
-
-                        // Status & Priority row
                         Row(
                           children: [
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    'REPORT STATUS',
-                                    style: TextStyle(
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.grey.shade400,
-                                        letterSpacing: 0.8),
-                                  ),
+                                  Text('REPORT STATUS',
+                                      style: TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.grey.shade400,
+                                          letterSpacing: 0.8)),
                                   const SizedBox(height: 6),
                                   _ActionDropdown<String>(
                                     value: _status,
                                     items: _statuses,
-                                    onChanged: (v) => setState(
-                                        () => _status = v ?? _status),
+                                    onChanged: (v) =>
+                                        setState(() => _status = v ?? _status),
                                     highlightValue: 'Action Taken',
                                   ),
                                 ],
@@ -340,14 +327,12 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    'PRIORITY LEVEL',
-                                    style: TextStyle(
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.grey.shade400,
-                                        letterSpacing: 0.8),
-                                  ),
+                                  Text('PRIORITY LEVEL',
+                                      style: TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.grey.shade400,
+                                          letterSpacing: 0.8)),
                                   const SizedBox(height: 6),
                                   _ActionDropdown<String>(
                                     value: _priority,
@@ -361,8 +346,6 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                           ],
                         ),
                         const SizedBox(height: 16),
-
-                        // Management notes
                         TextField(
                           controller: _notesCtrl,
                           maxLines: 4,
@@ -375,18 +358,18 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                                 height: 1.5),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
-                              borderSide: const BorderSide(
-                                  color: Color(0xFFD8D8D5)),
+                              borderSide:
+                                  const BorderSide(color: Color(0xFFD8D8D5)),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
-                              borderSide: const BorderSide(
-                                  color: Color(0xFFD8D8D5)),
+                              borderSide:
+                                  const BorderSide(color: Color(0xFFD8D8D5)),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(
-                                  color: AppTheme.primaryColor),
+                              borderSide:
+                                  BorderSide(color: AppTheme.primaryColor),
                             ),
                             filled: true,
                             fillColor: Colors.white,
@@ -401,13 +384,13 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
               ),
             ),
 
-            // ── Submit button ──────────────────────────────────────
+            // Submit button
             Container(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
               decoration: const BoxDecoration(
                 color: Colors.white,
-                border: Border(
-                    top: BorderSide(color: Color(0xFFF0EFEC))),
+                border:
+                    Border(top: BorderSide(color: Color(0xFFF0EFEC))),
               ),
               child: SizedBox(
                 width: double.infinity,
@@ -463,7 +446,22 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
   }
 }
 
-// ── Action Dropdown ───────────────────────────────────────────────────────────
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  const _SectionLabel(this.text);
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.w700,
+        color: Colors.grey.shade400,
+        letterSpacing: 0.8,
+      ),
+    );
+  }
+}
 
 class _ActionDropdown<T> extends StatelessWidget {
   final T value;
@@ -499,13 +497,11 @@ class _ActionDropdown<T> extends StatelessWidget {
           selectedItemBuilder: (context) => items
               .map((item) => Align(
                     alignment: Alignment.centerLeft,
-                    child: Text(
-                      item.toString(),
-                      style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF1A1A1A)),
-                    ),
+                    child: Text(item.toString(),
+                        style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1A1A1A))),
                   ))
               .toList(),
           items: items.map((item) {
@@ -514,8 +510,8 @@ class _ActionDropdown<T> extends StatelessWidget {
               value: item,
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                    vertical: 4, horizontal: 4),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
                 decoration: isHighlighted
                     ? BoxDecoration(
                         color: Colors.blue.shade600,

@@ -1,3 +1,5 @@
+// PRINCIPAL SCREEN
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
