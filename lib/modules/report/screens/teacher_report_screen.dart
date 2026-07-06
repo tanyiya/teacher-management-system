@@ -9,7 +9,6 @@ import 'package:intl/intl.dart';
 import '../../../modules/teachers/models/teacher.dart';
 import '../models/report.dart';
 import '../services/report_service.dart';
-import '../../../core/services/cloudinary_service.dart';
 
 const List<String> kReportCategories = [
   'Sexual Harassment Report',
@@ -34,12 +33,14 @@ class TeacherReportScreen extends StatefulWidget {
 
 class _TeacherReportScreenState extends State<TeacherReportScreen> {
   bool _showHistory = false;
-  late final Stream<List<FacilityReport>> _myReportsStream;
+
+  // Used ONLY for the tab badge count. _HistoryTab owns its own separate stream.
+  late final Stream<List<FacilityReport>> _countStream;
 
   @override
   void initState() {
     super.initState();
-    _myReportsStream = ReportService().getMyReports(widget.user.id);
+    _countStream = ReportService().getMyReports(widget.user.id);
   }
 
   @override
@@ -102,7 +103,7 @@ class _TeacherReportScreenState extends State<TeacherReportScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: StreamBuilder<List<FacilityReport>>(
-              stream: _myReportsStream,
+              stream: _countStream,
               builder: (context, snap) {
                 final count = snap.data?.length ?? 0;
                 return Container(
@@ -135,7 +136,8 @@ class _TeacherReportScreenState extends State<TeacherReportScreen> {
           // ── Content ───────────────────────────────────────
           Expanded(
             child: _showHistory
-                ? _HistoryTab(stream: _myReportsStream)
+                // Pass userId so _HistoryTab creates its own fresh stream
+                ? _HistoryTab(userId: widget.user.id)
                 : _FileReportTab(user: widget.user),
           ),
         ],
@@ -680,15 +682,28 @@ class _FileReportTabState extends State<_FileReportTab> {
 }
 
 // ── Report History Tab ────────────────────────────────────────────────────────
+class _HistoryTab extends StatefulWidget {
+  final String userId;
+  const _HistoryTab({required this.userId});
 
-class _HistoryTab extends StatelessWidget {
-  final Stream<List<FacilityReport>> stream;
-  const _HistoryTab({required this.stream});
+  @override
+  State<_HistoryTab> createState() => _HistoryTabState();
+}
+
+class _HistoryTabState extends State<_HistoryTab> {
+  late final Stream<List<FacilityReport>> _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    // Own independent subscription → Firestore emits current data immediately
+    _stream = ReportService().getMyReports(widget.userId);
+  }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<FacilityReport>>(
-      stream: stream,
+      stream: _stream,
       builder: (context, snapshot) {
         // Show loading only on first load
         if (snapshot.connectionState == ConnectionState.waiting &&

@@ -150,7 +150,7 @@ class ReportService {
           'message':
               '$teacherName submitted a new $category. Tap to review.',
           'type': 'incident_report',
-          'read': false,
+          'isRead': false,
           'relatedId': reportId,
           'timestamp': Timestamp.fromDate(DateTime.now()),
         });

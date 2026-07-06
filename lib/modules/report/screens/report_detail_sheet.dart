@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../app_theme.dart';
 import '../models/report.dart';
 import '../services/report_service.dart';
-import '../../../core/services/cloudinary_service.dart';
+
 
 class ReportDetailSheet extends StatefulWidget {
   final FacilityReport report;
@@ -75,6 +75,7 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
         ),
       );
     } catch (e) {
+      if (!mounted) return;
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
