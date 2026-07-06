@@ -227,7 +227,7 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                   const SizedBox(height: 16),
 
                   // ── Teacher statement ───────────────────────
-                  _SectionLabel('TEACHER STATEMENT'),
+                  const _SectionLabel('TEACHER STATEMENT'),
                   const SizedBox(height: 8),
                   Container(
                     width: double.infinity,
@@ -251,7 +251,7 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
 
                   // ── Photo evidence ─────────────────────────
                   if (widget.report.photoUrl.isNotEmpty) ...[
-                    _SectionLabel('PHOTO EVIDENCE'),
+                    const _SectionLabel('PHOTO EVIDENCE'),
                     const SizedBox(height: 8),
                     GestureDetector(
                       // onTap: () => _viewFullImage(context, widget.report.photoUrl),
@@ -312,12 +312,12 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                               decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.5),
+                                color: Colors.black.withValues(alpha: 0.5),
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: Row(
+                              child: const Row(
                                 mainAxisSize: MainAxisSize.min,
-                                children: const [
+                                children: [
                                   Icon(Icons.fullscreen, color: Colors.white, size: 14),
                                   SizedBox(width: 4),
                                   Text('Tap to expand',
@@ -445,7 +445,7 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                               borderSide:
-                                  BorderSide(color: AppTheme.primaryColor),
+                                  const BorderSide(color: AppTheme.primaryColor),
                             ),
                             filled: true,
                             fillColor: Colors.white,

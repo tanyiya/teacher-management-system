@@ -1336,7 +1336,7 @@ class _EditTeacherDialogState extends State<_EditTeacherDialog> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: DropdownButtonFormField<String>(
-        value: value,
+        initialValue: value,
         decoration: InputDecoration(
           labelText: label,
           isDense: true,

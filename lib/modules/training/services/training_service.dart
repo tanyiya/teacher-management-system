@@ -36,7 +36,7 @@ class TrainingService {
         ? image.name.split('.').last.toLowerCase()
         : 'jpg';
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final filename = '$timestamp.${extension}';
+    final filename = '$timestamp.$extension';
     final bytes = await image.readAsBytes();
     try {
       final cloudFolder = '$folder/$authorId';
@@ -68,7 +68,7 @@ class TrainingService {
         ? imageFile.path.split('.').last.toLowerCase()
         : 'jpg';
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final filename = '$timestamp.${extension}';
+    final filename = '$timestamp.$extension';
     final bytes = await imageFile.readAsBytes();
     try {
       final cloudFolder = '$folder/$authorId';

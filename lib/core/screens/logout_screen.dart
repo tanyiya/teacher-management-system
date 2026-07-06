@@ -84,7 +84,7 @@ class _LogoutScreenState extends State<LogoutScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(LucideIcons.logOut, color: AppTheme.primaryColor, size: 34),
+                const Icon(LucideIcons.logOut, color: AppTheme.primaryColor, size: 34),
                 const SizedBox(height: 16),
                 Text(
                   isLoggingOut ? 'Signing out...' : 'Preparing sign out...',

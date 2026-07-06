@@ -32,7 +32,7 @@ class RegistrationSuccessScreen extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: AppTheme.primaryActive.withOpacity(0.1),
+                          color: AppTheme.primaryActive.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(

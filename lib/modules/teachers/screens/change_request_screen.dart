@@ -219,7 +219,7 @@ class _ChangeRequestScreenState extends State<ChangeRequestScreen> {
                 _sectionLabel('Field to Change'),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  value: _selectedField,
+                  initialValue: _selectedField,
                   decoration: _deco('Select identity field'),
                   items: _fields
                       .map((f) => DropdownMenuItem(value: f.$1, child: Text(f.$2)))
@@ -251,7 +251,7 @@ class _ChangeRequestScreenState extends State<ChangeRequestScreen> {
                 const SizedBox(height: 8),
                 if (_selectedField == 'gender')
                   DropdownButtonFormField<String>(
-                    value: _genderValue,
+                    initialValue: _genderValue,
                     decoration: _deco('Select gender'),
                     items: _genderOptions
                         .map((g) => DropdownMenuItem(value: g, child: Text(g)))

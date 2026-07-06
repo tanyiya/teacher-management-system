@@ -31,12 +31,12 @@ class AlertsScreen extends StatelessWidget {
         final all = snapshot.data ?? [];
 
         if (all.isEmpty) {
-          return Center(
+          return const Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(LucideIcons.bellOff, size: 48, color: AppTheme.textMuted),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 Text('No notifications', style: TextStyle(color: AppTheme.textMuted)),
               ],
             ),
@@ -177,7 +177,7 @@ class _NotifTile extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     notif.message,
-                    style: TextStyle(fontSize: 13, color: AppTheme.textMuted),
+                    style: const TextStyle(fontSize: 13, color: AppTheme.textMuted),
                   ),
                   const SizedBox(height: 4),
                   Text(

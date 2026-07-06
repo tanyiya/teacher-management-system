@@ -156,10 +156,10 @@ class _LeaveScreenState extends State<LeaveScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Expanded(
+                        const Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
-                            children: const [
+                            children: [
                               Text(
                                 'Employee Leave Quotas',
                                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF2C3E2C)),
@@ -213,7 +213,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
                             border: Border.all(color: const Color(0xFFE9ECE9)),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.02),
+                                color: Colors.black.withValues(alpha: 0.02),
                                 blurRadius: 6,
                                 offset: const Offset(0, 2),
                               )
@@ -283,8 +283,8 @@ class _LeaveScreenState extends State<LeaveScreen> {
                     const SizedBox(height: 24),
 
                     // History Section Header
-                    Row(
-                      children: const [
+                    const Row(
+                      children: [
                         Icon(Icons.notes, size: 16, color: Color(0xFF5A6B5A)),
                         SizedBox(width: 6),
                         Text(
@@ -304,8 +304,8 @@ class _LeaveScreenState extends State<LeaveScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         padding: const EdgeInsets.symmetric(vertical: 36),
-                        child: Column(
-                          children: const [
+                        child: const Column(
+                          children: [
                             Icon(Icons.calendar_today_outlined, size: 36, color: Color(0xFFB0BCB0)),
                             SizedBox(height: 8),
                             Text(
@@ -360,7 +360,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
                                   // Accent color bar
                                   Container(
                                     width: 4,
-                                    color: const Color(0xFF5A6B5A).withOpacity(0.7),
+                                    color: const Color(0xFF5A6B5A).withValues(alpha: 0.7),
                                   ),
                                   Expanded(
                                     child: Padding(
@@ -415,7 +415,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
                                             const SizedBox(height: 8),
                                             Container(
                                               decoration: BoxDecoration(
-                                                color: const Color(0xFF5A6B5A).withOpacity(0.05),
+                                                color: const Color(0xFF5A6B5A).withValues(alpha: 0.05),
                                                 borderRadius: BorderRadius.circular(6),
                                               ),
                                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -620,9 +620,9 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
     final spec = leaveSpecs.firstWhere((s) => s.type == _selectedType.dbValue, orElse: () => leaveSpecs.first);
 
     return AlertDialog(
-      title: Column(
+      title: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
+        children: [
           Text(
             'APPLY FOR LEAVE',
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1.0, color: Color(0xFF1E241E)),
@@ -654,7 +654,7 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
 
               // Type Selector
               DropdownButtonFormField<LeaveType>(
-                value: _selectedType,
+                initialValue: _selectedType,
                 decoration: const InputDecoration(
                   labelText: 'LEAVE TYPE',
                   labelStyle: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFF7A8A7A)),
@@ -765,7 +765,7 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
 
                 if (_documentName != null)
                   Container(
-                    decoration: BoxDecoration(color: const Color(0xFF5A6B5A).withOpacity(0.05), borderRadius: BorderRadius.circular(6)),
+                    decoration: BoxDecoration(color: const Color(0xFF5A6B5A).withValues(alpha: 0.05), borderRadius: BorderRadius.circular(6)),
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                     child: Row(
                       children: [

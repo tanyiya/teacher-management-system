@@ -20,7 +20,7 @@ Future<void> main(List<String> args) async {
       : 'upload.bin';
 
   print('Uploading $filename to Cloudinary...');
-  final folder = 'training_posts/test_cli';
+  const folder = 'training_posts/test_cli';
 
   try {
     final url = await CloudinaryService.uploadFile(bytes, filename, folder: folder);

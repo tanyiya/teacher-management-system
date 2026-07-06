@@ -343,8 +343,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   onPressed: isSending
                       ? null
                       : () async {
-                          if (!(formKey.currentState?.validate() ?? false))
+                          if (!(formKey.currentState?.validate() ?? false)) {
                             return;
+                          }
                           setDialogState(() => isSending = true);
                           final error = await appState.sendPasswordReset(
                             _sanitizeEmail(controller.text),
@@ -378,8 +379,9 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = _sanitizeEmail(value ?? '');
     if (email.isEmpty) return 'Enter your email address.';
     if (email.length > 254) return 'Email address is too long.';
-    if (_dangerousPayload.hasMatch(email))
+    if (_dangerousPayload.hasMatch(email)) {
       return 'Enter a valid email address.';
+    }
     if (!_emailRegExp.hasMatch(email)) return 'Enter a valid email address.';
     return null;
   }
@@ -388,12 +390,15 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = value ?? '';
     if (password.isEmpty) return 'Enter your password.';
     if (password.length < 8) return 'Password must be at least 8 characters.';
-    if (password.length > 128)
+    if (password.length > 128) {
       return 'Password must be 128 characters or fewer.';
-    if (password.trim() != password)
+    }
+    if (password.trim() != password) {
       return 'Password cannot start or end with spaces.';
-    if (_dangerousPayload.hasMatch(password))
+    }
+    if (_dangerousPayload.hasMatch(password)) {
       return 'Password contains unsupported content.';
+    }
     return null;
   }
 
@@ -423,7 +428,7 @@ class _Header extends StatelessWidget {
               color: AppTheme.primaryColor.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(
+            child: const Icon(
               LucideIcons.shieldCheck,
               size: 36,
               color: AppTheme.primaryColor,
@@ -504,7 +509,7 @@ class _RememberedAccountsList extends StatelessWidget {
                   child: account.profileImageUrl.isEmpty
                       ? Text(
                           account.initial,
-                          style: TextStyle(
+                          style: const TextStyle(
                               color: AppTheme.primaryColor,
                               fontWeight: FontWeight.bold),
                         )

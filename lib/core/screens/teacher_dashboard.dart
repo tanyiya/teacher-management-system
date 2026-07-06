@@ -12,7 +12,6 @@ import '../../modules/training/screens/teacher_training_screen.dart';
 import '../../modules/performance/screens/performance_screen.dart';
 import 'alerts_screen.dart';
 import '../../modules/teachers/screens/profile_screen.dart';
-import '../../modules/report/screens/teacher_report_screen.dart';
 import '../../modules/leave/screens/leave_screen.dart';
 import '../../modules/duty/screens/duty_schedule_screen.dart';
 import '../../modules/teachers/models/teacher.dart';

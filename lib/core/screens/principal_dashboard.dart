@@ -264,7 +264,7 @@ class _AdminHomeScreen extends StatelessWidget {
             style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
-          Text(
+          const Text(
             'Admin Portal — manage your school from here.',
             style: TextStyle(fontSize: 14, color: AppTheme.textMuted),
           ),
@@ -445,7 +445,7 @@ class __AdminLeaveManagementScreenState extends State<_AdminLeaveManagementScree
             children: [
               const Text('PENDING REVIEWS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Color(0xFF904060))),
               Container(
-                decoration: BoxDecoration(color: const Color(0xFF904060).withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: const Color(0xFF904060).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 child: Text('${pendingLeaves.length} Actionable Request(s)', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFF904060))),
               )
@@ -511,9 +511,9 @@ class __AdminLeaveManagementScreenState extends State<_AdminLeaveManagementScree
                           borderRadius: BorderRadius.circular(6),
                           child: Container(
                             decoration: BoxDecoration(
-                              color: const Color(0xFF5A6B5A).withOpacity(0.08),
+                              color: const Color(0xFF5A6B5A).withValues(alpha: 0.08),
                               borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: const Color(0xFF5A6B5A).withOpacity(0.2)),
+                              border: Border.all(color: const Color(0xFF5A6B5A).withValues(alpha: 0.2)),
                             ),
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                             child: Row(

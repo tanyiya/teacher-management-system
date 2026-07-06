@@ -209,7 +209,7 @@ class _TeacherRegistrationScreenState extends State<TeacherRegistrationScreen> {
                             labelText: 'Gender',
                             prefixIcon: Icon(LucideIcons.users),
                           ),
-                          value: _selectedGender,
+                          initialValue: _selectedGender,
                           isExpanded: true,
                           items: const [
                             DropdownMenuItem(
@@ -285,7 +285,7 @@ class _TeacherRegistrationScreenState extends State<TeacherRegistrationScreen> {
                             labelText: 'Marital Status',
                             prefixIcon: Icon(LucideIcons.heart),
                           ),
-                          value: _selectedMaritalStatus,
+                          initialValue: _selectedMaritalStatus,
                           items: const [
                             DropdownMenuItem(
                                 value: 'Single', child: Text('Single')),

@@ -170,7 +170,7 @@ class _TabButton extends StatelessWidget {
             boxShadow: selected
                 ? [
                     BoxShadow(
-                        color: Colors.black.withOpacity(0.06),
+                        color: Colors.black.withValues(alpha: 0.06),
                         blurRadius: 6,
                         offset: const Offset(0, 2))
                   ]
@@ -252,7 +252,7 @@ class _FileReportTabState extends State<_FileReportTab> {
 
     final confirmed = await showDialog<bool>(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.5),
+      barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (_) => Dialog(
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20)),
@@ -401,7 +401,7 @@ class _FileReportTabState extends State<_FileReportTab> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Category
-                _FieldLabel('SELECT REPORT CATEGORY'),
+                const _FieldLabel('SELECT REPORT CATEGORY'),
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -438,7 +438,7 @@ class _FileReportTabState extends State<_FileReportTab> {
                 const SizedBox(height: 20),
 
                 // Description
-                _FieldLabel('DESCRIPTION'),
+                const _FieldLabel('DESCRIPTION'),
                 const SizedBox(height: 8),
                 Container(
                   decoration: BoxDecoration(
@@ -465,7 +465,7 @@ class _FileReportTabState extends State<_FileReportTab> {
                 const SizedBox(height: 20),
 
                 // Photo
-                _FieldLabel('ATTACH PHOTO/EVIDENCE'),
+                const _FieldLabel('ATTACH PHOTO/EVIDENCE'),
                 const SizedBox(height: 10),
 
                 if (_imageBytes != null) ...[
@@ -814,11 +814,11 @@ class _HistoryCard extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
-                        color: statusInfo.color.withOpacity(0.1),
+                        color: statusInfo.color.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                             color:
-                                statusInfo.color.withOpacity(0.3)),
+                                statusInfo.color.withValues(alpha: 0.3)),
                       ),
                       child: Text(
                         statusInfo.label.toUpperCase(),
@@ -834,17 +834,17 @@ class _HistoryCard extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
-                        color: priorityColor.withOpacity(0.06),
+                        color: priorityColor.withValues(alpha: 0.06),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                            color: priorityColor.withOpacity(0.2)),
+                            color: priorityColor.withValues(alpha: 0.2)),
                       ),
                       child: Text(
                         '${report.priority.toUpperCase()} PRIORITY',
                         style: TextStyle(
                             fontSize: 9,
                             fontWeight: FontWeight.bold,
-                            color: priorityColor.withOpacity(0.7),
+                            color: priorityColor.withValues(alpha: 0.7),
                             letterSpacing: 0.5),
                       ),
                     ),
@@ -955,12 +955,12 @@ class _HistoryCard extends StatelessWidget {
                             horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
                             color: statusInfo.color
-                                .withOpacity(0.1),
+                                .withValues(alpha: 0.1),
                             borderRadius:
                                 BorderRadius.circular(20),
                             border: Border.all(
                                 color: statusInfo.color
-                                    .withOpacity(0.3))),
+                                    .withValues(alpha: 0.3))),
                         child: Text(
                             statusInfo.label.toUpperCase(),
                             style: TextStyle(

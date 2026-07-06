@@ -405,7 +405,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               maxLines: 2),
           const SizedBox(height: 14),
           DropdownButtonFormField<String>(
-            value: _maritalStatus,
+            initialValue: _maritalStatus,
             decoration: _fieldDeco('Marital Status'),
             items: _maritalOptions
                 .map((o) => DropdownMenuItem(value: o, child: Text(o)))
