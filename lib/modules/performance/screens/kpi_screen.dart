@@ -210,7 +210,7 @@ class _KpiScreenState extends State<KpiScreen> {
           const SizedBox(height: 16),
           _buildRunKpiPanel(context, provider, principal),
           const SizedBox(height: 16),
-          _buildKpiLeaderboard(provider),
+          _buildKpiLeaderboard(context, provider),
           const SizedBox(height: 16),
           _buildTeacherOverviewDashboard(provider),
           const SizedBox(height: 16),
@@ -1383,17 +1383,41 @@ class _KpiScreenState extends State<KpiScreen> {
     }
   }
 
-  Widget _buildKpiLeaderboard(PerformanceProvider provider) {
-    final records = provider.yearlyKpis;
+  // ─── KPI leaderboard ──────────────────────────────────────────────────────────
+
+  /// Only records that resolve to a currently-existing teacher should ever
+  /// be displayed. Records left behind by deleted/renamed teacher accounts
+  /// are orphaned and are filtered out here rather than shown with a raw
+  /// teacherId as a fallback "name".
+  List<YearlyKpiRecord> _validKpiRecords(PerformanceProvider provider) {
+    final validIds = provider.teachers.map((t) => t.id).toSet();
+    return provider.yearlyKpis
+        .where((record) => validIds.contains(record.teacherId))
+        .toList();
+  }
+
+  Widget _buildKpiLeaderboard(
+      BuildContext context, PerformanceProvider provider) {
+    final records = _validKpiRecords(provider);
+    final orphanedCount = provider.yearlyKpis.length - records.length;
+
     if (records.isEmpty) {
       return _panel(
-        child: const Column(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('KPI Leaderboard',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            SizedBox(height: 12),
-            Text('No KPI records available for this year yet.',
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('KPI Leaderboard',
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                if (orphanedCount > 0)
+                  _buildCleanupButton(context, provider, orphanedCount),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Text('No KPI records available for this year yet.',
                 style: TextStyle(color: Colors.grey)),
           ],
         ),
@@ -1409,9 +1433,16 @@ class _KpiScreenState extends State<KpiScreen> {
             children: [
               const Text('KPI Leaderboard',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              TextButton(
-                onPressed: () => _showAllKpiRecords(context, provider, records),
-                child: const Text('View All'),
+              Row(
+                children: [
+                  if (orphanedCount > 0)
+                    _buildCleanupButton(context, provider, orphanedCount),
+                  TextButton(
+                    onPressed: () =>
+                        _showAllKpiRecords(context, provider, records),
+                    child: const Text('View All'),
+                  ),
+                ],
               ),
             ],
           ),
@@ -1419,28 +1450,8 @@ class _KpiScreenState extends State<KpiScreen> {
           Column(
             children: records.take(5).map((record) {
               final teacherName = provider.teachers
-                      .firstWhere(
-                          (t) => t.id == record.teacherId,
-                          orElse: () => TeacherRecord(
-                                id: record.teacherId,
-                                username: record.teacherId,
-                                email: '',
-                                fullName: record.teacherId,
-                                role: 'teacher',
-                                icNumber: '',
-                                gender: '',
-                                dob: '',
-                                address: '',
-                                phoneNumber: '',
-                                maritalStatus: '',
-                                emergencyContactName: '',
-                                emergencyContactNumber: '',
-                                currentScore: 100,
-                                yearlyKpi: 0,
-                                status: 'active',
-                                documents: {},
-                              ))
-                      .fullName;
+                  .firstWhere((t) => t.id == record.teacherId)
+                  .fullName;
               return ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: CircleAvatar(
@@ -1456,6 +1467,72 @@ class _KpiScreenState extends State<KpiScreen> {
         ],
       ),
     );
+  }
+
+  /// Small icon button that confirms with the principal, then deletes
+  /// orphaned performance_logs / warnings / notifications / yearly_kpis
+  /// records whose teacherId no longer matches a real teacher.
+  Widget _buildCleanupButton(
+    BuildContext context,
+    PerformanceProvider provider,
+    int orphanedCount,
+  ) {
+    return IconButton(
+      tooltip: 'Clean up $orphanedCount orphaned record(s)',
+      icon: provider.isCleaningUp
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(LucideIcons.trash2, size: 20, color: Colors.grey),
+      onPressed: provider.isCleaningUp
+          ? null
+          : () => _confirmAndCleanupOrphanedRecords(context, provider),
+    );
+  }
+
+  Future<void> _confirmAndCleanupOrphanedRecords(
+    BuildContext context,
+    PerformanceProvider provider,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Clean up orphaned records?'),
+        content: const Text(
+          'This permanently deletes performance logs, warnings, notifications, '
+          'and KPI records left behind by teacher accounts that no longer exist. '
+          'This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    if (!context.mounted) return;
+
+    try {
+      final deletedCount = await provider.cleanupOrphanedRecords();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Removed $deletedCount orphaned record(s).')),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error cleaning up records: $e')),
+      );
+    }
   }
 
   void _showAllKpiRecords(
@@ -1493,51 +1570,39 @@ class _KpiScreenState extends State<KpiScreen> {
               ),
               const Divider(height: 1),
               Expanded(
-                child: ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: records.length,
-                  separatorBuilder: (context, index) => const Divider(),
-                  itemBuilder: (context, index) {
-                    final record = records[index];
-                    final teacherName = provider.teachers
-                            .firstWhere(
-                                (t) => t.id == record.teacherId,
-                                orElse: () => TeacherRecord(
-                                      id: record.teacherId,
-                                      username: record.teacherId,
-                                      email: '',
-                                      fullName: record.teacherId,
-                                      role: 'teacher',
-                                      icNumber: '',
-                                      gender: '',
-                                      dob: '',
-                                      address: '',
-                                      phoneNumber: '',
-                                      maritalStatus: '',
-                                      emergencyContactName: '',
-                                      emergencyContactNumber: '',
-                                      currentScore: 100,
-                                      yearlyKpi: 0,
-                                      status: 'active',
-                                      documents: {},
-                                    ))
-                            .fullName;
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        teacherName,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
+                child: records.isEmpty
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Text('No KPI records available.'),
+                        ),
+                      )
+                    : ListView.separated(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: records.length,
+                        separatorBuilder: (context, index) => const Divider(),
+                        itemBuilder: (context, index) {
+                          final record = records[index];
+                          final teacherName = provider.teachers
+                              .firstWhere((t) => t.id == record.teacherId)
+                              .fullName;
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              teacherName,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w600),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                            subtitle: Text(
+                              'Score: ${record.finalScore.toStringAsFixed(1)} · Rating: ${record.rating} · Status: ${record.status}',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        },
                       ),
-                      subtitle: Text(
-                        'Score: ${record.finalScore.toStringAsFixed(1)} · Rating: ${record.rating} · Status: ${record.status}',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    );
-                  },
-                ),
               ),
             ],
           ),

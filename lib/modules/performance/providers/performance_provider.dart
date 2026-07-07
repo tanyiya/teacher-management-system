@@ -30,6 +30,7 @@ class PerformanceProvider extends ChangeNotifier {
   // Separate loading flags to avoid false "still loading" states
   bool _teachersLoading = false;
   bool _logsLoading = false;
+  bool _cleanupLoading = false;
   String? _error;
 
   int _monthFilter = 0;
@@ -50,6 +51,7 @@ class PerformanceProvider extends ChangeNotifier {
 
   // isLoading is true only when we have no teachers yet OR actively loading logs
   bool get isLoading => _teachersLoading || _logsLoading;
+  bool get isCleaningUp => _cleanupLoading;
   String? get error => _error;
 
   TeacherRecord? get selectedTeacher {
@@ -351,6 +353,32 @@ class PerformanceProvider extends ChangeNotifier {
       _error = 'Failed to load yearly KPIs: $e';
       notifyListeners();
     });
+  }
+
+  /// Removes performance_logs, warnings, notifications, and yearly_kpis
+  /// records whose teacherId no longer matches any current teacher document.
+  /// Returns the number of documents deleted.
+  Future<int> cleanupOrphanedRecords() async {
+    try {
+      _cleanupLoading = true;
+      _error = null;
+      notifyListeners();
+      final deletedCount = await _performanceService.cleanupOrphanedRecords();
+      // Streams for teachers/yearly_kpis auto-update after the deletes commit,
+      // but refresh explicitly in case any of them aren't currently subscribed.
+      fetchYearlyKpisForYear(DateTime.now().year);
+      if (_selectedTeacherId != null) {
+        _subscribeToTeacherData(_selectedTeacherId!);
+      }
+      return deletedCount;
+    } catch (e) {
+      _error = 'Failed to clean up orphaned records: $e';
+      notifyListeners();
+      rethrow;
+    } finally {
+      _cleanupLoading = false;
+      notifyListeners();
+    }
   }
 
   // ─── Filters ─────────────────────────────────────────────────────────────────

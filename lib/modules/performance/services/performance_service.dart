@@ -560,4 +560,53 @@ class PerformanceService {
         ? teacherId
         : name.toString();
   }
+
+  // ─── Data integrity / cleanup ────────────────────────────────────────────────
+
+  /// Deletes performance_logs, warnings, notifications, and yearly_kpis
+  /// documents whose `teacherId` no longer matches any document in the
+  /// `teachers` collection (e.g. a teacher account was deleted, or a
+  /// leftover test/seed record referenced a teacher ID that no longer
+  /// exists). This is what causes orphaned entries to show up as raw IDs
+  /// (e.g. "t_sarah") instead of resolved names in the KPI leaderboard.
+  ///
+  /// Returns the number of documents deleted.
+  Future<int> cleanupOrphanedRecords() async {
+    final teachersSnapshot = await _db.collection('teachers').get();
+    final validTeacherIds = teachersSnapshot.docs.map((d) => d.id).toSet();
+
+    const collectionsToCheck = [
+      'yearly_kpis',
+      'performance_logs',
+      'warnings',
+      'notifications',
+    ];
+
+    final orphanedRefs = <DocumentReference>[];
+
+    for (final collectionName in collectionsToCheck) {
+      final snapshot = await _db.collection(collectionName).get();
+      for (final doc in snapshot.docs) {
+        final teacherId = doc.data()['teacherId'] as String?;
+        if (teacherId == null || !validTeacherIds.contains(teacherId)) {
+          orphanedRefs.add(doc.reference);
+        }
+      }
+    }
+
+    // Firestore batches are capped at 500 writes; chunk defensively.
+    const chunkSize = 450;
+    for (var i = 0; i < orphanedRefs.length; i += chunkSize) {
+      final end =
+          (i + chunkSize > orphanedRefs.length) ? orphanedRefs.length : i + chunkSize;
+      final chunk = orphanedRefs.sublist(i, end);
+      final batch = _db.batch();
+      for (final ref in chunk) {
+        batch.delete(ref);
+      }
+      await batch.commit();
+    }
+
+    return orphanedRefs.length;
+  }
 }
