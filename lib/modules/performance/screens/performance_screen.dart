@@ -21,7 +21,6 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
   late TextEditingController _categoryController;
   late TextEditingController _criterionController;
   bool _hasFetched = false;
-  String _severity = 'Normal';
   double _scoreDelta = 0;
 
   @override
@@ -111,21 +110,6 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
                 border: OutlineInputBorder(),
                 hintText: 'e.g., Professional Development, Punctuality',
               ),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _severity,
-              decoration: const InputDecoration(
-                labelText: 'Severity',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(value: 'Minor', child: Text('Minor')),
-                DropdownMenuItem(value: 'Normal', child: Text('Normal')),
-                DropdownMenuItem(value: 'Major', child: Text('Major')),
-                DropdownMenuItem(value: 'Critical', child: Text('Critical')),
-              ],
-              onChanged: (value) => setState(() => _severity = value ?? 'Normal'),
             ),
             const SizedBox(height: 12),
             _buildScoreSlider(),
@@ -225,7 +209,7 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
       reason: _reasonController.text,
       category: _categoryController.text,
       criterion: _criterionController.text,
-      severity: _severity,
+      severity: 'Normal',
       timestamp: DateTime.now(),
     );
 
@@ -239,7 +223,6 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
       _categoryController.clear();
       _criterionController.clear();
       setState(() {
-        _severity = 'Normal';
         _scoreDelta = 0;
       });
     } catch (e) {

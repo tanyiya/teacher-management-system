@@ -97,7 +97,6 @@ class _KpiScreenState extends State<KpiScreen> {
   late String _selectedCategory;
   late String _selectedCriterion;
   double _scoreDelta = 0;
-  String _severity = 'Normal';
 
   @override
   void initState() {
@@ -421,22 +420,6 @@ class _KpiScreenState extends State<KpiScreen> {
             },
           ),
           const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            initialValue: _severity,
-            isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: 'Severity',
-              border: OutlineInputBorder(),
-            ),
-            items: const [
-              DropdownMenuItem(value: 'Minor', child: Text('Minor')),
-              DropdownMenuItem(value: 'Normal', child: Text('Normal')),
-              DropdownMenuItem(value: 'Major', child: Text('Major')),
-              DropdownMenuItem(value: 'Critical', child: Text('Critical')),
-            ],
-            onChanged: (v) => setState(() => _severity = v ?? 'Normal'),
-          ),
-          const SizedBox(height: 12),
           _buildScoreSlider(),
           const SizedBox(height: 16),
           SizedBox(
@@ -533,7 +516,7 @@ class _KpiScreenState extends State<KpiScreen> {
       reason: reason,
       category: category,
       criterion: criterion,
-      severity: _severity,
+      severity: 'Normal',
       timestamp: DateTime.now(),
     );
 
@@ -544,7 +527,6 @@ class _KpiScreenState extends State<KpiScreen> {
       setState(() {
         _selectedCategory = _categoryCriteria.keys.first;
         _selectedCriterion = _categoryCriteria[_selectedCategory]!.first;
-        _severity = 'Normal';
         _scoreDelta = 0;
       });
       ScaffoldMessenger.of(context).showSnackBar(
