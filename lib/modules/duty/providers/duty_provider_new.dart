@@ -1,43 +1,3 @@
-import 'dart:typed_data';
-
-import 'package:flutter/material.dart';
-
-import '../models/duty.dart';
-
-class DutyProvider extends ChangeNotifier {
-  String? currentTeacherId;
-  String? currentTeacherName;
-  String? role;
-
-  bool isLoading = false;
-  String? error;
-
-  void setUser({
-    required String teacherId,
-    required String teacherName,
-    required String role,
-  }) {
-    currentTeacherId = teacherId;
-    currentTeacherName = teacherName;
-    this.role = role;
-    notifyListeners();
-  }
-
-  Duty? get nextUpcomingDuty => null;
-
-  bool canCompleteTask(Duty duty) => true;
-
-  Future<void> completeTask({
-    required Duty duty,
-    required String taskId,
-    required Uint8List imageBytes,
-    required String fileName,
-  }) async {
-    // dummy
-    notifyListeners();
-  }
-}
-
 // import 'dart:async';
 
 // import 'package:flutter/material.dart';
@@ -50,15 +10,11 @@ class DutyProvider extends ChangeNotifier {
 //   DutyProvider({DutyService? dutyService})
 //       : _dutyService = dutyService ?? DutyService() {
 //     loadForSelectedDate();
-//     _listenLocations();
-//     _listenTeachers();
 //   }
 
 //   final DutyService _dutyService;
 //   StreamSubscription<List<Duty>>? _dutySub;
 //   StreamSubscription<List<Duty>>? _upcomingSub;
-//   StreamSubscription<List<DutyLocation>>? _locationSub;
-//   StreamSubscription<List<TeacherRecord>>? _teacherSub;
 
 //   DateTime _selectedDate = DateTime.now();
 //   DutyViewMode _viewMode = DutyViewMode.calendar;
@@ -70,11 +26,8 @@ class DutyProvider extends ChangeNotifier {
 //   String? _locationFilterId;
 //   List<Duty> _duties = [];
 //   List<Duty> _upcomingDuties = [];
-//   List<DutyLocation> _locations = [];
-//   List<TeacherRecord> _teachers = [];
 //   bool _isLoading = true;
 //   String? _error;
-//   DutySwap? _lastSwap;
 
 //   DateTime get selectedDate => _selectedDate;
 //   DutyViewMode get viewMode => _viewMode;
@@ -86,11 +39,9 @@ class DutyProvider extends ChangeNotifier {
 //   List<Duty> get upcomingDuties => _upcomingDuties;
 //   Duty? get nextUpcomingDuty =>
 //       _upcomingDuties.isEmpty ? null : _upcomingDuties.first;
-//   List<DutyLocation> get locations => _locations;
-//   List<TeacherRecord> get teachers => _teachers;
 //   bool get isLoading => _isLoading;
 //   String? get error => _error;
-//   DutySwap? get lastSwap => _lastSwap;
+  
 //   String? get teacherFilterId => _teacherFilterId;
 //   String? get locationFilterId => _locationFilterId;
 //   bool get isPrincipal => _userRole == DutyUserRole.principal;
@@ -188,68 +139,8 @@ class DutyProvider extends ChangeNotifier {
 //     loadForSelectedDate();
 //   }
 
-//   Future<DutyLocation?> addLocation(String name) async {
-//     try {
-//       return await _dutyService.addLocation(name);
-//     } catch (err) {
-//       _error = err.toString();
-//       notifyListeners();
-//       return null;
-//     }
-//   }
+  
 
-//   Future<void> completeTask({
-//     required Duty duty,
-//     required String taskId,
-//     required List<int> imageBytes,
-//     required String fileName,
-//   }) async {
-//     final teacherId = _currentTeacherId;
-//     if (teacherId == null) {
-//       _error = 'No signed-in teacher found.';
-//       notifyListeners();
-//       return;
-//     }
-//     await _guard(() => _dutyService.completeTaskWithProof(
-//           duty: duty,
-//           taskId: taskId,
-//           teacherId: teacherId,
-//           imageBytes: imageBytes,
-//           fileName: fileName,
-//         ));
-//   }
-
-//   Future<List<String>> eligibleSwapTeacherIds(Duty duty) {
-//     return _dutyService.findEligibleTeacherIds(duty);
-//   }
-
-//   Future<void> requestSwap(Duty duty, String toTeacherId,
-//       {String? fromTeacherId}) async {
-//     final sourceTeacherId = fromTeacherId ??
-//         (isPrincipal
-//             ? (duty.teacherIds.isEmpty ? null : duty.teacherIds.first)
-//             : _currentTeacherId);
-//     if (sourceTeacherId == null) return;
-//     await _guard(() async {
-//       _lastSwap = await _dutyService.requestSwap(
-//         duty: duty,
-//         fromTeacherId: sourceTeacherId,
-//         toTeacherId: toTeacherId,
-//         requestedBy: _currentTeacherId ?? sourceTeacherId,
-//         requestedByPrincipal: isPrincipal,
-//       );
-//     });
-//   }
-
-//   bool canCompleteTask(Duty duty) => _dutyService.canCompleteTask(duty);
-
-//   bool canRequestSwap(Duty duty) {
-//     if (isPrincipal) return true;
-//     final teacherId = _currentTeacherId;
-//     return teacherId != null &&
-//         duty.teacherIds.contains(teacherId) &&
-//         _dutyService.canRequestSwap(duty);
-//   }
 
 //   Color colorForTeacher(String teacherId) =>
 //       _stableColor(teacherId, _teacherPalette);
@@ -257,19 +148,9 @@ class DutyProvider extends ChangeNotifier {
 //   Color colorForLocation(String locationId) =>
 //       _stableColor(locationId, _locationPalette);
 
-//   void _listenLocations() {
-//     _locationSub = _dutyService.fetchLocations().listen((items) {
-//       _locations = items;
-//       notifyListeners();
-//     });
-//   }
+  
 
-//   void _listenTeachers() {
-//     _teacherSub = _dutyService.fetchTeachers().listen((items) {
-//       _teachers = items;
-//       notifyListeners();
-//     });
-//   }
+
 
 //   void _listenUpcomingDuties() {
 //     _upcomingSub?.cancel();
@@ -323,8 +204,6 @@ class DutyProvider extends ChangeNotifier {
 //   void dispose() {
 //     _dutySub?.cancel();
 //     _upcomingSub?.cancel();
-//     _locationSub?.cancel();
-//     _teacherSub?.cancel();
 //     super.dispose();
 //   }
 // }

@@ -229,7 +229,7 @@ class _DutyCard extends StatelessWidget {
                           fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                   ),
-                  _StatusBadge(isCompleted: duty.isCompleted),
+                  _StatusBadge(isCompleted: false),           //////////////////// Temporary
                 ],
               ),
               const SizedBox(height: 4),
@@ -272,13 +272,19 @@ class _DutyCard extends StatelessWidget {
             Text(
                 '${duty.timeStart} - ${duty.timeEnd}  •  ${duty.locations.map((l) => l.name).join(', ')}'),
             const SizedBox(height: 12),
-            ...duty.tasks.map(
-              (task) => _TaskTile(
-                task: task,
-                duty: duty,
-                canComplete: provider.canCompleteTask(duty),
-              ),
+            const Text(
+              'No tasks available',
+              style: TextStyle(color: Colors.grey),
             ),
+
+            ///////////////// Removed Temporary  /////////////////////////
+            // ...duty.tasks.map(
+            //   (task) => _TaskTile(
+            //     task: task,
+            //     duty: duty,
+            //     canComplete: provider.canCompleteTask(duty),
+            //   ),
+            // ),
             const SizedBox(height: 20),
           ],
         ),
@@ -288,78 +294,79 @@ class _DutyCard extends StatelessWidget {
 }
 
 // ── Task tile ────────────────────────────────────────────────────────────────
+/////////////////////////////////////////////////////////////// Remove temporarily
+// class _TaskTile extends StatelessWidget {
+//   final DutyTask task;
+//   final Duty duty;
+//   final bool canComplete;
 
-class _TaskTile extends StatelessWidget {
-  final DutyTask task;
-  final Duty duty;
-  final bool canComplete;
+//   const _TaskTile({
+//     required this.task,
+//     required this.duty,
+//     required this.canComplete,
+//   });
 
-  const _TaskTile({
-    required this.task,
-    required this.duty,
-    required this.canComplete,
-  });
 
-  Future<void> _captureProof(BuildContext context) async {
-    final provider = context.read<DutyProvider>();
-    final picker = ImagePicker();
-    final image = await picker.pickImage(
-        source: ImageSource.camera, imageQuality: 78, maxWidth: 1600);
-    if (image == null) return;
-    await provider.completeTask(
-      duty: duty,
-      taskId: task.id,
-      imageBytes: await image.readAsBytes(),
-      fileName: image.name,
-    );
-  }
+//   // Future<void> _captureProof(BuildContext context) async {
+//   //   final provider = context.read<DutyProvider>();
+//   //   final picker = ImagePicker();
+//   //   final image = await picker.pickImage(
+//   //       source: ImageSource.camera, imageQuality: 78, maxWidth: 1600);
+//   //   if (image == null) return;
+//   //   await provider.completeTask(
+//   //     duty: duty,
+//   //     taskId: task.id,
+//   //     imageBytes: await image.readAsBytes(),
+//   //     fileName: image.name,
+//   //   );
+//   // }
 
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: task.photoUrl != null
-          ? ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: Image.network(
-                task.photoUrl!,
-                width: 40,
-                height: 40,
-                fit: BoxFit.cover,
-              ),
-            )
-          : Icon(
-              task.isCompleted
-                  ? Icons.check_circle
-                  : Icons.radio_button_unchecked,
-              color: task.isCompleted ? Colors.green : Colors.grey,
-            ),
-      title: Text(
-        task.name,
-        style: TextStyle(
-          decoration: task.isCompleted ? TextDecoration.lineThrough : null,
-          color: task.isCompleted ? Colors.grey : null,
-        ),
-      ),
-      subtitle: task.isCompleted && task.completedAt != null
-          ? Text(
-              'Done at ${DateFormat.jm().format(task.completedAt!)}',
-              style: const TextStyle(fontSize: 12),
-            )
-          : const Text(
-              'Needs camera proof',
-              style: TextStyle(fontSize: 12, color: Colors.orange),
-            ),
-      trailing: !task.isCompleted && canComplete
-          ? IconButton(
-              tooltip: 'Capture proof',
-              icon: const Icon(Icons.photo_camera_outlined),
-              onPressed: () => _captureProof(context),
-            )
-          : null,
-    );
-  }
-}
+//   @override
+//   Widget build(BuildContext context) {
+//     return ListTile(
+//       contentPadding: EdgeInsets.zero,
+//       leading: task.photoUrl != null
+//           ? ClipRRect(
+//               borderRadius: BorderRadius.circular(6),
+//               child: Image.network(
+//                 task.photoUrl!,
+//                 width: 40,
+//                 height: 40,
+//                 fit: BoxFit.cover,
+//               ),
+//             )
+//           : Icon(
+//               task.isCompleted
+//                   ? Icons.check_circle
+//                   : Icons.radio_button_unchecked,
+//               color: task.isCompleted ? Colors.green : Colors.grey,
+//             ),
+//       title: Text(
+//         task.name,
+//         style: TextStyle(
+//           decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+//           color: task.isCompleted ? Colors.grey : null,
+//         ),
+//       ),
+//       subtitle: task.isCompleted && task.completedAt != null
+//           ? Text(
+//               'Done at ${DateFormat.jm().format(task.completedAt!)}',
+//               style: const TextStyle(fontSize: 12),
+//             )
+//           : const Text(
+//               'Needs camera proof',
+//               style: TextStyle(fontSize: 12, color: Colors.orange),
+//             ),
+//       trailing: !task.isCompleted && canComplete
+//           ? IconButton(
+//               tooltip: 'Capture proof',
+//               icon: const Icon(Icons.photo_camera_outlined),
+//               onPressed: () => _captureProof(context),
+//             )
+//           : null,
+//     );
+//   }
+// }
 
 // ── Status badge ─────────────────────────────────────────────────────────────
 

@@ -1,0 +1,6 @@
+firestore composite index
+
+duty location
+- isActive
+- name
+
