@@ -81,12 +81,12 @@ class _LoginScreenState extends State<LoginScreen> {
         }
 
         return Scaffold(
-          backgroundColor: const Color(0xFFF5F5F3),
+          backgroundColor: AppTheme.canvasBase,
           body: SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final maxWidth = constraints.maxWidth >= 900
-                    ? 520.0
+                    ? 500.0
                     : constraints.maxWidth - 32;
                 return Center(
                   child: SingleChildScrollView(
@@ -94,23 +94,23 @@ class _LoginScreenState extends State<LoginScreen> {
                         horizontal: 16, vertical: 24),
                     child: ConstrainedBox(
                       constraints: BoxConstraints(
-                          maxWidth: maxWidth.clamp(320.0, 520.0)),
+                          maxWidth: maxWidth.clamp(320.0, 500.0)),
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFFE8E6E1)),
+                          color: AppTheme.cardBackground,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: AppTheme.subtleGrayBoundary),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.04),
-                              offset: const Offset(0, 8),
-                              blurRadius: 24,
+                              color: AppTheme.schoolBlue.withValues(alpha: 0.08),
+                              offset: const Offset(0, 12),
+                              blurRadius: 32,
                             ),
                           ],
                         ),
                         child: Padding(
                           padding: EdgeInsets.all(
-                              constraints.maxWidth < 420 ? 20 : 32),
+                              constraints.maxWidth < 420 ? 24 : 36),
                           child: FocusTraversalGroup(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
@@ -129,7 +129,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     onRemove: (uid) =>
                                         appState.removeRememberedAccount(uid),
                                   ),
-                                  const SizedBox(height: 18),
+                                  const SizedBox(height: 20),
                                   OutlinedButton.icon(
                                     onPressed: appState.isLoading
                                         ? null
@@ -137,6 +137,12 @@ class _LoginScreenState extends State<LoginScreen> {
                                             () => _showManualForm = true),
                                     icon: const Icon(LucideIcons.userPlus,
                                         size: 18),
+                                    style: OutlinedButton.styleFrom(
+                                      side: const BorderSide(color: AppTheme.schoolBlue, width: 1.5),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
                                     label: const Text('Use Another Account'),
                                   ),
                                 ] else ...[
@@ -166,24 +172,28 @@ class _LoginScreenState extends State<LoginScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Email field
           TextFormField(
             controller: _emailController,
             enabled: !appState.isLoading,
             keyboardType: TextInputType.emailAddress,
             textInputAction: TextInputAction.next,
             autofillHints: const [AutofillHints.email, AutofillHints.username],
+            style: const TextStyle(color: AppTheme.textCore),
             inputFormatters: [
               FilteringTextInputFormatter.deny(RegExp(r'\s')),
               LengthLimitingTextInputFormatter(254),
             ],
             decoration: const InputDecoration(
               labelText: 'Email Address',
-              prefixIcon: Icon(LucideIcons.mail),
+              prefixIcon: Icon(LucideIcons.mail, color: AppTheme.schoolBlue),
             ),
             validator: _validateEmail,
             onFieldSubmitted: (_) => _passwordFocus.requestFocus(),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
+          
+          // Password field
           TextFormField(
             controller: _passwordController,
             focusNode: _passwordFocus,
@@ -192,12 +202,13 @@ class _LoginScreenState extends State<LoginScreen> {
             keyboardType: TextInputType.visiblePassword,
             textInputAction: TextInputAction.done,
             autofillHints: const [AutofillHints.password],
+            style: const TextStyle(color: AppTheme.textCore),
             inputFormatters: [
               LengthLimitingTextInputFormatter(128),
             ],
             decoration: InputDecoration(
               labelText: 'Password',
-              prefixIcon: const Icon(LucideIcons.lock),
+              prefixIcon: const Icon(LucideIcons.lock, color: AppTheme.schoolBlue),
               suffixIcon: IconButton(
                 tooltip: _obscurePassword ? 'Show password' : 'Hide password',
                 onPressed: appState.isLoading
@@ -205,58 +216,110 @@ class _LoginScreenState extends State<LoginScreen> {
                     : () =>
                         setState(() => _obscurePassword = !_obscurePassword),
                 icon: Icon(
-                    _obscurePassword ? LucideIcons.eye : LucideIcons.eyeOff),
+                  _obscurePassword ? LucideIcons.eye : LucideIcons.eyeOff,
+                  color: AppTheme.textMuted,
+                  size: 20,
+                ),
               ),
             ),
             validator: _validatePassword,
             onFieldSubmitted: (_) => _submitLogin(appState),
           ),
+          
+          // Forgot Password
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
               onPressed: appState.isLoading
                   ? null
                   : () => _showForgotPasswordDialog(appState),
-              child: const Text('Forgot Password?'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppTheme.schoolOrange,
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              ),
+              child: const Text('Forgot Password?', 
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
             ),
           ),
-          CheckboxListTile(
-            value: _rememberMe,
-            onChanged: appState.isLoading
-                ? null
-                : (value) => setState(() => _rememberMe = value ?? false),
-            contentPadding: EdgeInsets.zero,
-            controlAffinity: ListTileControlAffinity.leading,
-            title: const Text('Remember Me'),
-            subtitle:
-                const Text('Save this account for quick login on this device.'),
+          const SizedBox(height: 4),
+
+          // Remember Me
+          Container(
+            decoration: BoxDecoration(
+              color: AppTheme.ambientOffWhite,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppTheme.subtleGrayBoundary),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            child: CheckboxListTile(
+              value: _rememberMe,
+              activeColor: AppTheme.schoolBlue,
+              onChanged: appState.isLoading
+                  ? null
+                  : (value) => setState(() => _rememberMe = value ?? false),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              controlAffinity: ListTileControlAffinity.leading,
+              title: const Text('Remember Me', 
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppTheme.textCore)),
+              subtitle: Text('Save this account for quick login on this device.',
+                style: TextStyle(fontSize: 11, color: AppTheme.textMuted.withValues(alpha: 0.8))),
+            ),
           ),
-          const SizedBox(height: 18),
-          FilledButton.icon(
-            onPressed: appState.isLoading ? null : () => _submitLogin(appState),
-            icon: appState.isLoading
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
-                  )
-                : const Icon(LucideIcons.logIn, size: 18),
-            label: Text(appState.isLoading ? 'Signing In...' : 'Sign In'),
+          const SizedBox(height: 24),
+          
+          // Sign In Button
+          SizedBox(
+            height: 52,
+            child: FilledButton.icon(
+              onPressed: appState.isLoading ? null : () => _submitLogin(appState),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppTheme.schoolBlue,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
+              icon: appState.isLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(LucideIcons.logIn, size: 18),
+              label: Text(
+                appState.isLoading ? 'Signing In...' : 'Sign In',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, letterSpacing: 0.5),
+              ),
+            ),
           ),
-          const SizedBox(height: 12),
-          OutlinedButton(
-            onPressed:
-                appState.isLoading ? null : () => context.push('/register'),
-            child: const Text('Register as Teacher'),
+          const SizedBox(height: 14),
+          
+          // Register Button
+          SizedBox(
+            height: 50,
+            child: OutlinedButton(
+              onPressed:
+                  appState.isLoading ? null : () => context.push('/register'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTheme.schoolOrange,
+                side: const BorderSide(color: AppTheme.schoolOrange, width: 1.5),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Register as Teacher', 
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            ),
           ),
+          
           if (appState.rememberedAccounts.isNotEmpty) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             TextButton(
               onPressed: appState.isLoading
                   ? null
                   : () => setState(() => _showManualForm = false),
-              child: const Text('Back to remembered accounts'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppTheme.textMuted,
+              ),
+              child: const Text('Back to remembered accounts', 
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
             ),
           ],
         ],
@@ -311,7 +374,10 @@ class _LoginScreenState extends State<LoginScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text('Reset Password'),
+              backgroundColor: AppTheme.cardBackground,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: const Text('Reset Password', 
+                style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.schoolDarkBlue)),
               content: Form(
                 key: formKey,
                 autovalidateMode: AutovalidateMode.onUserInteraction,
@@ -321,13 +387,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   enabled: !isSending,
                   keyboardType: TextInputType.emailAddress,
                   autofillHints: const [AutofillHints.email],
+                  style: const TextStyle(color: AppTheme.textCore),
                   inputFormatters: [
                     FilteringTextInputFormatter.deny(RegExp(r'\s')),
                     LengthLimitingTextInputFormatter(254),
                   ],
                   decoration: const InputDecoration(
                     labelText: 'Email Address',
-                    prefixIcon: Icon(LucideIcons.mail),
+                    prefixIcon: Icon(LucideIcons.mail, color: AppTheme.schoolBlue),
                   ),
                   validator: _validateEmail,
                 ),
@@ -337,7 +404,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   onPressed: isSending
                       ? null
                       : () => Navigator.of(dialogContext).pop(),
-                  child: const Text('Cancel'),
+                  style: TextButton.styleFrom(foregroundColor: AppTheme.textMuted),
+                  child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
                 FilledButton.icon(
                   onPressed: isSending
@@ -354,6 +422,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           if (!dialogContext.mounted) return;
                           Navigator.of(dialogContext).pop(error ?? '');
                         },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.schoolBlue,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
                   icon: isSending
                       ? const SizedBox(
                           width: 18,
@@ -405,8 +477,13 @@ class _LoginScreenState extends State<LoginScreen> {
   String _sanitizeEmail(String value) => value.trim().toLowerCase();
 
   void _showSnack(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppTheme.schoolDarkBlue,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 }
 
@@ -419,45 +496,73 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
+        // ── Tadika Aqil Miqail logo container ─────────────────────────
         Semantics(
           label: 'Genius Aqil secure sign in',
           child: Container(
-            width: 72,
-            height: 72,
+            width: 110,
+            height: 110,
+            padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: AppTheme.primaryColor.withValues(alpha: 0.1),
+              color: Colors.white,
               shape: BoxShape.circle,
+              border: Border.all(color: AppTheme.subtleGrayBoundary, width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.schoolBlue.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                )
+              ],
             ),
-            child: const Icon(
-              LucideIcons.shieldCheck,
-              size: 36,
-              color: AppTheme.primaryColor,
+            child: ClipOval(
+              child: Image.asset(
+                'images/logo.jpeg',
+                fit: BoxFit.cover,
+                // Fallback icon if logo image asset is not configured or loaded yet
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    color: AppTheme.schoolLightBlue,
+                    child: const Icon(
+                      LucideIcons.bookOpen,
+                      size: 40,
+                      color: AppTheme.schoolBlue,
+                    ),
+                  );
+                },
+              ),
             ),
           ),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 20),
+        
+        // School Name
         Text(
           'GENIUS AQIL',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
                 letterSpacing: 2,
+                color: AppTheme.schoolDarkBlue,
               ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 12),
+        
         Text(
           isRestoring
               ? 'Restoring secure session...'
               : 'Sign in with your school account',
           textAlign: TextAlign.center,
-          style: Theme.of(context)
-              .textTheme
-              .bodyMedium
-              ?.copyWith(color: AppTheme.textLightColor),
+          style: TextStyle(color: AppTheme.textLightColor, fontSize: 13),
         ),
+        
         if (isRestoring) ...[
           const SizedBox(height: 16),
-          const LinearProgressIndicator(minHeight: 3),
+          const LinearProgressIndicator(
+            minHeight: 3,
+            backgroundColor: AppTheme.schoolLightBlue,
+            valueColor: AlwaysStoppedAnimation<Color>(AppTheme.schoolBlue),
+          ),
         ],
       ],
     );
@@ -482,27 +587,31 @@ class _RememberedAccountsList extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
+        const Text(
           'Quick Login',
-          style: Theme.of(context)
-              .textTheme
-              .titleMedium
-              ?.copyWith(fontWeight: FontWeight.w700),
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.schoolDarkBlue,
+          ),
         ),
         const SizedBox(height: 12),
         ...accounts.map(
           (account) => Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Material(
-              color: const Color(0xFFF9F9F7),
-              borderRadius: BorderRadius.circular(8),
+              color: AppTheme.ambientOffWhite,
+              borderRadius: BorderRadius.circular(12),
               child: ListTile(
                 enabled: !isBusy,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: const BorderSide(color: AppTheme.subtleGrayBoundary),
+                ),
                 contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 leading: CircleAvatar(
-                  backgroundColor:
-                      AppTheme.primaryColor.withValues(alpha: 0.12),
+                  backgroundColor: AppTheme.schoolLightBlue,
                   backgroundImage: account.profileImageUrl.isEmpty
                       ? null
                       : NetworkImage(account.profileImageUrl),
@@ -510,7 +619,7 @@ class _RememberedAccountsList extends StatelessWidget {
                       ? Text(
                           account.initial,
                           style: const TextStyle(
-                              color: AppTheme.primaryColor,
+                              color: AppTheme.schoolDarkBlue,
                               fontWeight: FontWeight.bold),
                         )
                       : null,
@@ -519,19 +628,26 @@ class _RememberedAccountsList extends StatelessWidget {
                   account.username,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, 
+                      color: AppTheme.textCore,
+                      fontSize: 14),
                 ),
-                subtitle: Text(
-                  '${account.email}\n${account.role.toUpperCase()}',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    '${account.email}\n${account.role.toUpperCase()}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
+                  ),
                 ),
                 isThreeLine: true,
                 onTap: () => onSelect(account),
                 trailing: IconButton(
                   tooltip: 'Remove account',
                   onPressed: isBusy ? null : () => onRemove(account.uid),
-                  icon: const Icon(LucideIcons.x, size: 18),
+                  icon: const Icon(LucideIcons.x, size: 18, color: AppTheme.textMuted),
                 ),
               ),
             ),

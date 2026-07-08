@@ -1,9 +1,9 @@
 // PRINCIPAL SCREEN
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
+import '../../../app_theme.dart';
 import '../models/report.dart';
 import '../services/report_service.dart';
 import 'report_detail_sheet.dart';
@@ -43,26 +43,26 @@ class _ReportScreenState extends State<ReportScreen> {
 
   // ── Sort: pending/in-progress first, resolved last ────────
   List<FacilityReport> _sortReports(List<FacilityReport> list) {
-      const priorityOrder = {'High': 0, 'Medium': 1, 'Low': 2};
-      const statusOrder = {'Submitted': 0, 'Under Review': 1, 'Action Taken': 2};
+    const priorityOrder = {'High': 0, 'Medium': 1, 'Low': 2};
+    const statusOrder = {'Submitted': 0, 'Under Review': 1, 'Action Taken': 2};
 
-      final pending = list
-          .where((r) => r.status != 'Resolved')
-          .toList()
-        ..sort((a, b) {
-          // 1️⃣ Priority: High → Medium → Low
-          final aPriority = priorityOrder[a.priority] ?? 3;
-          final bPriority = priorityOrder[b.priority] ?? 3;
-          if (aPriority != bPriority) return aPriority.compareTo(bPriority);
+    final pending = list
+        .where((r) => r.status != 'Resolved')
+        .toList()
+      ..sort((a, b) {
+        // 1️⃣ Priority: High → Medium → Low
+        final aPriority = priorityOrder[a.priority] ?? 3;
+        final bPriority = priorityOrder[b.priority] ?? 3;
+        if (aPriority != bPriority) return aPriority.compareTo(bPriority);
 
-          // 2️⃣ Status: Submitted → Under Review → Action Taken
-          final aStatus = statusOrder[a.status] ?? 3;
-          final bStatus = statusOrder[b.status] ?? 3;
-          if (aStatus != bStatus) return aStatus.compareTo(bStatus);
+        // 2️⃣ Status: Submitted → Under Review → Action Taken
+        final aStatus = statusOrder[a.status] ?? 3;
+        final bStatus = statusOrder[b.status] ?? 3;
+        if (aStatus != bStatus) return aStatus.compareTo(bStatus);
 
-          // 3️⃣ Date: newest first
-          return b.createdAt.compareTo(a.createdAt);
-        });
+        // 3️⃣ Date: newest first
+        return b.createdAt.compareTo(a.createdAt);
+      });
 
     final resolved = list
         .where((r) => r.status == 'Resolved')
@@ -108,23 +108,23 @@ class _ReportScreenState extends State<ReportScreen> {
         }).toList());
 
         return Container(
-          color: const Color(0xFFF2F1EE),
+          color: AppTheme.canvasBase,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                color: const Color(0xFFF2F1EE),
+                color: AppTheme.canvasBase,
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'SCHOOL SAFETY & INCIDENTS',
+                      'TADIKA AQIL MIQAIL',
                       style: TextStyle(
                         fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade500,
-                        letterSpacing: 1.2,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.schoolBlue.withOpacity(0.8),
+                        letterSpacing: 1.5,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -133,7 +133,7 @@ class _ReportScreenState extends State<ReportScreen> {
                       style: TextStyle(
                         fontSize: 26,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF1A1A1A),
+                        color: AppTheme.schoolDarkBlue,
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -143,47 +143,47 @@ class _ReportScreenState extends State<ReportScreen> {
                           label: 'PENDING\nAUDITS',
                           value: '$pending',
                           icon: LucideIcons.clipboardList,
-                          valueColor: const Color(0xFF1A1A1A),
-                          iconColor: Colors.grey.shade400,
-                          bgColor: Colors.white,
+                          valueColor: AppTheme.schoolDarkBlue,
+                          iconColor: AppTheme.schoolBlue.withOpacity(0.5),
+                          bgColor: AppTheme.schoolLightBlue.withValues(alpha: 0.4),
                         ),
                         const SizedBox(width: 10),
                         _KpiCard(
                           label: 'IN\nPROGRESS',
                           value: '$inProgress',
                           icon: LucideIcons.clock,
-                          valueColor: const Color(0xFFD97706),
-                          iconColor: const Color(0xFFFBBF24),
-                          bgColor: const Color(0xFFFFFBEB),
+                          valueColor: AppTheme.schoolOrange,
+                          iconColor: AppTheme.schoolOrange.withOpacity(0.6),
+                          bgColor: AppTheme.schoolLightOrange,
                         ),
                         const SizedBox(width: 10),
                         _KpiCard(
                           label: 'RESOLVED\n(TOTAL)',
                           value: '$resolved',
                           icon: LucideIcons.checkCircle,
-                          valueColor: Colors.green.shade600,
-                          iconColor: Colors.green.shade300,
-                          bgColor: const Color(0xFFF0FDF4),
+                          valueColor: const Color(0xFF2E7D32),
+                          iconColor: const Color(0xFF81C784),
+                          bgColor: const Color(0xFFE8F5E9),
                         ),
                       ],
                     ),
                     const SizedBox(height: 14),
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: AppTheme.cardBackground,
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xFFE8E8E5)),
+                        border: Border.all(color: AppTheme.subtleGrayBoundary),
                       ),
                       padding: const EdgeInsets.all(14),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
+                          const Text(
                             'INBOX QUERY FILTER',
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
-                              color: Colors.grey.shade500,
+                              color: AppTheme.textMuted,
                               letterSpacing: 1.1,
                             ),
                           ),
@@ -195,11 +195,11 @@ class _ReportScreenState extends State<ReportScreen> {
                                   crossAxisAlignment:
                                       CrossAxisAlignment.start,
                                   children: [
-                                    Text('STATUS FILTER',
+                                    const Text('STATUS FILTER',
                                         style: TextStyle(
                                             fontSize: 9,
                                             fontWeight: FontWeight.w600,
-                                            color: Colors.grey.shade500,
+                                            color: AppTheme.textMuted,
                                             letterSpacing: 0.8)),
                                     const SizedBox(height: 6),
                                     _FilterDropdown(
@@ -218,11 +218,11 @@ class _ReportScreenState extends State<ReportScreen> {
                                   crossAxisAlignment:
                                       CrossAxisAlignment.start,
                                   children: [
-                                    Text('CATEGORY FILTER',
+                                    const Text('CATEGORY FILTER',
                                         style: TextStyle(
                                             fontSize: 9,
                                             fontWeight: FontWeight.w600,
-                                            color: Colors.grey.shade500,
+                                            color: AppTheme.textMuted,
                                             letterSpacing: 0.8)),
                                     const SizedBox(height: 6),
                                     _FilterDropdown(
@@ -250,9 +250,9 @@ class _ReportScreenState extends State<ReportScreen> {
                 child: Container(
                   margin: const EdgeInsets.symmetric(horizontal: 20),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AppTheme.cardBackground,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFFE8E8E5)),
+                    border: Border.all(color: AppTheme.subtleGrayBoundary),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -262,10 +262,10 @@ class _ReportScreenState extends State<ReportScreen> {
                             const EdgeInsets.fromLTRB(16, 14, 16, 0),
                         child: Text(
                           'REPORTS DIRECTORY (${filtered.length})',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
-                            color: Colors.grey.shade500,
+                            color: AppTheme.textMuted,
                             letterSpacing: 1.1,
                           ),
                         ),
@@ -312,7 +312,7 @@ class _ReportScreenState extends State<ReportScreen> {
                       ),
                       const SizedBox(height: 8),
                       const Divider(
-                          height: 1, color: Color(0xFFF0EFEC)),
+                          height: 1, color: AppTheme.subtleGrayBoundary),
 
                       Expanded(
                         child: snapshot.connectionState ==
@@ -320,18 +320,17 @@ class _ReportScreenState extends State<ReportScreen> {
                             ? const Center(
                                 child: CircularProgressIndicator())
                             : filtered.isEmpty
-                                ? Center(
+                                ? const Center(
                                     child: Column(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Icon(LucideIcons.inbox,
                                             size: 40,
-                                            color: Colors.grey.shade300),
+                                            color: AppTheme.subtleGrayBoundary),
                                         const SizedBox(height: 10),
                                         Text('No reports found',
                                             style: TextStyle(
-                                                color: Colors
-                                                    .grey.shade400,
+                                                color: AppTheme.textMuted,
                                                 fontSize: 13)),
                                       ],
                                     ),
@@ -342,7 +341,7 @@ class _ReportScreenState extends State<ReportScreen> {
                                     separatorBuilder: (_, __) =>
                                         const Divider(
                                             height: 1,
-                                            color: Color(0xFFF0EFEC)),
+                                            color: AppTheme.subtleGrayBoundary),
                                     itemBuilder: (_, i) => _ReportRow(
                                       report: filtered[i],
                                       svc: _svc,
@@ -361,10 +360,10 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
-  TextStyle _colHeaderStyle() => TextStyle(
+  TextStyle _colHeaderStyle() => const TextStyle(
         fontSize: 9,
         fontWeight: FontWeight.w700,
-        color: Colors.grey.shade400,
+        color: AppTheme.textMuted,
         letterSpacing: 0.6,
       );
 }
@@ -393,7 +392,7 @@ class _KpiCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE8E8E5)),
+          border: Border.all(color: AppTheme.subtleGrayBoundary),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -405,10 +404,10 @@ class _KpiCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     label,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 9,
                       fontWeight: FontWeight.w700,
-                      color: Colors.grey.shade500,
+                      color: AppTheme.textMuted,
                       letterSpacing: 0.5,
                       height: 1.4,
                     ),
@@ -453,18 +452,18 @@ class _FilterDropdown extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.cardBackground,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFD8D8D5)),
+        border: Border.all(color: AppTheme.subtleGrayBoundary),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: safeValue,
           isExpanded: true,
-          icon: const Icon(Icons.keyboard_arrow_down, size: 18),
+          icon: const Icon(Icons.keyboard_arrow_down, size: 18, color: AppTheme.schoolBlue),
           style: const TextStyle(
               fontSize: 13,
-              color: Color(0xFF1A1A1A),
+              color: AppTheme.textCore,
               fontWeight: FontWeight.w500),
           items: items
               .map((s) => DropdownMenuItem(
@@ -530,7 +529,7 @@ class _ReportRow extends StatelessWidget {
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 12,
-                            color: Color(0xFF1A1A1A),
+                            color: AppTheme.textCore,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -540,9 +539,9 @@ class _ReportRow extends StatelessWidget {
                           report.description,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
+                          style: const TextStyle(
                               fontSize: 10,
-                              color: Colors.grey.shade500),
+                              color: AppTheme.textMuted),
                         ),
                       ],
                     ),
@@ -563,15 +562,15 @@ class _ReportRow extends StatelessWidget {
                       style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF1A1A1A)),
+                          color: AppTheme.textCore),
                       textAlign: TextAlign.center,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
                       DateFormat('d/M/yy').format(report.createdAt),
-                      style: TextStyle(
-                          fontSize: 10, color: Colors.grey.shade500),
+                      style: const TextStyle(
+                          fontSize: 10, color: AppTheme.textMuted),
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -622,7 +621,6 @@ class _ReportRow extends StatelessWidget {
                       color: statusInfo.badgeText,
                     ),
                     textAlign: TextAlign.center,
-                    // ── No truncation — wraps if needed ──
                     softWrap: true,
                   ),
                 ),
@@ -640,20 +638,20 @@ class _ReportRow extends StatelessWidget {
       case 'High':
         return _PriorityInfo(
           label: 'High',
-          color: const Color(0xFFDC2626),
-          bg: const Color(0xFFFEE2E2),
+          color: const Color(0xFFD32F2F),
+          bg: const Color(0xFFFFEBEE),
         );
       case 'Medium':
         return _PriorityInfo(
           label: 'Medium',
-          color: const Color(0xFFB45309),
-          bg: const Color(0xFFFEF3C7),
+          color: AppTheme.schoolOrange,
+          bg: AppTheme.schoolLightOrange,
         );
       default: // Low
         return _PriorityInfo(
           label: 'Low',
-          color: const Color(0xFF1D4ED8),
-          bg: const Color(0xFFDBEAFE),
+          color: AppTheme.schoolBlue,
+          bg: AppTheme.schoolLightBlue,
         );
     }
   }
@@ -664,30 +662,30 @@ class _ReportRow extends StatelessWidget {
       case 'Resolved':
         return _StatusInfo(
           label: 'Resolved',
-          color: Colors.green,
-          badgeBg: const Color(0xFFDCFCE7),
-          badgeText: const Color(0xFF16A34A),
+          color: const Color(0xFF2E7D32),
+          badgeBg: const Color(0xFFE8F5E9),
+          badgeText: const Color(0xFF2E7D32),
         );
       case 'Under Review':
         return _StatusInfo(
           label: 'Under Review',
-          color: const Color(0xFFD97706),
-          badgeBg: const Color(0xFFFEF9C3),
-          badgeText: const Color(0xFFB45309),
+          color: AppTheme.schoolOrange,
+          badgeBg: AppTheme.schoolLightOrange,
+          badgeText: const Color(0xFFC75D00),
         );
       case 'Action Taken':
         return _StatusInfo(
           label: 'Action Taken',
-          color: const Color(0xFFD97706),
-          badgeBg: const Color(0xFFFEF9C3),
-          badgeText: const Color(0xFFB45309),
+          color: AppTheme.schoolOrange,
+          badgeBg: AppTheme.schoolLightOrange,
+          badgeText: const Color(0xFFC75D00),
         );
       default: // Submitted
         return _StatusInfo(
           label: 'Pending',
-          color: const Color(0xFF6B7280),     // Medium slate grey for borders/indicators
-          badgeBg: const Color(0xFFF3F4F6),   // Light grey background for the badge bubble
-          badgeText: const Color(0xFF374151), // Dark charcoal grey for high contrast readable text
+          color: AppTheme.schoolBlue,
+          badgeBg: AppTheme.schoolLightBlue,
+          badgeText: AppTheme.schoolDarkBlue,
         );
     }
   }

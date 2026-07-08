@@ -5,7 +5,6 @@ import '../../../app_theme.dart';
 import '../models/report.dart';
 import '../services/report_service.dart';
 
-
 class ReportDetailSheet extends StatefulWidget {
   final FacilityReport report;
   final ReportService svc;
@@ -71,14 +70,17 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Report updated. Teacher has been notified.'),
-          backgroundColor: Colors.green,
+          backgroundColor: Color(0xFF2E7D32),
         ),
       );
     } catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: const Color(0xFFD32F2F),
+        ),
       );
     }
   }
@@ -91,7 +93,7 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
 
     return Container(
       decoration: const BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.cardBackground,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: DraggableScrollableSheet(
@@ -107,9 +109,9 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
               child: Container(
                 width: 40,
                 height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
+                decoration: const BoxDecoration(
+                  color: AppTheme.subtleGrayBoundary,
+                  // borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),
@@ -127,10 +129,10 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                       children: [
                         Text(
                           'CASE ID: $caseId',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w600,
-                            color: Colors.grey.shade400,
+                            color: AppTheme.textMuted,
                             letterSpacing: 0.8,
                           ),
                         ),
@@ -140,7 +142,7 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF1A1A1A),
+                            color: AppTheme.schoolDarkBlue,
                             height: 1.3,
                           ),
                         ),
@@ -152,12 +154,12 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                     child: Container(
                       width: 32,
                       height: 32,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
+                      decoration: const BoxDecoration(
+                        color: AppTheme.canvasBase,
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(Icons.close,
-                          size: 18, color: Color(0xFF1A1A1A)),
+                          size: 18, color: AppTheme.schoolDarkBlue),
                     ),
                   ),
                 ],
@@ -176,9 +178,9 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF8F8F6),
+                      color: AppTheme.ambientOffWhite,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFE8E8E5)),
+                      border: Border.all(color: AppTheme.subtleGrayBoundary),
                     ),
                     child: Row(
                       children: [
@@ -186,11 +188,11 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('REPORTED BY',
+                              const Text('REPORTED BY',
                                   style: TextStyle(
                                       fontSize: 9,
                                       fontWeight: FontWeight.w700,
-                                      color: Colors.grey.shade400,
+                                      color: AppTheme.textMuted,
                                       letterSpacing: 0.8)),
                               const SizedBox(height: 4),
                               Text(
@@ -198,7 +200,7 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                                 style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 15,
-                                    color: Color(0xFF1A1A1A)),
+                                    color: AppTheme.textCore),
                               ),
                             ],
                           ),
@@ -206,11 +208,11 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Text('TIMESTAMP',
+                            const Text('TIMESTAMP',
                                 style: TextStyle(
                                     fontSize: 9,
                                     fontWeight: FontWeight.w700,
-                                    color: Colors.grey.shade400,
+                                    color: AppTheme.textMuted,
                                     letterSpacing: 0.8)),
                             const SizedBox(height: 4),
                             Text(
@@ -218,7 +220,7 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                               style: const TextStyle(
                                   fontWeight: FontWeight.w600,
                                   fontSize: 12,
-                                  color: Color(0xFF1A1A1A)),
+                                  color: AppTheme.textCore),
                             ),
                           ],
                         ),
@@ -234,9 +236,9 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: AppTheme.cardBackground,
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFE0E0DD)),
+                      border: Border.all(color: AppTheme.subtleGrayBoundary),
                     ),
                     child: Text(
                       widget.report.description.isEmpty
@@ -244,7 +246,7 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                           : widget.report.description,
                       style: const TextStyle(
                           fontSize: 14,
-                          color: Color(0xFF1A1A1A),
+                          color: AppTheme.textCore,
                           height: 1.5),
                     ),
                   ),
@@ -255,7 +257,6 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                     const _SectionLabel('PHOTO EVIDENCE'),
                     const SizedBox(height: 8),
                     GestureDetector(
-                      // onTap: () => _viewFullImage(context, widget.report.photoUrl),
                       child: Stack(
                         children: [
                           ClipRRect(
@@ -269,14 +270,14 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                                 if (progress == null) return child;
                                 return Container(
                                   height: 220,
-                                  color: Colors.grey.shade100,
+                                  color: AppTheme.canvasBase,
                                   child: Center(
                                     child: CircularProgressIndicator(
                                       value: progress.expectedTotalBytes != null
                                           ? progress.cumulativeBytesLoaded /
                                               progress.expectedTotalBytes!
                                           : null,
-                                      color: const Color(0xFF2D6A4F),
+                                      color: AppTheme.schoolBlue,
                                       strokeWidth: 2,
                                     ),
                                   ),
@@ -285,19 +286,19 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                               errorBuilder: (_, __, ___) => Container(
                                 height: 220,
                                 decoration: BoxDecoration(
-                                  color: Colors.grey.shade100,
+                                  color: AppTheme.canvasBase,
                                   borderRadius: BorderRadius.circular(12),
                                 ),
-                                child: Center(
+                                child: const Center(
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Icon(Icons.broken_image_outlined,
-                                          color: Colors.grey.shade400, size: 36),
+                                          color: AppTheme.textMuted, size: 36),
                                       const SizedBox(height: 8),
                                       Text('Image unavailable',
                                           style: TextStyle(
-                                              color: Colors.grey.shade400,
+                                              color: AppTheme.textMuted,
                                               fontSize: 13)),
                                     ],
                                   ),
@@ -336,18 +337,18 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade50,
+                        color: AppTheme.ambientOffWhite,
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFE0E0DD)),
+                        border: Border.all(color: AppTheme.subtleGrayBoundary),
                       ),
-                      child: Row(
+                      child: const Row(
                         children: [
                           Icon(Icons.image_not_supported_outlined,
-                              size: 18, color: Colors.grey.shade400),
+                              size: 18, color: AppTheme.textMuted),
                           const SizedBox(width: 10),
                           Text('No photo attached to this report.',
                               style:
-                                  TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+                                  TextStyle(color: AppTheme.textMuted, fontSize: 13)),
                         ],
                       ),
                     ),
@@ -358,19 +359,19 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF8F8F6),
+                      color: AppTheme.ambientOffWhite,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFE8E8E5)),
+                      border: Border.all(color: AppTheme.subtleGrayBoundary),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        const Text(
                           'ADMINISTRATIVE ACTION CONTROLS',
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
-                            color: Colors.grey.shade500,
+                            color: AppTheme.textMuted,
                             letterSpacing: 0.9,
                           ),
                         ),
@@ -382,11 +383,11 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                                 crossAxisAlignment:
                                     CrossAxisAlignment.start,
                                 children: [
-                                  Text('REPORT STATUS',
+                                  const Text('REPORT STATUS',
                                       style: TextStyle(
                                           fontSize: 9,
                                           fontWeight: FontWeight.w700,
-                                          color: Colors.grey.shade400,
+                                          color: AppTheme.textMuted,
                                           letterSpacing: 0.8)),
                                   const SizedBox(height: 6),
                                   _ActionDropdown<String>(
@@ -404,11 +405,11 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                                 crossAxisAlignment:
                                     CrossAxisAlignment.start,
                                 children: [
-                                  Text('PRIORITY LEVEL',
+                                  const Text('PRIORITY LEVEL',
                                       style: TextStyle(
                                           fontSize: 9,
                                           fontWeight: FontWeight.w700,
-                                          color: Colors.grey.shade400,
+                                          color: AppTheme.textMuted,
                                           letterSpacing: 0.8)),
                                   const SizedBox(height: 6),
                                   _ActionDropdown<String>(
@@ -426,30 +427,31 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                         TextField(
                           controller: _notesCtrl,
                           maxLines: 4,
+                          style: const TextStyle(color: AppTheme.textCore),
                           decoration: InputDecoration(
                             hintText:
                                 "Add management notes (e.g., 'Disciplinary action taken', 'Hazard removed'). These notes will notify and update the teacher.",
                             hintStyle: TextStyle(
-                                color: Colors.grey.shade400,
+                                color: AppTheme.textMuted.withValues(alpha: 0.6),
                                 fontSize: 13,
                                 height: 1.5),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                               borderSide: const BorderSide(
-                                  color: Color(0xFFD8D8D5)),
+                                  color: AppTheme.subtleGrayBoundary),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                               borderSide: const BorderSide(
-                                  color: Color(0xFFD8D8D5)),
+                                  color: AppTheme.subtleGrayBoundary),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                               borderSide:
-                                  const BorderSide(color: AppTheme.primaryColor),
+                                  const BorderSide(color: AppTheme.schoolBlue, width: 1.5),
                             ),
                             filled: true,
-                            fillColor: Colors.white,
+                            fillColor: AppTheme.cardBackground,
                             contentPadding: const EdgeInsets.all(12),
                           ),
                         ),
@@ -465,9 +467,9 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
             Container(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
               decoration: const BoxDecoration(
-                color: Colors.white,
+                color: AppTheme.cardBackground,
                 border: Border(
-                    top: BorderSide(color: Color(0xFFF0EFEC))),
+                    top: BorderSide(color: AppTheme.subtleGrayBoundary)),
               ),
               child: SizedBox(
                 width: double.infinity,
@@ -476,29 +478,29 @@ class _ReportDetailSheetState extends State<ReportDetailSheet> {
                   onPressed: _saving ? null : _save,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _saving
-                        ? Colors.grey.shade300
-                        : const Color(0xFF2D6A4F),
+                        ? AppTheme.subtleGrayBoundary
+                        : AppTheme.schoolOrange,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
                     elevation: 0,
                   ),
                   child: _saving
-                      ? Row(
+                      ? const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const SizedBox(
+                            SizedBox(
                               width: 18,
                               height: 18,
                               child: CircularProgressIndicator(
-                                  color: Colors.white, strokeWidth: 2),
+                                  color: AppTheme.schoolBlue, strokeWidth: 2),
                             ),
-                            const SizedBox(width: 10),
+                            SizedBox(width: 10),
                             Text(
                               'UPDATING AND NOTIFYING...',
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.grey.shade600,
+                                color: AppTheme.textMuted,
                                 letterSpacing: 0.5,
                               ),
                             ),
@@ -533,10 +535,10 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: TextStyle(
+      style: const TextStyle(
         fontSize: 10,
         fontWeight: FontWeight.w700,
-        color: Colors.grey.shade400,
+        color: AppTheme.textMuted,
         letterSpacing: 0.8,
       ),
     );
@@ -561,19 +563,19 @@ class _ActionDropdown<T> extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.cardBackground,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFD0D0CD)),
+        border: Border.all(color: AppTheme.subtleGrayBoundary),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<T>(
           value: value,
           isExpanded: true,
-          icon: const Icon(Icons.keyboard_arrow_down, size: 18),
+          icon: const Icon(Icons.keyboard_arrow_down, size: 18, color: AppTheme.schoolBlue),
           style: const TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w500,
-              color: Color(0xFF1A1A1A)),
+              color: AppTheme.textCore),
           selectedItemBuilder: (context) => items
               .map((item) => Align(
                     alignment: Alignment.centerLeft,
@@ -582,7 +584,7 @@ class _ActionDropdown<T> extends StatelessWidget {
                       style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF1A1A1A)),
+                          color: AppTheme.textCore),
                     ),
                   ))
               .toList(),
@@ -593,7 +595,7 @@ class _ActionDropdown<T> extends StatelessWidget {
                       item.toString(),
                       style: const TextStyle(
                           fontSize: 13,
-                          color: Color(0xFF1A1A1A),
+                          color: AppTheme.textCore,
                           fontWeight: FontWeight.normal),
                     ),
                   ))

@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../../modules/teachers/models/teacher.dart';
+import '../../../app_theme.dart';
 import '../models/report.dart';
 import '../services/report_service.dart';
 
@@ -46,22 +47,22 @@ class _TeacherReportScreenState extends State<TeacherReportScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F1EE),
+      backgroundColor: AppTheme.canvasBase,
       // ── Clean AppBar with only back arrow ──────────────────
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF2F1EE),
+        backgroundColor: AppTheme.canvasBase,
         elevation: 0,
         leading: GestureDetector(
           onTap: () => Navigator.of(context).pop(),
           child: Container(
             margin: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppTheme.cardBackground,
               shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFFE8E8E5)),
+              border: Border.all(color: AppTheme.subtleGrayBoundary),
             ),
             child: const Icon(Icons.arrow_back,
-                size: 18, color: Color(0xFF1A1A1A)),
+                size: 18, color: AppTheme.schoolDarkBlue),
           ),
         ),
       ),
@@ -75,12 +76,12 @@ class _TeacherReportScreenState extends State<TeacherReportScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'SCHOOL SAFETY & SUPPORT',
+                  'TADIKA AQIL MIQAIL',
                   style: TextStyle(
                     fontSize: 11,
-                    color: Colors.grey.shade500,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.2,
+                    color: AppTheme.schoolBlue.withValues(alpha: 0.8),
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.5,
                     decoration: TextDecoration.none,
                   ),
                 ),
@@ -90,7 +91,7 @@ class _TeacherReportScreenState extends State<TeacherReportScreen> {
                   style: TextStyle(
                     fontSize: 26,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF1A1A1A),
+                    color: AppTheme.schoolDarkBlue,
                     decoration: TextDecoration.none,
                   ),
                 ),
@@ -109,9 +110,9 @@ class _TeacherReportScreenState extends State<TeacherReportScreen> {
                 return Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AppTheme.cardBackground,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFFE8E8E5)),
+                    border: Border.all(color: AppTheme.subtleGrayBoundary),
                   ),
                   child: Row(
                     children: [
@@ -136,7 +137,6 @@ class _TeacherReportScreenState extends State<TeacherReportScreen> {
           // ── Content ───────────────────────────────────────
           Expanded(
             child: _showHistory
-                // Pass userId so _HistoryTab creates its own fresh stream
                 ? _HistoryTab(userId: widget.user.id)
                 : _FileReportTab(user: widget.user),
           ),
@@ -167,18 +167,18 @@ class _TabButton extends StatelessWidget {
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
-            color: selected ? Colors.white : Colors.transparent,
+            color: selected ? AppTheme.schoolBlue : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
             boxShadow: selected
                 ? [
                     BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.06),
+                        color: AppTheme.schoolBlue.withValues(alpha: 0.15),
                         blurRadius: 6,
                         offset: const Offset(0, 2))
                   ]
                 : [],
             border: selected
-                ? Border.all(color: const Color(0xFFE0E0DD))
+                ? Border.all(color: AppTheme.schoolBlue.withValues(alpha: 0.2))
                 : null,
           ),
           child: Center(
@@ -189,8 +189,8 @@ class _TabButton extends StatelessWidget {
                 fontWeight:
                     selected ? FontWeight.w700 : FontWeight.w500,
                 color: selected
-                    ? const Color(0xFF1A1A1A)
-                    : Colors.grey.shade500,
+                    ? Colors.white
+                    : AppTheme.textMuted,
                 decoration: TextDecoration.none,
               ),
             ),
@@ -266,26 +266,26 @@ class _FileReportTabState extends State<_FileReportTab> {
               Container(
                 width: 48,
                 height: 48,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
+                decoration: const BoxDecoration(
+                  color: AppTheme.schoolLightBlue,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(Icons.warning_amber_rounded,
-                    color: Colors.grey.shade400, size: 26),
+                child: const Icon(Icons.warning_amber_rounded,
+                    color: AppTheme.schoolBlue, size: 26),
               ),
               const SizedBox(height: 16),
               const Text('Submit Incident Report?',
                   style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF1A1A1A))),
+                      color: AppTheme.schoolDarkBlue)),
               const SizedBox(height: 10),
-              Text(
+              const Text(
                 'Are you sure you want to finalize and submit this incident report to the administration? This will notify school leadership immediately.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                     fontSize: 13,
-                    color: Colors.grey.shade600,
+                    color: AppTheme.textMuted,
                     height: 1.5),
               ),
               const SizedBox(height: 24),
@@ -298,17 +298,17 @@ class _FileReportTabState extends State<_FileReportTab> {
                         padding:
                             const EdgeInsets.symmetric(vertical: 14),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: AppTheme.cardBackground,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                              color: const Color(0xFFE0E0DD)),
+                              color: AppTheme.subtleGrayBoundary),
                         ),
                         child: const Center(
                           child: Text('Cancel',
                               style: TextStyle(
                                   fontWeight: FontWeight.w600,
                                   fontSize: 15,
-                                  color: Color(0xFF1A1A1A))),
+                                  color: AppTheme.textCore)),
                         ),
                       ),
                     ),
@@ -321,7 +321,7 @@ class _FileReportTabState extends State<_FileReportTab> {
                         padding:
                             const EdgeInsets.symmetric(vertical: 14),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF8FA888),
+                          color: AppTheme.schoolBlue,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Center(
@@ -394,9 +394,9 @@ class _FileReportTabState extends State<_FileReportTab> {
         children: [
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppTheme.cardBackground,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE8E8E5)),
+              border: Border.all(color: AppTheme.subtleGrayBoundary),
             ),
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -409,20 +409,20 @@ class _FileReportTabState extends State<_FileReportTab> {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 14, vertical: 2),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AppTheme.cardBackground,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                        color: const Color(0xFFD8D8D5)),
+                        color: AppTheme.subtleGrayBoundary),
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
                       value: _selectedCategory,
                       isExpanded: true,
                       icon: const Icon(
-                          Icons.keyboard_arrow_down, size: 20),
+                          Icons.keyboard_arrow_down, size: 20, color: AppTheme.schoolBlue),
                       style: const TextStyle(
                           fontSize: 14,
-                          color: Color(0xFF1A1A1A),
+                          color: AppTheme.textCore,
                           fontWeight: FontWeight.w500),
                       items: kReportCategories
                           .map((c) => DropdownMenuItem(
@@ -444,19 +444,20 @@ class _FileReportTabState extends State<_FileReportTab> {
                 const SizedBox(height: 8),
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AppTheme.cardBackground,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                        color: const Color(0xFFD8D8D5)),
+                        color: AppTheme.subtleGrayBoundary),
                   ),
                   child: TextField(
                     controller: _descCtrl,
                     maxLines: 5,
+                    style: const TextStyle(color: AppTheme.textCore),
                     decoration: InputDecoration(
                       hintText:
                           'Provide specific details of the incident, including dates, locations, and any direct impact...',
                       hintStyle: TextStyle(
-                          color: Colors.grey.shade400,
+                          color: AppTheme.textMuted.withValues(alpha: 0.6),
                           fontSize: 13,
                           height: 1.5),
                       border: InputBorder.none,
@@ -493,7 +494,7 @@ class _FileReportTabState extends State<_FileReportTab> {
                           child: Container(
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
-                                color: Colors.black54,
+                                color: Colors.black.withValues(alpha: 0.6),
                                 borderRadius:
                                     BorderRadius.circular(20)),
                             child: const Icon(Icons.close,
@@ -512,12 +513,12 @@ class _FileReportTabState extends State<_FileReportTab> {
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                            color: const Color(0xFFD8D8D5)),
+                            color: AppTheme.subtleGrayBoundary),
                       ),
-                      child: Center(
+                      child: const Center(
                         child: Text('Change Photo',
                             style: TextStyle(
-                                color: Colors.grey.shade600,
+                                color: AppTheme.schoolBlue,
                                 fontWeight: FontWeight.w600,
                                 fontSize: 13)),
                       ),
@@ -535,34 +536,31 @@ class _FileReportTabState extends State<_FileReportTab> {
                             padding: const EdgeInsets.symmetric(
                                 vertical: 22),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF8F8F6),
+                              color: AppTheme.ambientOffWhite,
                               borderRadius:
                                   BorderRadius.circular(12),
                               border: Border.all(
-                                  color:
-                                      const Color(0xFFE0E0DD)),
+                                  color: AppTheme.subtleGrayBoundary),
                             ),
                             child: Column(
                               children: [
-                                Icon(Icons.upload_file,
+                                const Icon(Icons.upload_file,
                                     size: 26,
-                                    color: Colors.grey.shade500),
+                                    color: AppTheme.schoolBlue),
                                 const SizedBox(height: 8),
-                                Text('From Gallery',
+                                const Text('From Gallery',
                                     style: TextStyle(
                                         fontWeight:
                                             FontWeight.bold,
                                         fontSize: 13,
-                                        color:
-                                            Colors.grey.shade700)),
+                                        color: AppTheme.textCore)),
                                 const SizedBox(height: 4),
                                 Text(
                                     'Drag-and-drop or\nselect',
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                         fontSize: 11,
-                                        color:
-                                            Colors.grey.shade400,
+                                        color: AppTheme.textMuted.withValues(alpha: 0.8),
                                         height: 1.4)),
                               ],
                             ),
@@ -582,21 +580,20 @@ class _FileReportTabState extends State<_FileReportTab> {
                                 vertical: 22),
                             decoration: BoxDecoration(
                               color: kIsWeb
-                                  ? Colors.grey.shade100
-                                  : const Color(0xFFF8F8F6),
+                                  ? AppTheme.canvasBase
+                                  : AppTheme.ambientOffWhite,
                               borderRadius:
                                   BorderRadius.circular(12),
                               border: Border.all(
-                                  color:
-                                      const Color(0xFFE0E0DD)),
+                                  color: AppTheme.subtleGrayBoundary),
                             ),
                             child: Column(
                               children: [
                                 Icon(Icons.camera_alt_outlined,
                                     size: 26,
                                     color: kIsWeb
-                                        ? Colors.grey.shade300
-                                        : Colors.grey.shade400),
+                                        ? AppTheme.textMuted.withValues(alpha: 0.3)
+                                        : AppTheme.schoolBlue.withValues(alpha: 0.8)),
                                 const SizedBox(height: 8),
                                 Text('Take Photo',
                                     style: TextStyle(
@@ -604,9 +601,8 @@ class _FileReportTabState extends State<_FileReportTab> {
                                             FontWeight.bold,
                                         fontSize: 13,
                                         color: kIsWeb
-                                            ? Colors.grey.shade300
-                                            : Colors
-                                                .grey.shade500)),
+                                            ? AppTheme.textMuted.withValues(alpha: 0.4)
+                                            : AppTheme.textCore)),
                                 const SizedBox(height: 4),
                                 Text(
                                     kIsWeb
@@ -615,8 +611,7 @@ class _FileReportTabState extends State<_FileReportTab> {
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                         fontSize: 11,
-                                        color:
-                                            Colors.grey.shade400,
+                                        color: AppTheme.textMuted.withValues(alpha: 0.8),
                                         height: 1.4)),
                               ],
                             ),
@@ -638,9 +633,16 @@ class _FileReportTabState extends State<_FileReportTab> {
               padding: const EdgeInsets.symmetric(vertical: 16),
               decoration: BoxDecoration(
                 color: _isSubmitting
-                    ? Colors.grey.shade300
-                    : const Color(0xFFDDE5D8),
+                    ? AppTheme.subtleGrayBoundary
+                    : AppTheme.schoolOrange,
                 borderRadius: BorderRadius.circular(14),
+                boxShadow: _isSubmitting ? [] : [
+                  BoxShadow(
+                    color: AppTheme.schoolOrange.withValues(alpha: 0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  )
+                ]
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -651,11 +653,11 @@ class _FileReportTabState extends State<_FileReportTab> {
                       height: 18,
                       child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Colors.white),
+                          color: AppTheme.schoolBlue),
                     )
                   else
-                    Icon(Icons.description_outlined,
-                        size: 18, color: Colors.grey.shade600),
+                    const Icon(Icons.description_outlined,
+                        size: 18, color: Colors.white),
                   const SizedBox(width: 10),
                   Text(
                     _isSubmitting
@@ -666,8 +668,8 @@ class _FileReportTabState extends State<_FileReportTab> {
                       fontWeight: FontWeight.bold,
                       letterSpacing: 0.8,
                       color: _isSubmitting
-                          ? Colors.grey.shade500
-                          : Colors.grey.shade700,
+                          ? AppTheme.textMuted
+                          : Colors.white,
                     ),
                   ),
                 ],
@@ -682,6 +684,7 @@ class _FileReportTabState extends State<_FileReportTab> {
 }
 
 // ── Report History Tab ────────────────────────────────────────────────────────
+
 class _HistoryTab extends StatefulWidget {
   final String userId;
   const _HistoryTab({required this.userId});
@@ -696,7 +699,6 @@ class _HistoryTabState extends State<_HistoryTab> {
   @override
   void initState() {
     super.initState();
-    // Own independent subscription → Firestore emits current data immediately
     _stream = ReportService().getMyReports(widget.userId);
   }
 
@@ -705,13 +707,11 @@ class _HistoryTabState extends State<_HistoryTab> {
     return StreamBuilder<List<FacilityReport>>(
       stream: _stream,
       builder: (context, snapshot) {
-        // Show loading only on first load
         if (snapshot.connectionState == ConnectionState.waiting &&
             !snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        // Show error if any
         if (snapshot.hasError) {
           return Center(
             child: Padding(
@@ -725,8 +725,8 @@ class _HistoryTabState extends State<_HistoryTab> {
                   Text(
                     'Failed to load reports.\n${snapshot.error}',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                        color: Colors.grey.shade600, fontSize: 13),
+                    style: const TextStyle(
+                        color: AppTheme.textMuted, fontSize: 13),
                   ),
                 ],
               ),
@@ -737,22 +737,22 @@ class _HistoryTabState extends State<_HistoryTab> {
         final reports = snapshot.data ?? [];
 
         if (reports.isEmpty) {
-          return Center(
+          return const Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.description_outlined,
-                    size: 48, color: Colors.grey.shade300),
+                    size: 48, color: AppTheme.subtleGrayBoundary),
                 const SizedBox(height: 12),
                 Text('No reports submitted yet.',
                     style: TextStyle(
-                        color: Colors.grey.shade500,
+                        color: AppTheme.textCore,
                         fontSize: 15,
                         fontWeight: FontWeight.w500)),
                 const SizedBox(height: 6),
                 Text('Your submitted reports will appear here.',
                     style: TextStyle(
-                        color: Colors.grey.shade400,
+                        color: AppTheme.textMuted,
                         fontSize: 13)),
               ],
             ),
@@ -779,10 +779,10 @@ class _HistoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final statusInfo = _statusInfo(report.status);
     final priorityColor = report.priority == 'High'
-        ? Colors.red
+        ? const Color(0xFFD32F2F)
         : report.priority == 'Medium'
-            ? Colors.orange
-            : Colors.green;
+            ? AppTheme.schoolOrange
+            : AppTheme.schoolBlue;
 
     return GestureDetector(
       onTap: () => _showDetail(context),
@@ -790,9 +790,9 @@ class _HistoryCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppTheme.cardBackground,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE8E8E5)),
+          border: Border.all(color: AppTheme.subtleGrayBoundary),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -808,14 +808,14 @@ class _HistoryCard extends StatelessWidget {
                           style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 15,
-                              color: Color(0xFF1A1A1A))),
+                              color: AppTheme.schoolDarkBlue)),
                       const SizedBox(height: 4),
                       Text(
                         'SUBMITTED: ${DateFormat('MMM d, yyyy, h:mm a').format(report.createdAt).toUpperCase()}',
-                        style: TextStyle(
+                        style: const TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
-                            color: Colors.grey.shade500,
+                            color: AppTheme.textMuted,
                             letterSpacing: 0.3),
                       ),
                     ],
@@ -832,8 +832,7 @@ class _HistoryCard extends StatelessWidget {
                         color: statusInfo.color.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                            color:
-                                statusInfo.color.withValues(alpha: 0.3)),
+                            color: statusInfo.color.withValues(alpha: 0.3)),
                       ),
                       child: Text(
                         statusInfo.label.toUpperCase(),
@@ -859,7 +858,7 @@ class _HistoryCard extends StatelessWidget {
                         style: TextStyle(
                             fontSize: 9,
                             fontWeight: FontWeight.bold,
-                            color: priorityColor.withValues(alpha: 0.7),
+                            color: priorityColor.withValues(alpha: 0.9),
                             letterSpacing: 0.5),
                       ),
                     ),
@@ -871,21 +870,21 @@ class _HistoryCard extends StatelessWidget {
             Text(report.description,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
+                style: const TextStyle(
                     fontSize: 13,
-                    color: Colors.grey.shade600,
+                    color: AppTheme.textCore,
                     height: 1.4)),
             if (report.photoUrl.isNotEmpty) ...[
               const SizedBox(height: 8),
-              Row(
+              const Row(
                 children: [
                   Icon(Icons.image_outlined,
-                      size: 13, color: Colors.blue.shade400),
+                      size: 13, color: AppTheme.schoolBlue),
                   const SizedBox(width: 4),
                   Text('Photo attached',
                       style: TextStyle(
                           fontSize: 11,
-                          color: Colors.blue.shade400,
+                          color: AppTheme.schoolBlue,
                           fontWeight: FontWeight.w500)),
                 ],
               ),
@@ -896,21 +895,21 @@ class _HistoryCard extends StatelessWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
+                  color: AppTheme.schoolLightBlue.withValues(alpha: 0.4),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.message_outlined,
-                        size: 12, color: Colors.blue.shade700),
+                    const Icon(Icons.message_outlined,
+                        size: 12, color: AppTheme.schoolDarkBlue),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         'Management: ${report.managementNotes}',
-                        style: TextStyle(
+                        style: const TextStyle(
                             fontSize: 12,
-                            color: Colors.blue.shade700,
+                            color: AppTheme.schoolDarkBlue,
                             height: 1.4),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -947,7 +946,7 @@ class _HistoryCard extends StatelessWidget {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
+                      color: AppTheme.subtleGrayBoundary,
                       borderRadius: BorderRadius.circular(2))),
             ),
             Expanded(
@@ -963,19 +962,17 @@ class _HistoryCard extends StatelessWidget {
                             style: const TextStyle(
                                 fontSize: 17,
                                 fontWeight: FontWeight.bold,
-                                color: Color(0xFF1A1A1A))),
+                                color: AppTheme.schoolDarkBlue)),
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
-                            color: statusInfo.color
-                                .withValues(alpha: 0.1),
+                            color: statusInfo.color.withValues(alpha: 0.1),
                             borderRadius:
                                 BorderRadius.circular(20),
                             border: Border.all(
-                                color: statusInfo.color
-                                    .withValues(alpha: 0.3))),
+                                color: statusInfo.color.withValues(alpha: 0.3))),
                         child: Text(
                             statusInfo.label.toUpperCase(),
                             style: TextStyle(
@@ -990,13 +987,14 @@ class _HistoryCard extends StatelessWidget {
                   Text(
                     DateFormat('d MMMM yyyy, h:mm a')
                         .format(report.createdAt),
-                    style: TextStyle(
-                        color: Colors.grey.shade500,
+                    style: const TextStyle(
+                        color: AppTheme.textMuted,
                         fontSize: 13),
                   ),
-                  const Divider(height: 28),
+                  const Divider(height: 28, color: AppTheme.subtleGrayBoundary),
                   Text(report.description,
                       style: const TextStyle(
+                          color: AppTheme.textCore,
                           fontSize: 14, height: 1.5)),
                   if (report.photoUrl.isNotEmpty) ...[
                     const SizedBox(height: 16),
@@ -1009,10 +1007,10 @@ class _HistoryCard extends StatelessWidget {
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => Container(
                           height: 120,
-                          color: Colors.grey.shade100,
-                          child: Center(
+                          color: AppTheme.canvasBase,
+                          child: const Center(
                             child: Icon(Icons.broken_image_outlined,
-                                color: Colors.grey.shade400,
+                                color: AppTheme.textMuted,
                                 size: 36),
                           ),
                         ),
@@ -1024,22 +1022,22 @@ class _HistoryCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
+                          color: AppTheme.schoolLightBlue.withValues(alpha: 0.4),
                           borderRadius:
                               BorderRadius.circular(12)),
                       child: Column(
                         crossAxisAlignment:
                             CrossAxisAlignment.start,
                         children: [
-                          Text('Management Response',
+                          const Text('Management Response',
                               style: TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.blue.shade800,
+                                  color: AppTheme.schoolDarkBlue,
                                   fontSize: 13)),
                           const SizedBox(height: 6),
                           Text(report.managementNotes,
-                              style: TextStyle(
-                                  color: Colors.blue.shade700,
+                              style: const TextStyle(
+                                  color: AppTheme.schoolDarkBlue,
                                   fontSize: 14,
                                   height: 1.5)),
                         ],
@@ -1058,13 +1056,13 @@ class _HistoryCard extends StatelessWidget {
   _StatusMeta _statusInfo(String status) {
     switch (status) {
       case 'Under Review':
-        return _StatusMeta('Under Review', Colors.orange);
+        return _StatusMeta('Under Review', AppTheme.schoolOrange);
       case 'Action Taken':
-        return _StatusMeta('Action Taken', Colors.blue);
+        return _StatusMeta('Action Taken', AppTheme.schoolOrange);
       case 'Resolved':
-        return _StatusMeta('Resolved', Colors.green);
+        return _StatusMeta('Resolved', const Color(0xFF2E7D32));
       default:
-        return _StatusMeta('Submitted', Colors.grey);
+        return _StatusMeta('Submitted', AppTheme.schoolBlue);
     }
   }
 }
@@ -1085,10 +1083,10 @@ class _FieldLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: TextStyle(
+      style: const TextStyle(
         fontSize: 10,
         fontWeight: FontWeight.w700,
-        color: Colors.grey.shade500,
+        color: AppTheme.textMuted,
         letterSpacing: 0.9,
         decoration: TextDecoration.none,
       ),
