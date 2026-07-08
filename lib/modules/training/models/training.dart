@@ -7,6 +7,7 @@ class TrainingPost {
   final String authorRole;
   final String content;
   final String photoUrl;
+  final List<Map<String, String>> attachments;
   final List<String> likes;
   final int commentsCount;
   final DateTime createdAt;
@@ -26,6 +27,7 @@ class TrainingPost {
     required this.authorRole,
     required this.content,
     required this.photoUrl,
+    this.attachments = const [],
     required this.likes,
     required this.commentsCount,
     required this.createdAt,
@@ -54,6 +56,7 @@ class TrainingPost {
       authorRole: _stringValue(data['authorRole'], fallback: 'teacher'),
       content: _stringValue(data['content']),
       photoUrl: _stringValue(data['photoUrl']),
+      attachments: _parseAttachments(data['attachments']),
       likes: _stringListValue(data['likes']),
       commentsCount: data['commentsCount']?.toInt() ?? 0,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -78,6 +81,7 @@ class TrainingPost {
       'authorRole': authorRole,
       'content': content,
       'photoUrl': photoUrl,
+      'attachments': attachments,
       'likes': likes,
       'commentsCount': commentsCount,
       'createdAt': Timestamp.fromDate(createdAt),
@@ -203,4 +207,32 @@ bool _boolValue(Object? value) {
   if (value is num) return value != 0;
   if (value is String) return value.toLowerCase() == 'true';
   return false;
+}
+
+List<Map<String, String>> _parseAttachments(dynamic data) {
+  if (data is List) {
+    return data.map((item) {
+      if (item is Map) {
+        return {
+          'url': _stringValue(item['url']),
+          'name': _stringValue(item['name']),
+          'type': _stringValue(item['type']),
+        };
+      }
+      return <String, String>{};
+    }).where((map) => map.isNotEmpty).toList();
+  }
+  return const [];
+}
+
+class LocalAttachment {
+  final String path;
+  final String name;
+  final bool isImage;
+  
+  LocalAttachment({
+    required this.path, 
+    required this.name, 
+    required this.isImage,
+  });
 }
