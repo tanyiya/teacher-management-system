@@ -65,6 +65,15 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     }
   }
 
+  String _initials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+    return (parts.first.substring(0, 1) + parts.last.substring(0, 1)).toUpperCase();
+  }
+
+  static const List<String> _tabLabels = ['Home', 'Training', 'Performance', 'Alerts', 'Profile'];
+
   @override
   Widget build(BuildContext context) {
     final appState = Provider.of<AppStateProvider>(context);
@@ -75,16 +84,82 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F3),
+      backgroundColor: AppTheme.canvasBase,
       appBar: AppBar(
-        title: Text('Welcome, ${user.fullName}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        backgroundColor: Colors.white,
-        elevation: 0.5,
+        titleSpacing: 16,
+        title: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [AppTheme.schoolBlue, AppTheme.schoolDarkBlue],
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: Text(
+                _initials(user.fullName),
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    user.fullName,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppTheme.schoolDarkBlue,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 15,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                  Text(
+                    _tabLabels[_currentIndex],
+                    style: const TextStyle(
+                      color: AppTheme.textMuted,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: AppTheme.cardBackground,
+        elevation: 0,
+        centerTitle: false,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: AppTheme.schoolDarkBlue.withValues(alpha: 0.08),
+        shape: const Border(
+          bottom: BorderSide(color: AppTheme.subtleGrayBoundary, width: 1),
+        ),
         actions: [
-          IconButton(
-            icon: const Icon(LucideIcons.logOut),
-            onPressed: () => Navigator.of(context).canPop() ? context.go('/logout') : context.go('/logout'),
-          )
+          Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: IconButton(
+              icon: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.schoolOrange.withValues(alpha: 0.10),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(LucideIcons.logOut, color: AppTheme.schoolOrange, size: 18),
+              ),
+              tooltip: 'Log Out',
+              onPressed: () => context.go('/logout'),
+            ),
+          ),
+          const SizedBox(width: 4),
         ],
       ),
       body: IndexedStack(
@@ -102,46 +177,99 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
+          color: AppTheme.cardBackground,
           boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: 0.05), offset: const Offset(0, -4), blurRadius: 12)
-          ]
-        ),
-        child: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: (i) => setState(() => _currentIndex = i),
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: Colors.white,
-          selectedItemColor: AppTheme.primaryColor,
-          unselectedItemColor: AppTheme.textLightColor,
-          showSelectedLabels: true,
-          showUnselectedLabels: true,
-          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
-          unselectedLabelStyle: const TextStyle(fontSize: 12),
-          items: [
-            const BottomNavigationBarItem(icon: Icon(LucideIcons.home), label: 'Home'),
-            const BottomNavigationBarItem(icon: Icon(LucideIcons.bookOpen), label: 'Training'),
-            const BottomNavigationBarItem(icon: Icon(LucideIcons.barChart), label: 'Performance'),
-            BottomNavigationBarItem(
-              icon: StreamBuilder<List<AlertNotification>>(
-                stream: _notificationService.getNotifications(user.id),
-                builder: (context, snapshot) {
-                  int unreadCount = 0;
-                  if (snapshot.hasData) {
-                    unreadCount = snapshot.data!.where((n) => !n.isRead).length;
-                  }
-                  return Badge(
-                    isLabelVisible: unreadCount > 0,
-                    label: Text(unreadCount.toString()),
-                    child: const Icon(LucideIcons.bell),
-                  );
-                },
-              ),
-              label: 'Alerts',
+            BoxShadow(
+              color: AppTheme.schoolDarkBlue.withValues(alpha: 0.06),
+              blurRadius: 12,
+              offset: const Offset(0, -3),
             ),
-            const BottomNavigationBarItem(icon: Icon(LucideIcons.user), label: 'Profile'),
           ],
+          border: const Border(
+            top: BorderSide(color: AppTheme.subtleGrayBoundary, width: 1),
+          ),
+        ),
+        child: SafeArea(
+          top: false,
+          child: BottomNavigationBar(
+            currentIndex: _currentIndex,
+            onTap: (i) => setState(() => _currentIndex = i),
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: AppTheme.cardBackground,
+            selectedItemColor: AppTheme.schoolBlue,
+            unselectedItemColor: AppTheme.textMuted,
+            elevation: 0,
+            showSelectedLabels: true,
+            showUnselectedLabels: true,
+            selectedLabelStyle: const TextStyle(
+              fontWeight: FontWeight.w700, 
+              fontSize: 11,
+              color: AppTheme.schoolBlue,
+            ),
+            unselectedLabelStyle: const TextStyle(
+              fontWeight: FontWeight.w500,
+              fontSize: 11,
+              color: AppTheme.textMuted,
+            ),
+            items: [
+              _navItem(LucideIcons.home, 'Home', 0),
+              _navItem(LucideIcons.bookOpen, 'Training', 1),
+              _navItem(LucideIcons.barChart, 'Performance', 2),
+              BottomNavigationBarItem(
+                icon: Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: StreamBuilder<List<AlertNotification>>(
+                    stream: _notificationService.getNotifications(user.id),
+                    builder: (context, snapshot) {
+                      int unreadCount = 0;
+                      if (snapshot.hasData) {
+                        unreadCount = snapshot.data!.where((n) => !n.isRead).length;
+                      }
+                      final bool selected = _currentIndex == 3;
+                      return Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: selected ? AppTheme.schoolBlue.withValues(alpha: 0.10) : Colors.transparent,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Badge(
+                          backgroundColor: AppTheme.schoolOrange,
+                          isLabelVisible: unreadCount > 0,
+                          label: Text(
+                            unreadCount.toString(),
+                            style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                          ),
+                          child: const Icon(LucideIcons.bell, size: 20),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                label: 'Alerts',
+              ),
+              _navItem(LucideIcons.user, 'Profile', 4),
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  BottomNavigationBarItem _navItem(IconData icon, String label, int index) {
+    final bool selected = _currentIndex == index;
+    return BottomNavigationBarItem(
+      icon: Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: selected ? AppTheme.schoolBlue.withValues(alpha: 0.10) : Colors.transparent,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, size: 20),
+        ),
+      ),
+      label: label,
     );
   }
 }
