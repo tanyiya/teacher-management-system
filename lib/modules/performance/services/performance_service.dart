@@ -133,6 +133,16 @@ class PerformanceService {
 
     await triggerNotifications(log);
     await triggerWarnings(log);
+
+    // Keep the persisted yearly KPI record in sync with the latest logs so
+    // "Final Score" / rating reflects every merit or deduction immediately,
+    // instead of only updating when the principal manually runs the batch
+    // "Calculate KPI for <year>" action.
+    await _recalculateAndPersistYearlyKpi(
+      log.teacherId,
+      log.principalId,
+      log.timestamp.year,
+    );
   }
 
   Future<void> addWarningRecord(WarningRecord warning) async {
@@ -336,13 +346,23 @@ class PerformanceService {
         .get();
 
     for (final teacherDoc in teachers.docs) {
-      final teacherId = teacherDoc.id;
-      final kpi = await calculateYearlyKPI(teacherId, year, principalId);
-      await _db.collection('yearly_kpis').doc(kpi.id).set(kpi.toMap());
-      await _db.collection('teachers').doc(teacherId).update({
-        'yearlyKpi': kpi.finalScore.round(),
-      });
+      await _recalculateAndPersistYearlyKpi(teacherDoc.id, principalId, year);
     }
+  }
+
+  /// Recomputes a single teacher's yearly KPI from their current logs and
+  /// writes it to `yearly_kpis`, keeping `teachers/{id}.yearlyKpi` in sync.
+  /// This is the single place that persists a KPI recalculation — called
+  /// both after every individual performance log (addPerformanceLog) and
+  /// by the principal's manual "Calculate KPI for <year>" batch action
+  /// (runAllKPIForYear), so the two paths can never drift apart.
+  Future<void> _recalculateAndPersistYearlyKpi(
+      String teacherId, String principalId, int year) async {
+    final kpi = await calculateYearlyKPI(teacherId, year, principalId);
+    await _db.collection('yearly_kpis').doc(kpi.id).set(kpi.toMap());
+    await _db.collection('teachers').doc(teacherId).update({
+      'yearlyKpi': kpi.finalScore.round(),
+    });
   }
 
   Future<void> runFullKPIComputation(int year, String principalId) {

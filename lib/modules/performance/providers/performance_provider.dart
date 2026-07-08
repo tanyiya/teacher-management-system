@@ -34,7 +34,7 @@ class PerformanceProvider extends ChangeNotifier {
   String? _error;
 
   int _monthFilter = 0;
-  String _severityFilter = 'All';
+  String _impactFilter = 'All';
   String _categoryFilter = 'All';
 
   // ─── Getters ────────────────────────────────────────────────────────────────
@@ -66,14 +66,17 @@ class PerformanceProvider extends ChangeNotifier {
   List<PerformanceLog> get filteredPerformanceLogs {
     return _performanceLogs.where((log) {
       if (_monthFilter > 0 && log.timestamp.month != _monthFilter) return false;
-      if (_severityFilter != 'All' && log.severity != _severityFilter) return false;
+      if (_impactFilter != 'All') {
+        final isMerit = log.amount > 0;
+        final matchesFilter = _impactFilter == 'Merit' ? isMerit : !isMerit;
+        if (!matchesFilter) return false;
+      }
       if (_categoryFilter != 'All' && log.category != _categoryFilter) return false;
       return true;
     }).toList();
   }
 
-  List<String> get severityOptions =>
-      const ['All', 'Minor', 'Normal', 'Major', 'Critical'];
+  List<String> get meritDeductionOptions => const ['All', 'Merit', 'Deduction'];
 
   List<String> get categoryOptions {
     final categories = _performanceLogs.map((l) => l.category).toSet().toList()
@@ -87,7 +90,7 @@ class PerformanceProvider extends ChangeNotifier {
       ];
 
   int get selectedMonthFilter => _monthFilter;
-  String get selectedSeverityFilter => _severityFilter;
+  String get selectedImpactFilter => _impactFilter;
   String get selectedCategoryFilter => _categoryFilter;
 
   int get totalTeachers => _teachers.length;
@@ -383,16 +386,16 @@ class PerformanceProvider extends ChangeNotifier {
 
   // ─── Filters ─────────────────────────────────────────────────────────────────
 
-  void updateFilters({int? month, String? severity, String? category}) {
+  void updateFilters({int? month, String? impactType, String? category}) {
     if (month != null) _monthFilter = month;
-    if (severity != null) _severityFilter = severity;
+    if (impactType != null) _impactFilter = impactType;
     if (category != null) _categoryFilter = category;
     notifyListeners();
   }
 
   void clearFilters() {
     _monthFilter = 0;
-    _severityFilter = 'All';
+    _impactFilter = 'All';
     _categoryFilter = 'All';
     notifyListeners();
   }

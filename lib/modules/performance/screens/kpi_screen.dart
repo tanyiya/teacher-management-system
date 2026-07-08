@@ -725,43 +725,36 @@ class _KpiScreenState extends State<KpiScreen> {
         children: [
           const Text('Audit Logs',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 28),
+          // Stacked full-width rather than side by side — a fixed-width
+          // Wrap left dead space when a filter wrapped to its own line.
+          // Column never clips (same as Wrap), so this carries no risk of
+          // the floating-label clipping that the horizontal scroll caused.
+          _filterDropdown<int>(
+            label: 'Month',
+            value: provider.selectedMonthFilter,
+            items: provider.monthNames.asMap().entries.map((e) {
+              return DropdownMenuItem(value: e.key, child: Text(e.value));
+            }).toList(),
+            onChanged: (v) => provider.updateFilters(month: v),
+          ),
           const SizedBox(height: 12),
-          // Filters in a horizontal scroll to avoid overflow on narrow screens
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _filterDropdown<int>(
-                  label: 'Month',
-                  value: provider.selectedMonthFilter,
-                  items: provider.monthNames.asMap().entries.map((e) {
-                    return DropdownMenuItem(
-                        value: e.key, child: Text(e.value));
-                  }).toList(),
-                  onChanged: (v) => provider.updateFilters(month: v),
-                ),
-                const SizedBox(width: 12),
-                _filterDropdown<String>(
-                  label: 'Severity',
-                  value: provider.selectedSeverityFilter,
-                  items: provider.severityOptions
-                      .map((s) =>
-                          DropdownMenuItem(value: s, child: Text(s)))
-                      .toList(),
-                  onChanged: (v) => provider.updateFilters(severity: v),
-                ),
-                const SizedBox(width: 12),
-                _filterDropdown<String>(
-                  label: 'Category',
-                  value: provider.selectedCategoryFilter,
-                  items: provider.categoryOptions
-                      .map((c) =>
-                          DropdownMenuItem(value: c, child: Text(c)))
-                      .toList(),
-                  onChanged: (v) => provider.updateFilters(category: v),
-                ),
-              ],
-            ),
+          _filterDropdown<String>(
+            label: 'Merit / Deduction',
+            value: provider.selectedImpactFilter,
+            items: provider.meritDeductionOptions
+                .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                .toList(),
+            onChanged: (v) => provider.updateFilters(impactType: v),
+          ),
+          const SizedBox(height: 12),
+          _filterDropdown<String>(
+            label: 'Category',
+            value: provider.selectedCategoryFilter,
+            items: provider.categoryOptions
+                .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                .toList(),
+            onChanged: (v) => provider.updateFilters(category: v),
           ),
           const SizedBox(height: 12),
           _buildLogList(provider.filteredPerformanceLogs, limit: 12),
@@ -776,21 +769,15 @@ class _KpiScreenState extends State<KpiScreen> {
     required List<DropdownMenuItem<T>> items,
     required ValueChanged<T?> onChanged,
   }) {
-    return SizedBox(
-      width: 160,
-      child: DropdownButtonFormField<T>(
-        initialValue: value,
-        isExpanded: true,
-        decoration: InputDecoration(
-          labelText: label,
-          border: const OutlineInputBorder(),
-          isDense: true,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        ),
-        items: items,
-        onChanged: onChanged,
+    return DropdownButtonFormField<T>(
+      initialValue: value,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
       ),
+      items: items,
+      onChanged: onChanged,
     );
   }
 
