@@ -106,8 +106,6 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
         const SizedBox(height: 24),
         _buildTeacherMonthlySummary(provider),
         const SizedBox(height: 24),
-        _buildNotificationsCard(provider),
-        const SizedBox(height: 24),
         _buildWarningsCard(provider),
       ],
     );
@@ -235,44 +233,6 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
     );
   }
 
-  Widget _buildNotificationsCard(PerformanceProvider provider) {
-    final notifications = provider.notifications.take(5).toList();
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Notifications',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            if (notifications.isEmpty)
-              const Text('No notifications yet.',
-                  style: TextStyle(color: Colors.grey))
-            else
-              Column(
-                children: notifications
-                    .map((n) => ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(LucideIcons.bell,
-                              color: AppTheme.primaryColor),
-                          title: Text(n.title,
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w600)),
-                          subtitle: Text(
-                            '${n.timestamp.month}/${n.timestamp.day}/${n.timestamp.year}',
-                            style: const TextStyle(color: Colors.grey),
-                          ),
-                        ))
-                    .toList(),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildWarningsCard(PerformanceProvider provider) {
     final warnings = provider.warnings.take(5).toList();
     return Card(
@@ -291,19 +251,46 @@ class _PerformanceScreenState extends State<PerformanceScreen> {
             else
               Column(
                 children: warnings
-                    .map((w) => ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(LucideIcons.alertTriangle,
-                              color: Colors.orange),
-                          title: Text(w.warningType,
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w600),
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1),
-                          subtitle: Text(
-                            '${w.createdAt.month}/${w.createdAt.day}/${w.createdAt.year}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                    .map((w) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(LucideIcons.alertTriangle,
+                                  color: Colors.orange, size: 20),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Text(w.warningType,
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.w600)),
+                                        const Spacer(),
+                                        Text(
+                                          '${w.createdAt.month}/${w.createdAt.day}/${w.createdAt.year}',
+                                          style: const TextStyle(
+                                              color: Colors.grey, fontSize: 12),
+                                        ),
+                                      ],
+                                    ),
+                                    if (w.reason.isNotEmpty) ...[
+                                      const SizedBox(height: 4),
+                                      Text(w.reason,
+                                          style: const TextStyle(fontSize: 13)),
+                                    ],
+                                    if (w.notes.isNotEmpty) ...[
+                                      const SizedBox(height: 2),
+                                      Text(w.notes,
+                                          style: const TextStyle(
+                                              color: Colors.grey, fontSize: 12)),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ))
                     .toList(),
