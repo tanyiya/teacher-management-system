@@ -150,7 +150,7 @@ class ReportService {
           'message':
               '$teacherName submitted a new $category. Tap to review.',
           'type': 'incident_report',
-          'isRead': false,
+          'read': false,
           'relatedId': reportId,
           'timestamp': Timestamp.fromDate(DateTime.now()),
         });
@@ -183,9 +183,9 @@ class ReportService {
         'title': 'Report Status Updated',
         'message':
             'Your $category $statusLabel.${notes.isNotEmpty ? ' Note: $notes' : ''}',
-        'type': 'change_approved',
-        'isRead': false,
-        'reportId': reportId,
+        'type': 'report_status_updated',
+        'read': false,
+        'relatedId': reportId,
         'timestamp': Timestamp.fromDate(DateTime.now()),
       });
     } catch (e) {

@@ -26,14 +26,18 @@ const List<String> kReportCategories = [
 
 class TeacherReportScreen extends StatefulWidget {
   final TeacherRecord user;
-  const TeacherReportScreen({Key? key, required this.user}) : super(key: key);
+  // When true, the screen opens directly on the Report History tab instead
+  // of the default "File a Report" tab. Used when a notification about an
+  // updated report status is tapped.
+  final bool showHistory;
+  const TeacherReportScreen({Key? key, required this.user, this.showHistory = false}) : super(key: key);
 
   @override
   State<TeacherReportScreen> createState() => _TeacherReportScreenState();
 }
 
 class _TeacherReportScreenState extends State<TeacherReportScreen> {
-  bool _showHistory = false;
+  late bool _showHistory = widget.showHistory;
 
   // Used ONLY for the tab badge count. _HistoryTab owns its own separate stream.
   late final Stream<List<FacilityReport>> _countStream;

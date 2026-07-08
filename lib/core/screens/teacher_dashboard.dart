@@ -15,6 +15,7 @@ import '../../modules/teachers/screens/profile_screen.dart';
 import '../../modules/leave/screens/leave_screen.dart';
 import '../../modules/duty/screens/duty_schedule_screen.dart';
 import '../../modules/teachers/models/teacher.dart';
+import '../../modules/report/screens/teacher_report_screen.dart';
 
 class TeacherDashboard extends StatefulWidget {
   const TeacherDashboard({Key? key}) : super(key: key);
@@ -53,6 +54,10 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
       case 'leave':
         Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => LeaveScreen(teacher: user)));
+        break;
+      case 'report_status_updated':
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => TeacherReportScreen(user: user, showHistory: true)));
         break;
       case 'duty':
       case 'swap_request':
