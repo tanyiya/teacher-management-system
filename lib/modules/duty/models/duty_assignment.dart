@@ -7,6 +7,16 @@ enum DutyAssignmentStatus {
   cancelled,
 }
 
+/// Represents ONE venue's worth of a duty on a given date.
+///
+/// A duty with multiple venues (e.g. Arrival Duty at Main Door, Stairs,
+/// Hall 1st Floor, Hall 2nd Floor) generates one `DutyAssignment` per venue,
+/// each with its own dedicated `teacherIds`. This is a deliberate change
+/// from an earlier version that stored `locationIds`/`teacherIds` as two
+/// unpaired parallel lists on a single doc -- that made it impossible to
+/// tell which teacher was actually in charge of which venue. One doc per
+/// venue keeps that mapping explicit and lets the UI render one card per
+/// venue for free.
 class DutyAssignment {
   final String id;
   final String dutyId;
@@ -21,8 +31,12 @@ class DutyAssignment {
   final String timeStart;
   final String timeEnd;
 
-  final List<String> locationIds;
-  final List<String> locationNameSnapshots;
+  final String locationId;
+  final String locationNameSnapshot;
+
+  /// Teacher(s) in charge of this specific venue for this duty. Plural
+  /// because a venue can require more than one teacher (e.g. Cleaning Duty
+  /// - Dining Area needs 2), but always scoped to just this one venue.
   final List<String> teacherIds;
   final List<String> teacherNameSnapshots;
   final DutyAssignmentStatus status;
@@ -34,8 +48,8 @@ class DutyAssignment {
     required this.date,
     required this.timeStart,
     required this.timeEnd,
-    required this.locationIds,
-    required this.locationNameSnapshots,
+    required this.locationId,
+    required this.locationNameSnapshot,
     required this.teacherIds,
     required this.teacherNameSnapshots,
     this.status = DutyAssignmentStatus.assigned,
@@ -49,8 +63,8 @@ class DutyAssignment {
       date: (data['date'] as Timestamp).toDate(),
       timeStart: data['timeStart']?.toString() ?? '00:00',
       timeEnd: data['timeEnd']?.toString() ?? '00:00',
-      locationIds: List<String>.from(data['locationIds'] ?? []),
-      locationNameSnapshots: List<String>.from(data['locationNameSnapshots'] ?? []),
+      locationId: data['locationId']?.toString() ?? '',
+      locationNameSnapshot: data['locationNameSnapshot']?.toString() ?? '',
       teacherIds: List<String>.from(data['teacherIds'] ?? []),
       teacherNameSnapshots: List<String>.from(data['teacherNameSnapshots'] ?? []),
       status: DutyAssignmentStatus.values.firstWhere(
@@ -67,8 +81,8 @@ class DutyAssignment {
       'date': Timestamp.fromDate(date),
       'timeStart': timeStart,
       'timeEnd': timeEnd,
-      'locationIds': locationIds,
-      'locationNameSnapshots': locationNameSnapshots,
+      'locationId': locationId,
+      'locationNameSnapshot': locationNameSnapshot,
       'teacherIds': teacherIds,
       'teacherNameSnapshots': teacherNameSnapshots,
       'status': status.name,
@@ -89,8 +103,8 @@ class DutyAssignment {
       date: date,
       timeStart: timeStart ?? this.timeStart,
       timeEnd: timeEnd ?? this.timeEnd,
-      locationIds: locationIds,
-      locationNameSnapshots: locationNameSnapshots,
+      locationId: locationId,
+      locationNameSnapshot: locationNameSnapshot,
       teacherIds: teacherIds ?? this.teacherIds,
       teacherNameSnapshots: teacherNameSnapshots ?? this.teacherNameSnapshots,
       status: status ?? this.status,

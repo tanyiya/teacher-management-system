@@ -9,6 +9,7 @@ import '../../modules/duty/models/duty_assignment.dart';
 import '../../modules/duty/models/duty_task_assignment.dart';
 import '../../modules/duty/providers/duty_assignment_provider.dart';
 import '../../modules/duty/screens/duty_schedule_screen.dart';
+import '../../modules/duty/services/duty_cloudinary_service.dart';
 import '../../modules/duty/utils/duty_time_utils.dart';
 import '../../modules/teachers/models/teacher.dart';
 import '../../modules/leave/screens/leave_screen.dart';
@@ -202,7 +203,7 @@ class _DutyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final locationLabel = assignment.locationNameSnapshots.join(', ');
+    final locationLabel = assignment.locationNameSnapshot;
     final isCompleted = assignment.status == DutyAssignmentStatus.completed;
     final canUpdate = DutyTimeUtils.isWithinUpdateWindow(
       assignment.date,
@@ -299,7 +300,7 @@ class _TaskListSheet extends StatelessWidget {
               style: Theme.of(context).textTheme.titleLarge),
           Text(
             '${assignment.timeStart} - ${assignment.timeEnd}  •  '
-            '${assignment.locationNameSnapshots.join(', ')}',
+            '${assignment.locationNameSnapshot}',
           ),
           const SizedBox(height: 12),
           if (tasks.isEmpty)
@@ -324,7 +325,7 @@ class _TaskListSheet extends StatelessWidget {
 
 // ── Task tile ────────────────────────────────────────────────────────────────
 
-class _TaskTile extends StatelessWidget {
+class _TaskTile extends StatefulWidget {
   final DutyTaskAssignment task;
   final String userId;
   final bool canComplete;
@@ -335,22 +336,46 @@ class _TaskTile extends StatelessWidget {
     required this.canComplete,
   });
 
+  @override
+  State<_TaskTile> createState() => _TaskTileState();
+}
+
+class _TaskTileState extends State<_TaskTile> {
+  bool _uploading = false;
+
   Future<void> _captureProof(BuildContext context) async {
     final provider = context.read<DutyAssignmentProvider>();
     final picker = ImagePicker();
     final image = await picker.pickImage(
         source: ImageSource.camera, imageQuality: 78, maxWidth: 1600);
     if (image == null) return;
-    // NOTE: `image` still needs to be uploaded to storage; plug the
-    // resulting download URL in as `photoUrl` once that wiring exists.
+
+    setState(() => _uploading = true);
+
+    final bytes = await image.readAsBytes();
+    final photoUrl = await DutyCloudinaryService.uploadTaskProof(bytes, image.name);
+
+    if (!mounted) return;
+    setState(() => _uploading = false);
+
+    if (photoUrl == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Photo upload failed. Please try again.')),
+      );
+      return;
+    }
+
+    if (!context.mounted) return;
     await provider.completeTask(
-      taskAssignmentId: task.id,
-      teacherId: userId,
+      taskAssignmentId: widget.task.id,
+      teacherId: widget.userId,
+      photoUrl: photoUrl,
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final task = widget.task;
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: task.photoUrl != null && task.photoUrl!.isNotEmpty
@@ -385,12 +410,18 @@ class _TaskTile extends StatelessWidget {
               'Needs camera proof',
               style: TextStyle(fontSize: 12, color: Colors.orange),
             ),
-      trailing: !task.isCompleted && canComplete
-          ? IconButton(
-              tooltip: 'Capture proof',
-              icon: const Icon(Icons.photo_camera_outlined),
-              onPressed: () => _captureProof(context),
-            )
+      trailing: !task.isCompleted && widget.canComplete
+          ? (_uploading
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : IconButton(
+                  tooltip: 'Capture proof',
+                  icon: const Icon(Icons.photo_camera_outlined),
+                  onPressed: () => _captureProof(context),
+                ))
           : null,
     );
   }

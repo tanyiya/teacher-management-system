@@ -7,13 +7,14 @@ import '../providers/duty_provider.dart';
 import '../providers/duty_location_provider.dart';
 import '../providers/duty_schedule_provider.dart';
 import '../utils/duty_time_utils.dart';
-import '../widgets/duty_detail_sheet.dart';
-import '../widgets/duty_editor_dialog.dart';
+import 'widgets/duty_detail_sheet.dart';
+import 'widgets/duty_editor_dialog.dart';
 
-/// Grid rebuild of the old `_CalendarGrid`. The key schema difference:
-/// `DutyAssignment` no longer carries its own time range, so block position
-/// is computed by looking up the parent `Duty` (via [DutyProvider]) for its
-/// `timeStart`/`timeEnd`.
+/// Grid rebuild of the old `_CalendarGrid`. Each `DutyAssignment` now
+/// represents exactly one venue, so location-grouped columns place a block
+/// directly from `assignment.locationId` (no more looping over a list of
+/// venues per block). Teacher-grouped columns still loop `teacherIds`,
+/// since a single venue can have more than one teacher in charge.
 class DutyCalendarScreen extends StatefulWidget {
   const DutyCalendarScreen({super.key});
 
@@ -87,17 +88,11 @@ class _DutyCalendarScreenState extends State<DutyCalendarScreen> {
       );
     }
 
-    var assignments = assignmentProvider.visibleAssignments;
-    if (schedule.teacherFilterId != null) {
-      assignments = assignments
-          .where((a) => a.teacherIds.contains(schedule.teacherFilterId))
-          .toList();
-    }
-    if (schedule.locationFilterId != null) {
-      assignments = assignments
-          .where((a) => a.locationIds.contains(schedule.locationFilterId))
-          .toList();
-    }
+    var assignments = assignmentProvider.filteredAssignments(
+      teacherFilterId: schedule.teacherFilterId,
+      locationFilterId: schedule.locationFilterId,
+      showAllTeachers: schedule.showAllTeachers,
+    );
 
     final contentWidth = columns.length * columnWidth;
     const contentHeight = hourCount * hourHeight;
@@ -242,11 +237,15 @@ class _DutyCalendarScreenState extends State<DutyCalendarScreen> {
     // now comes straight off the assignment's own snapshot.
     final duty = dutyProvider.dutyById(assignment.dutyId);
 
-    final ids = schedule.groupingMode == DutyGroupingMode.location
-        ? assignment.locationIds
+    // Location-grouped: this assignment is already scoped to one venue, so
+    // it renders exactly one block. Teacher-grouped: it renders one block
+    // per teacher in charge of this venue, since more than one teacher can
+    // share a venue (e.g. Cleaning Duty - Dining Area needs 2).
+    final columnIds = schedule.groupingMode == DutyGroupingMode.location
+        ? [assignment.locationId]
         : assignment.teacherIds;
 
-    for (final id in ids) {
+    for (final id in columnIds) {
       final index = columns.indexWhere((c) => c.id == id);
       if (index < 0) continue;
 
@@ -264,11 +263,7 @@ class _DutyCalendarScreenState extends State<DutyCalendarScreen> {
                   ? assignment.id
                   : assignment.teacherIds.first,
             )
-          : schedule.colorForId(
-              assignment.locationIds.isEmpty
-                  ? assignment.id
-                  : assignment.locationIds.first,
-            );
+          : schedule.colorForId(assignment.locationId);
 
       yield Positioned(
         top: top.clamp(0, double.infinity).toDouble(),
@@ -333,7 +328,7 @@ class _DutyCalendarScreenState extends State<DutyCalendarScreen> {
                       ),
                       Flexible(
                         child: Text(
-                          assignment.locationNameSnapshots.join(', '),
+                          assignment.locationNameSnapshot,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(

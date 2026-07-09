@@ -3,11 +3,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-import '../models/duty_assignment.dart';
-import '../models/duty_task_assignment.dart';
-import '../providers/duty_assignment_provider.dart';
-import '../providers/duty_provider.dart';
-import '../utils/duty_time_utils.dart';
+import '../../models/duty_assignment.dart';
+import '../../models/duty_task_assignment.dart';
+import '../../providers/duty_assignment_provider.dart';
+import '../../providers/duty_provider.dart';
+import '../../services/duty_cloudinary_service.dart';
+import '../../utils/duty_time_utils.dart';
 import 'duty_editor_dialog.dart';
 
 class DutyDetailSheet extends StatefulWidget {
@@ -21,6 +22,7 @@ class DutyDetailSheet extends StatefulWidget {
 
 class _DutyDetailSheetState extends State<DutyDetailSheet> {
   final _picker = ImagePicker();
+  bool _uploading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +31,6 @@ class _DutyDetailSheetState extends State<DutyDetailSheet> {
     // Duty is only needed for the principal's edit shortcut now -- the
     // update window uses the assignment's own time snapshot.
     final duty = dutyProvider.dutyById(widget.assignment.dutyId);
-    final tasks = assignmentProvider.tasksForAssignment(widget.assignment.id);
 
     final withinWindow = DutyTimeUtils.isWithinUpdateWindow(
       widget.assignment.date,
@@ -82,26 +83,65 @@ class _DutyDetailSheetState extends State<DutyDetailSheet> {
               ),
             ),
           const SizedBox(height: 16),
-          Text('Locations and teachers',
+          Text('Venue and teachers',
               style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 6),
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.place_outlined),
-            title: Text(widget.assignment.locationNameSnapshots.join(', ')),
+            title: Text(widget.assignment.locationNameSnapshot),
             subtitle: Text(widget.assignment.teacherNameSnapshots.join(', ')),
           ),
           const SizedBox(height: 12),
           Text('Tasks', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 6),
-          ...tasks.map(
-            (task) => _TaskRow(
-              task: task,
-              canUpdate: withinWindow,
-              onComplete: () => _completeTask(context, task),
-              onReopen: () =>
-                  context.read<DutyAssignmentProvider>().reopenTask(task.id),
-            ),
+          // Deliberately NOT `assignmentProvider.tasksForAssignment(...)` --
+          // that cache is scoped to the current signed-in teacher's own
+          // tasks (right for the home screen's "my next duty" card), which
+          // meant opening details for anyone else's duty (or as principal)
+          // always showed "no tasks". This goes straight to the
+          // assignment-scoped stream instead.
+          StreamBuilder<List<DutyTaskAssignment>>(
+            stream: assignmentProvider.watchTasksForAssignment(widget.assignment.id),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (snapshot.hasError) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Text(
+                    'Could not load tasks: ${snapshot.error}',
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                );
+              }
+              final tasks = snapshot.data ?? [];
+              if (tasks.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Text('No tasks assigned.', style: TextStyle(color: Colors.grey)),
+                );
+              }
+              return Column(
+                children: tasks
+                    .map(
+                      (task) => _TaskRow(
+                        task: task,
+                        canUpdate: withinWindow,
+                        uploading: _uploading,
+                        onComplete: () => _completeTask(context, task),
+                        onReopen: () => context
+                            .read<DutyAssignmentProvider>()
+                            .reopenTask(task.id),
+                      ),
+                    )
+                    .toList(),
+              );
+            },
           ),
         ],
       ),
@@ -119,15 +159,26 @@ class _DutyDetailSheetState extends State<DutyDetailSheet> {
     );
     if (image == null) return;
 
-    // NOTE: this only records completion. Uploading `image` to storage and
-    // passing the resulting download URL as `photoUrl` is a separate piece
-    // of wiring (storage bucket / upload helper) that isn't part of this
-    // screen rebuild -- plug it in here once that's ready.
+    setState(() => _uploading = true);
+
+    final bytes = await image.readAsBytes();
+    final photoUrl = await DutyCloudinaryService.uploadTaskProof(bytes, image.name);
+
+    if (!mounted) return;
+    setState(() => _uploading = false);
+
+    if (photoUrl == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Photo upload failed. Please try again.')),
+      );
+      return;
+    }
+
     if (!context.mounted) return;
     await context.read<DutyAssignmentProvider>().completeTask(
           taskAssignmentId: task.id,
           teacherId: context.read<DutyProvider>().currentUserId ?? '',
-          photoUrl: null,
+          photoUrl: photoUrl,
         );
   }
 }
@@ -136,12 +187,14 @@ class _TaskRow extends StatelessWidget {
   const _TaskRow({
     required this.task,
     required this.canUpdate,
+    required this.uploading,
     required this.onComplete,
     required this.onReopen,
   });
 
   final DutyTaskAssignment task;
   final bool canUpdate;
+  final bool uploading;
   final VoidCallback onComplete;
   final VoidCallback onReopen;
 
@@ -172,11 +225,17 @@ class _TaskRow extends StatelessWidget {
                   onPressed: onReopen,
                   icon: const Icon(Icons.undo),
                 )
-              : IconButton(
-                  tooltip: 'Capture proof',
-                  onPressed: onComplete,
-                  icon: const Icon(Icons.photo_camera_outlined),
-                ),
+              : uploading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : IconButton(
+                      tooltip: 'Capture proof',
+                      onPressed: onComplete,
+                      icon: const Icon(Icons.photo_camera_outlined),
+                    ),
     );
   }
 }

@@ -7,9 +7,10 @@ import '../providers/duty_provider.dart';
 import '../providers/duty_assignment_provider.dart';
 import 'duty_calendar_screen.dart';
 import 'duty_list_screen.dart';
-import '../widgets/duty_editor_dialog.dart';
-import '../widgets/duty_filters_sheet.dart';
-import '../seeds/duty_seed.dart';
+import 'widgets/duty_date_selector.dart';
+import 'widgets/duty_editor_dialog.dart';
+import 'widgets/duty_filters_sheet.dart';
+import '../seeds/duty_seeder.dart';
 
 class DutyScheduleScreen extends StatefulWidget {
   const DutyScheduleScreen({super.key});
@@ -37,6 +38,7 @@ class _DutyScheduleScreenState extends State<DutyScheduleScreen> {
 
     final schedule = context.watch<DutyScheduleProvider>();
     final dutyProvider = context.watch<DutyProvider>();
+    final assignmentProvider = context.watch<DutyAssignmentProvider>();
 
     return Scaffold(
       appBar: AppBar(
@@ -80,11 +82,25 @@ class _DutyScheduleScreenState extends State<DutyScheduleScreen> {
               child: const Icon(Icons.add),
             )
           : null,
-      body: dutyProvider.error != null
-          ? Center(child: Text(dutyProvider.error!))
-          : schedule.viewMode == DutyViewMode.calendar
-              ? const DutyCalendarScreen()
-              : const DutyListScreen(),
+      body: Column(
+        children: [
+          // Shared by both views -- previously only the list screen had a
+          // date control, which is why the calendar view had no way to
+          // change dates at all.
+          DutyDateSelector(
+            date: assignmentProvider.selectedDate,
+            onChanged: (date) =>
+                context.read<DutyAssignmentProvider>().setDate(date),
+          ),
+          Expanded(
+            child: dutyProvider.error != null
+                ? Center(child: Text(dutyProvider.error!))
+                : schedule.viewMode == DutyViewMode.calendar
+                    ? const DutyCalendarScreen()
+                    : const DutyListScreen(),
+          ),
+        ],
+      ),
     );
   }
 }

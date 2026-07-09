@@ -37,8 +37,6 @@ class DutyAssignmentProvider extends ChangeNotifier {
 
   DateTime _selectedDate = DateTime.now();
 
-  bool _showAllTeachers = false;
-
   bool _isLoading = true;
   String? _error;
 
@@ -51,32 +49,37 @@ class DutyAssignmentProvider extends ChangeNotifier {
   String? get error => _error;
 
   String? get currentUserId => _currentUserId;
+  bool get isPrincipal => _role == 'principal' || _role == 'admin';
 
   DateTime get selectedDate => _selectedDate;
 
-  bool get showAllTeachers => _showAllTeachers;
 
+  /// Assignments for the selected date, filtered for who should see them.
+  ///
+  /// - [locationFilterId], if set, narrows to that one venue.
+  /// - [teacherFilterId], if set, narrows to that one teacher (works for
+  ///   any role -- lets a principal or a teacher drill into someone
+  ///   specific).
+  /// - Otherwise: principals see everyone by default; teachers see only
+  ///   their own assignments unless [showAllTeachers] is true.
+  List<DutyAssignment> filteredAssignments({
+    String? teacherFilterId,
+    String? locationFilterId,
+    bool showAllTeachers = false,
+  }) {
+    var list = _assignments;
 
-  List<DutyAssignment> get visibleAssignments {
-    if (_role == 'principle' || _showAllTeachers) {
-      return _assignments;
+    if (locationFilterId != null) {
+      list = list.where((a) => a.locationId == locationFilterId).toList();
     }
 
-    return _assignments
-        .where((a) => a.teacherIds.contains(_currentUserId),)
-        .toList();
-  }
+    if (teacherFilterId != null) {
+      list = list.where((a) => a.teacherIds.contains(teacherFilterId)).toList();
+    } else if (!isPrincipal && !showAllTeachers) {
+      list = list.where((a) => a.teacherIds.contains(_currentUserId)).toList();
+    }
 
-  List<DutyAssignment> get todoAssignments {
-    return visibleAssignments
-        .where((a) => a.status.name != 'completed')
-        .toList();
-  }
-
-  List<DutyAssignment> get completedAssignments {
-    return visibleAssignments
-        .where((a) => a.status.name == 'completed')
-        .toList();
+    return list;
   }
 
   /// The current teacher's earliest assignment that hasn't finished yet
@@ -121,12 +124,6 @@ class DutyAssignmentProvider extends ChangeNotifier {
   void setDate(DateTime date) {
     _selectedDate = date;
     _listenAssignments();
-    notifyListeners();
-  }
-
-
-  void toggleShowAllTeachers() {
-    _showAllTeachers = !_showAllTeachers;
     notifyListeners();
   }
 
@@ -207,6 +204,21 @@ class DutyAssignmentProvider extends ChangeNotifier {
     return _tasks
         .where((task) =>task.dutyAssignmentId == assignmentId,)
         .toList();
+  }
+
+  /// Live tasks for one specific assignment, regardless of who's on it.
+  ///
+  /// `tasks`/`tasksForAssignment` above are scoped to the current
+  /// signed-in teacher (`getTasksByTeacher`), which is right for the home
+  /// screen's "my next duty" card but wrong here: opening a duty's details
+  /// from the calendar or list screens needs to show its tasks even when
+  /// viewing someone else's duty (or browsing as principal), so this goes
+  /// straight to the assignment-scoped query instead of the teacher-scoped
+  /// cache.
+  Stream<List<DutyTaskAssignment>> watchTasksForAssignment(
+    String assignmentId,
+  ) {
+    return _taskService.getTasksByAssignment(assignmentId);
   }
 
 

@@ -5,60 +5,59 @@ import '../models/duty_assignment.dart';
 import '../models/duty_task_assignment.dart';
 import '../providers/duty_assignment_provider.dart';
 import '../providers/duty_provider.dart';
+import '../providers/duty_schedule_provider.dart';
 import '../utils/duty_time_utils.dart';
-import '../widgets/duty_detail_sheet.dart';
-import '../widgets/duty_editor_dialog.dart';
-import '../widgets/duty_swap_dialog.dart';
+import 'widgets/duty_detail_sheet.dart';
+import 'widgets/duty_editor_dialog.dart';
+import 'widgets/duty_swap_dialog.dart';
 
-class DutyListScreen extends StatefulWidget {
+/// Each `DutyAssignment` is now scoped to exactly one venue, so a duty with
+/// multiple venues naturally produces multiple cards here -- one per venue,
+/// each showing that venue's own dedicated teacher(s).
+class DutyListScreen extends StatelessWidget {
   const DutyListScreen({super.key});
-
-  @override
-  State<DutyListScreen> createState() => _DutyListScreenState();
-}
-
-class _DutyListScreenState extends State<DutyListScreen> {
-  DateTime selectedDate = DateTime.now();
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<DutyAssignmentProvider>();
     final dutyProvider = context.watch<DutyProvider>();
+    final schedule = context.watch<DutyScheduleProvider>();
 
-    return Column(
+    if (provider.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (provider.error != null) {
+      return Center(child: Text(provider.error!));
+    }
+
+    final visible = provider.filteredAssignments(
+      teacherFilterId: schedule.teacherFilterId,
+      locationFilterId: schedule.locationFilterId,
+      showAllTeachers: schedule.showAllTeachers,
+    );
+    final todo = visible
+        .where((a) => a.status != DutyAssignmentStatus.completed)
+        .toList();
+    final completed = visible
+        .where((a) => a.status == DutyAssignmentStatus.completed)
+        .toList();
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
       children: [
-        _DateSelector(
-          date: selectedDate,
-          onChanged: (date) {
-            setState(() => selectedDate = date);
-            context.read<DutyAssignmentProvider>().setDate(date);
-          },
+        _DutySection(
+          title: 'TODO',
+          assignments: todo,
+          provider: provider,
+          dutyProvider: dutyProvider,
         ),
-        if (provider.isLoading)
-          const Expanded(child: Center(child: CircularProgressIndicator()))
-        else if (provider.error != null)
-          Expanded(child: Center(child: Text(provider.error!)))
-        else
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                _DutySection(
-                  title: 'TODO',
-                  assignments: provider.todoAssignments,
-                  provider: provider,
-                  dutyProvider: dutyProvider,
-                ),
-                const SizedBox(height: 24),
-                _DutySection(
-                  title: 'COMPLETED',
-                  assignments: provider.completedAssignments,
-                  provider: provider,
-                  dutyProvider: dutyProvider,
-                ),
-              ],
-            ),
-          ),
+        const SizedBox(height: 24),
+        _DutySection(
+          title: 'COMPLETED',
+          assignments: completed,
+          provider: provider,
+          dutyProvider: dutyProvider,
+        ),
       ],
     );
   }
@@ -112,7 +111,6 @@ class _DutyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tasks = provider.tasksForAssignment(assignment.id);
     // Duty is only needed for the principal's edit shortcut now -- the
     // swap cutoff uses the assignment's own time snapshot.
     final duty = dutyProvider.dutyById(assignment.dutyId);
@@ -122,11 +120,12 @@ class _DutyCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       child: ExpansionTile(
         leading: Icon(
-          assignment.status.name == 'completed'
+          assignment.status == DutyAssignmentStatus.completed
               ? Icons.check_circle
               : Icons.assignment_outlined,
-          color:
-              assignment.status.name == 'completed' ? Colors.green : null,
+          color: assignment.status == DutyAssignmentStatus.completed
+              ? Colors.green
+              : null,
         ),
         title: Text(
           assignment.dutyNameSnapshot,
@@ -136,8 +135,27 @@ class _DutyCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 4),
-            Text(assignment.locationNameSnapshots.join(', ')),
-            Text(assignment.teacherNameSnapshots.join(', ')),
+            Row(
+              children: [
+                const Icon(Icons.place_outlined, size: 14, color: Colors.grey),
+                const SizedBox(width: 4),
+                Text(assignment.locationNameSnapshot),
+              ],
+            ),
+            Row(
+              children: [
+                const Icon(Icons.person_outline, size: 14, color: Colors.grey),
+                const SizedBox(width: 4),
+                Expanded(child: Text(assignment.teacherNameSnapshots.join(', '))),
+              ],
+            ),
+            Row(
+              children: [
+                const Icon(Icons.schedule_outlined, size: 14, color: Colors.grey),
+                const SizedBox(width: 4),
+                Text('${assignment.timeStart} - ${assignment.timeEnd}'),
+              ],
+            ),
           ],
         ),
         trailing: Wrap(
@@ -173,13 +191,31 @@ class _DutyCard extends StatelessWidget {
           ],
         ),
         children: [
-          if (tasks.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('No tasks assigned.'),
-            )
-          else
-            ...tasks.map((task) => _TaskTile(task: task)),
+          // Same fix as the detail sheet: go straight to the
+          // assignment-scoped task stream instead of the teacher-scoped
+          // cache, so this shows tasks for any assignment, not just the
+          // current signed-in teacher's own.
+          StreamBuilder<List<DutyTaskAssignment>>(
+            stream: provider.watchTasksForAssignment(assignment.id),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              final tasks = snapshot.data ?? [];
+              if (tasks.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('No tasks assigned.'),
+                );
+              }
+              return Column(
+                children: tasks.map((task) => _TaskTile(task: task)).toList(),
+              );
+            },
+          ),
         ],
       ),
     );
@@ -203,49 +239,6 @@ class _TaskTile extends StatelessWidget {
       trailing: task.photoUrl != null && task.photoUrl!.isNotEmpty
           ? const Icon(Icons.image)
           : null,
-    );
-  }
-}
-
-class _DateSelector extends StatelessWidget {
-  final DateTime date;
-  final Function(DateTime) onChanged;
-
-  const _DateSelector({required this.date, required this.onChanged});
-
-  Future<void> _pickDate(BuildContext context) async {
-    final result = await showDatePicker(
-      context: context,
-      initialDate: date,
-      firstDate: DateTime(2025),
-      lastDate: DateTime(2030),
-    );
-    if (result != null) onChanged(result);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: InkWell(
-        onTap: () => _pickDate(context),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade300),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.calendar_month),
-              const SizedBox(width: 12),
-              Text('${date.day}/${date.month}/${date.year}'),
-              const Spacer(),
-              const Icon(Icons.arrow_drop_down),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

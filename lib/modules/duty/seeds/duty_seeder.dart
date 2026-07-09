@@ -282,38 +282,45 @@ class DutySeeder {
           continue;
         }
 
-        final teacherCount = duty.minTeachersPerVenue * duty.locationIds.length;
-        final teachers = _pickTeachers(teacherCount);
+        // One assignment doc per venue, each with its own dedicated
+        // teacher(s) -- this is what makes "who's in charge of which
+        // venue" explicit instead of two unpaired parallel lists.
+        for (var i = 0; i < duty.locationIds.length; i++) {
+          final locationId = duty.locationIds[i];
+          final locationName = duty.locationNames[i];
 
-        final assignment = DutyAssignment(
-          id: '',
-          dutyId: duty.id,
-          dutyNameSnapshot: duty.title,
-          date: date,
-          timeStart: duty.timeStart,
-          timeEnd: duty.timeEnd,
-          locationIds: duty.locationIds,
-          locationNameSnapshots: duty.locationNames,
-          teacherIds: teachers.map((t) => t.id).toList(),
-          teacherNameSnapshots: teachers.map((t) => t.name).toList(),
-          status: DutyAssignmentStatus.assigned,
-        );
-        final assignmentId = await _assignmentService.addAssignment(assignment);
+          final teachers = _pickTeachers(duty.minTeachersPerVenue);
 
-        for (final task in duty.tasks) {
-          final taskAssignment = DutyTaskAssignment(
+          final assignment = DutyAssignment(
             id: '',
-            dutyAssignmentId: assignmentId,
-            dutyTaskId: task.id,
-            taskNameSnapshot: task.title,
+            dutyId: duty.id,
+            dutyNameSnapshot: duty.title,
+            date: date,
+            timeStart: duty.timeStart,
+            timeEnd: duty.timeEnd,
+            locationId: locationId,
+            locationNameSnapshot: locationName,
             teacherIds: teachers.map((t) => t.id).toList(),
             teacherNameSnapshots: teachers.map((t) => t.name).toList(),
-            isCompleted: false,
-            photoUrl: null,
-            completedAt: null,
-            completedByTeacherId: null,
+            status: DutyAssignmentStatus.assigned,
           );
-          await _taskAssignmentService.addTaskAssignment(taskAssignment);
+          final assignmentId = await _assignmentService.addAssignment(assignment);
+
+          for (final task in duty.tasks) {
+            final taskAssignment = DutyTaskAssignment(
+              id: '',
+              dutyAssignmentId: assignmentId,
+              dutyTaskId: task.id,
+              taskNameSnapshot: task.title,
+              teacherIds: teachers.map((t) => t.id).toList(),
+              teacherNameSnapshots: teachers.map((t) => t.name).toList(),
+              isCompleted: false,
+              photoUrl: null,
+              completedAt: null,
+              completedByTeacherId: null,
+            );
+            await _taskAssignmentService.addTaskAssignment(taskAssignment);
+          }
         }
       }
     }

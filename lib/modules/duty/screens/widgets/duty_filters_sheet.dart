@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../providers/duty_provider.dart';
-import '../providers/duty_location_provider.dart';
-import '../providers/duty_schedule_provider.dart';
+import '../../providers/duty_provider.dart';
+import '../../providers/duty_location_provider.dart';
+import '../../providers/duty_schedule_provider.dart';
 
 class DutyFiltersSheet extends StatelessWidget {
   const DutyFiltersSheet({super.key});
@@ -36,11 +36,26 @@ class DutyFiltersSheet extends StatelessWidget {
             onSelectionChanged: (v) => schedule.setGroupingMode(v.first),
           ),
           const SizedBox(height: 12),
+          // Teachers default to seeing only their own duties; this is the
+          // opt-in to see everyone else's too. Not shown for the principal,
+          // who already sees everyone by default.
+          if (!dutyProvider.isPrincipal)
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Show all teachers'),
+              subtitle: const Text('Off shows only your own duties'),
+              value: schedule.showAllTeachers,
+              onChanged: (_) => schedule.toggleShowAllTeachers(),
+            ),
+          const SizedBox(height: 4),
           DropdownButtonFormField<String?>(
             initialValue: schedule.teacherFilterId,
             decoration: const InputDecoration(labelText: 'Teacher'),
             items: [
-              const DropdownMenuItem<String?>(value: null, child: Text('All teachers')),
+              DropdownMenuItem<String?>(
+                value: null,
+                child: Text(dutyProvider.isPrincipal ? 'All teachers' : 'My duties'),
+              ),
               ...dutyProvider.activeTeachers
                   .map((t) => DropdownMenuItem(value: t.id, child: Text(t.fullName))),
             ],

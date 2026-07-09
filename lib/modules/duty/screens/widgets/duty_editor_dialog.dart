@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../models/duty.dart';
-import '../models/duty_task.dart';
-import '../providers/duty_provider.dart';
-import '../providers/duty_location_provider.dart';
+import '../../models/duty.dart';
+import '../../models/duty_task.dart';
+import '../../providers/duty_provider.dart';
+import '../../providers/duty_location_provider.dart';
 
 /// Create/edit dialog for a *duty definition* (title, schedule window,
 /// recurrence, locations, minimum teachers, task checklist). This replaces

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../models/duty_assignment.dart';
-import '../models/duty_swap.dart';
-import '../providers/duty_provider.dart';
-import '../providers/duty_swap_provider.dart';
-import '../utils/duty_time_utils.dart';
+import '../../models/duty_assignment.dart';
+import '../../models/duty_swap.dart';
+import '../../providers/duty_provider.dart';
+import '../../providers/duty_swap_provider.dart';
+import '../../utils/duty_time_utils.dart';
 
 class DutySwapDialog extends StatefulWidget {
   const DutySwapDialog({super.key, required this.assignment});
@@ -62,7 +62,7 @@ class _DutySwapDialogState extends State<DutySwapDialog> {
                 Text(
                   '${widget.assignment.dutyNameSnapshot}\n'
                   '${widget.assignment.timeStart} - ${widget.assignment.timeEnd}\n'
-                  '${widget.assignment.locationNameSnapshots.join(', ')}',
+                  '${widget.assignment.locationNameSnapshot}',
                 ),
                 const SizedBox(height: 16),
                 if (!canSwap)

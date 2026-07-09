@@ -16,6 +16,16 @@ class DutyScheduleProvider extends ChangeNotifier {
   String? teacherFilterId;
   String? locationFilterId;
 
+  /// Teachers default to seeing only their own duties; this lets them
+  /// (or the principal) opt into seeing everyone's. Ignored once
+  /// [teacherFilterId] is set to a specific teacher.
+  bool showAllTeachers = false;
+
+  void toggleShowAllTeachers() {
+    showAllTeachers = !showAllTeachers;
+    notifyListeners();
+  }
+
   void toggleViewMode() {
     viewMode = viewMode == DutyViewMode.calendar
         ? DutyViewMode.list
