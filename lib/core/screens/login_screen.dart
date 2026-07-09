@@ -517,7 +517,7 @@ class _Header extends StatelessWidget {
             ),
             child: ClipOval(
               child: Image.asset(
-                'images/logo.jpeg',
+                'assets/images/logo.jpeg',
                 fit: BoxFit.cover,
                 // Fallback icon if logo image asset is not configured or loaded yet
                 errorBuilder: (context, error, stackTrace) {
