@@ -1,0 +1,693 @@
+I want to refactor code and i am on the way to it, the original code and schema doesnt make sense to me so i want to refactor.
+the schemas were redefined and some crud services created.
+the following are the requirements and exisitng code.
+
+Application that automatically schedules duty.
+This module allows teachers and administrators to track their daily tasks and duties. The system should be able to automatically generate duty schedules and assign duties fairly to teachers. Some examples of daily duties include cleaning duty, arrival duty, dismissal duty and half-full day transition duty, while weekly duties include assembly duty. Each duty has a list of tasks and the task progress is tracked. For example, cleaning duty in a classroom includes tasks such as sweeping and mopping the classroom floor, wiping and arranging the students’ tables and chairs, organising teaching materials, toys, books and files and so on. For assembly duty, each week has a theme with its respective sub themes, each teacher shall be responsible for tasks such as introduction, song, islamic content, and words of the week and sight words.
+Teachers can update task completion and swap duties with their colleagues. Administrators can edit the duties list, duty information and task list. The application should be able to send reminders or notifications for each task. Each features are explained in detailed below:
+Automatically generate duty schedules
+The system would assign jobs to the teachers with “Active” status and are not on leave for the day. The scheduled task would be one week ahead and updates whenever there are changes in teachers status and leave. The duty schedule would ensure that there is no overlapping of tasks at the same time for the same teacher. Besides, the system would ensure that there will be an assigned teacher for all duties.
+Duties and tasks progress tracking
+The teachers have to update the progress of the duties assigned. For each task of the duty, the teachers have to take a photo as a proof of completion of the particular task. Once all tasks under a certain duty are completed, the duty would be marked as completed.	The progress of all tasks and duties can only be updated from half an hour before till half an hour after the time frame of assigned duty.
+Swap duties
+The teachers would be able to swap the assigned duties with their colleagues. When the teacher would like to swap duties, they can only select teachers with the duties of the similar hours or the teachers that do not have other duties during those hours. The teacher that is selected to swap duty would receive a notification and have to approve the swap. On the other hand, the principal can swap the tasks of any teacher. Both the teachers would receive a notification without requiring approval regarding the duty swap. Swap duties can only be performed latest by half an hour before the duty commences.
+Modify duties
+The principle can create duties, edit duties and delete duties. For each duties, there is information including duty name, locations, time,  daily or weekly duties, minimum teacher in charge per location and task list..
+Notifications
+Teachers will be notified with the assigned task 30 minutes prior to duty hours.
+All teachers would be able to view all the tasks and the assigned teachers. However, the teachers can only update the task assigned to the respective teachers. 
+
+
+The following is the Simplified list of models and services
+
+enum DutyRecurrence {
+  once,
+  daily,
+  weekly,
+  monthly,
+}
+
+class Duty {
+  final String id;
+  final String title;
+
+  final String timeStart;
+  final String timeEnd;
+
+  final bool isAllDay;
+  final DutyRecurrence recurrence;
+
+  final List<DutyLocation> locations;
+
+  final int minTeachersPerVenue;
+
+class DutyTask {
+  final String id;
+  final String dutyId;
+  final String dutyNameSnapshot;
+
+  final String title;
+  final String? description;
+
+  final String? locationId;
+  final String? locationNameSnapshot;
+
+  final int sequence;
+
+  const DutyTask({
+    required this.id,
+    required this.dutyId,
+    required this.dutyNameSnapshot,
+    required this.title,
+    this.description,
+    this.locationId,
+    this.locationNameSnapshot,
+    this.sequence = 0,
+  });
+
+enum DutyAssignmentStatus {
+  assigned,
+  inProgress,
+  completed,
+  cancelled,
+}
+
+class DutyAssignment {
+  final String id;
+  final String dutyId;
+  final String dutyNameSnapshot;
+  final DateTime date;
+  final List<String> locationIds;
+  final List<String> locationNameSnapshots;
+  final List<String> teacherIds;
+  final List<String> teacherNameSnapshots;
+  final DutyAssignmentStatus status;
+
+class DutyTaskAssignment {
+  final String id;
+  final String dutyAssignmentId;
+  final String dutyTaskId;
+  final String taskNameSnapshot;
+  final List<String> teacherIds;
+  final List<String> teacherNameSnapshots;
+  final bool isCompleted;
+  final String? photoUrl;
+  final DateTime? completedAt;
+  final String? completedByTeacherId;
+
+class DutyLocation {
+  final String id;
+  final String name;
+  final String description;
+  final bool isActive;
+
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+enum DutySwapStatus {
+  pending,
+  approved,
+  rejected,
+  cancelled,
+}
+
+enum DutySwapRequesterType {
+  teacher,
+  admin,
+}
+
+class DutySwap {
+  final String id;
+  final String dutyAssignmentId;
+  final String dutyNameSnapshot;
+
+  final String currentTeacherId;
+  final String currentTeacherNameSnapshot;
+
+  final String replacementTeacherId;
+  final String replacementTeacherNameSnapshot;
+
+  final String requestedById;
+  final String requestedByNameSnapshot;
+  final DutySwapRequesterType requesterType;
+
+  final DutySwapStatus status;
+  final DateTime createdAt;
+  final DateTime? respondedAt;
+
+services
+class DutyService {
+  final _col = FirebaseFirestore.instance.collection('duties');
+  final _taskService = DutyTaskService();
+
+  // Live stream of all duties
+  Stream<List<Duty>> getDuties() {
+
+  // Get a single duty by ID
+  Future<Duty?> getDutyById(String id) async {
+
+  // Add a new duty
+  Future<String> addDuty(Duty duty) async {
+
+  // Update an existing duty
+  Future<void> updateDuty(Duty duty) async {
+
+  // Delete a duty
+  Future<void> deleteDuty(String id) async {
+    await _taskService.deleteTasksByDuty(id);
+    await _col.doc(id).delete();
+  }
+}
+
+class DutyTaskService {
+  final _col = FirebaseFirestore.instance.collection('duty_tasks');
+
+  // Live stream of all duty tasks
+  Stream<List<DutyTask>> getDutyTasks() {
+
+  // Live stream of tasks belonging to a specific duty
+  Stream<List<DutyTask>> getTasksByDuty(String dutyId) {
+  
+  // Get a single task by ID
+  Future<DutyTask?> getDutyTaskById(String id) async {
+
+  // Add a new duty task
+  Future<String> addDutyTask(DutyTask task) async {
+
+
+  // Update an existing duty task
+  Future<void> updateDutyTask(DutyTask task) async {
+
+  // Delete a duty task
+  Future<void> deleteDutyTask(String id) async {
+
+  // Delete all tasks under a duty
+  Future<void> deleteTasksByDuty(String dutyId) async {
+    final snapshot = await _col.where('dutyId', isEqualTo: dutyId).get();
+
+    final batch = FirebaseFirestore.instance.batch();
+
+    for (final doc in snapshot.docs) {
+      batch.delete(doc.reference);
+    }
+
+    await batch.commit();
+  }
+}
+
+class DutyAssignmentService {
+  final _col = FirebaseFirestore.instance.collection('duty_assignments');
+
+  // Live stream of all assignments
+  Stream<List<DutyAssignment>> getAssignments() {
+
+  // Live stream of assignments for a specific duty
+  Stream<List<DutyAssignment>> getAssignmentsByDuty(String dutyId) {
+
+  // Live stream of assignments for a specific teacher
+  Stream<List<DutyAssignment>> getAssignmentsByTeacher(String teacherId) {
+
+  // Live stream of assignments by date
+  Stream<List<DutyAssignment>> getAssignmentsByDate(DateTime date) {
+    final start = DateTime(date.year, date.month, date.day);
+    final end = start.add(const Duration(days: 1));
+
+  // Live stream of assignments by location
+  Stream<List<DutyAssignment>> getAssignmentsByLocation(String locationId) {
+
+  // Get assignment by ID
+  Future<DutyAssignment?> getAssignmentById(String id) async {
+  
+
+  // Add assignment
+  Future<String> addAssignment(DutyAssignment assignment) 
+
+  // Update assignment
+  Future<void> updateAssignment(DutyAssignment assignment) 
+  // Update only status
+  Future<void> updateStatus(
+    String id,
+    DutyAssignmentStatus status,
+  ) 
+
+  // Delete assignment
+  Future<void> deleteAssignment(String id) async {
+}
+
+class DutyTaskAssignmentService {
+  final _col = FirebaseFirestore.instance.collection('duty_task_assignments');
+
+  // Live stream of all task assignments
+  Stream<List<DutyTaskAssignment>> getTaskAssignments() {
+
+  // Live stream of tasks under a duty assignment
+  Stream<List<DutyTaskAssignment>> getTasksByAssignment(String dutyAssignmentId,) {
+
+  // Live stream of tasks assigned to a teacher
+  Stream<List<DutyTaskAssignment>> getTasksByTeacher(String teacherId,) {
+
+  // Get task assignment by ID
+  Future<DutyTaskAssignment?> getTaskAssignmentById(String id,) async {
+
+  // Add task assignment
+  Future<String> addTaskAssignment(
+    DutyTaskAssignment assignment,
+  ) 
+
+  // Update task assignment
+  Future<void> updateTaskAssignment(DutyTaskAssignment assignment,) async {
+
+  // Mark task as completed
+  Future<void> completeTask({
+    required String id,
+    required String teacherId,
+    String? photoUrl,
+  }) async {
+
+  // Mark task as incomplete
+  Future<void> reopenTask(String id) async {
+
+  // Delete task assignment
+  Future<void> deleteTaskAssignment(String id) async {
+  }
+
+  // Delete all tasks under a duty assignment
+  Future<void> deleteTasksByAssignment(
+    String dutyAssignmentId,
+  ) async {
+    final snapshot = await _col
+        .where(
+          'dutyAssignmentId',
+          isEqualTo: dutyAssignmentId,
+        )
+        .get();
+
+    final batch = FirebaseFirestore.instance.batch();
+
+    for (final doc in snapshot.docs) {
+      batch.delete(doc.reference);
+    }
+
+    await batch.commit();
+  }
+}
+
+class DutyLocationService {
+  final _col = FirebaseFirestore.instance.collection('duty_locations');
+
+  // Live stream of all locations
+  Stream<List<DutyLocation>> getLocations() {
+
+  Stream<List<DutyLocation>> getActiveLocations() {
+
+  // Get location by ID
+  Future<DutyLocation?> getLocationById(String id) async {
+
+  // Add new location
+  Future<String> addLocation(DutyLocation location) async {
+
+  // Update location
+  Future<void> updateLocation(DutyLocation location) async {
+
+  // Update location status
+  Future<void> updateActiveStatus(String id, bool isActive) 
+  // Delete location
+  Future<void> deleteLocation(String id) async {
+}
+
+class DutySwapService {
+  final _col = FirebaseFirestore.instance.collection('duty_swaps');
+
+  // Live stream of all swaps
+  Stream<List<DutySwap>> getSwaps() {
+
+  // Live stream of pending swaps
+  Stream<List<DutySwap>> getPendingSwaps() {
+
+  // Swaps requested by a user
+  Stream<List<DutySwap>> getSwapsByRequester(String userId) {
+
+  // Swaps involving a teacher
+  // (Either current teacher or replacement teacher)
+  Stream<List<DutySwap>> getSwapsByTeacher(String teacherId) {
+
+  // Get swap by ID
+  Future<DutySwap?> getSwapById(String id) async {
+
+  // Create swap request
+  Future<String> addSwap(DutySwap swap) async {
+
+  // Update swap
+  Future<void> updateSwap(DutySwap swap) async {
+
+  // Approve swap
+  Future<void> approveSwap(String id) async {
+    await _col.doc(id).update({
+      'status': DutySwapStatus.approved.name,
+      'respondedAt': Timestamp.now(),
+    });
+  }
+
+  // Reject swap
+  Future<void> rejectSwap(String id) async {
+
+  // Cancel swap
+  Future<void> cancelSwap(String id) async {
+
+  // Delete swap
+  Future<void> deleteSwap(String id) async {
+}
+
+class DutyExternalService {
+  final _teacherCol =
+      FirebaseFirestore.instance.collection('teachers');
+
+  Stream<List<TeacherRecord>> fetchTeachers() {
+    return _teacherCol.snapshots().map((snapshot) {
+      return snapshot.docs.map((doc) {
+        return TeacherRecord.fromMap(
+          doc.id,
+          doc.data(),
+        );
+      }).toList();
+    });
+  }
+}
+
+here is the created providers
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+
+import '../models/duty_assignment.dart';
+import '../models/duty_task_assignment.dart';
+import '../services/duty_assignment_service.dart';
+import '../services/duty_task_assignment_service.dart';
+
+class DutyAssignmentProvider extends ChangeNotifier {
+  DutyAssignmentProvider({
+    DutyAssignmentService? assignmentService,
+    DutyTaskAssignmentService? taskService,
+  })  : _assignmentService = assignmentService ?? DutyAssignmentService(),
+        _taskService = taskService ?? DutyTaskAssignmentService();
+
+  final DutyAssignmentService _assignmentService;
+  final DutyTaskAssignmentService _taskService;
+
+  StreamSubscription<List<DutyAssignment>>? _assignmentSub;
+  StreamSubscription<List<DutyTaskAssignment>>? _taskSub;
+
+  List<DutyAssignment> _assignments = [];
+  List<DutyTaskAssignment> _tasks = [];
+
+  String? _currentUserId;
+  String? _role;
+
+  DateTime _selectedDate = DateTime.now();
+
+  bool _showAllTeachers = false;
+
+  bool _isLoading = true;
+  String? _error;
+
+
+  List<DutyAssignment> get assignments => _assignments;
+  List<DutyTaskAssignment> get tasks => _tasks;
+
+  bool get isLoading => _isLoading;
+  String? get error => _error;
+
+  DateTime get selectedDate => _selectedDate;
+
+  bool get showAllTeachers => _showAllTeachers;
+
+
+  List<DutyAssignment> get visibleAssignments {
+    if (_role == 'principle' || _showAllTeachers) {
+      return _assignments;
+    }
+
+    return _assignments
+        .where((a) => a.teacherIds.contains(_currentUserId),)
+        .toList();
+  }
+
+  List<DutyAssignment> get todoAssignments {
+    return visibleAssignments
+        .where((a) => a.status.name != 'completed')
+        .toList();
+  }
+
+  List<DutyAssignment> get completedAssignments {
+    return visibleAssignments
+        .where((a) => a.status.name == 'completed')
+        .toList();
+  }
+
+  void setUser({
+    required String? userId,
+    required String role,
+  }) {
+    if (_currentUserId == userId && _role == role) {
+      return;
+    }
+
+    _currentUserId = userId;
+    _role = role;
+
+    _listenAssignments();
+    _listenTasks();
+
+    notifyListeners();
+  }
+
+
+  void setDate(DateTime date) {
+    _selectedDate = date;
+    _listenAssignments();
+    notifyListeners();
+  }
+
+
+  void toggleShowAllTeachers() {
+    _showAllTeachers = !_showAllTeachers;
+    notifyListeners();
+  }
+
+
+  void _listenAssignments() {
+    _assignmentSub?.cancel();
+    _isLoading = true;
+    notifyListeners();
+
+    _assignmentSub = _assignmentService
+      .getAssignmentsByDate(_selectedDate)
+      .listen((items) {
+        _assignments = items;
+        _isLoading = false;
+        notifyListeners();
+      },
+      onError: (e) {
+        _error = e.toString();
+        _isLoading = false;
+        notifyListeners();
+      },
+    );
+  }
+
+
+  void _listenTasks() {
+    _taskSub?.cancel();
+    if (_currentUserId == null) {
+      _tasks = [];
+      return;
+    }
+
+    _taskSub =
+        _taskService
+            .getTasksByTeacher(_currentUserId!)
+            .listen(
+      (items) {
+        _tasks = items;
+        notifyListeners();
+      },
+      onError: (e) {
+        _error = e.toString();
+        notifyListeners();
+
+      },
+    );
+  }
+
+  List<DutyTaskAssignment> tasksForAssignment(
+    String assignmentId,
+  ) {
+    return _tasks
+        .where((task) =>task.dutyAssignmentId == assignmentId,)
+        .toList();
+  }
+
+
+  Future<void> completeTask({
+    required String taskAssignmentId,
+    required String teacherId,
+    String? photoUrl,
+  }) async {
+    try {
+      _error = null;
+      notifyListeners();
+
+      await _taskService.completeTask(
+        id: taskAssignmentId,
+        teacherId: teacherId,
+        photoUrl: photoUrl,
+      );
+
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+    }
+  }
+
+
+  Future<void> reopenTask(
+    String taskAssignmentId,
+  ) async {
+    try {
+      _error = null;
+      notifyListeners();
+      await _taskService.reopenTask(taskAssignmentId,);
+
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+    }
+  }
+
+
+  @override
+  void dispose() {
+
+    _assignmentSub?.cancel();
+    _taskSub?.cancel();
+
+    super.dispose();
+  }
+}
+
+import 'package:flutter/material.dart';
+
+enum DutyViewMode {
+  calendar,
+  list,
+}
+
+class DutyScheduleProvider extends ChangeNotifier {
+  DutyViewMode viewMode = DutyViewMode.calendar;
+
+  void toggleViewMode() {
+    viewMode = viewMode == DutyViewMode.calendar
+        ? DutyViewMode.list
+        : DutyViewMode.calendar;
+
+    notifyListeners();
+  }
+}
+
+import 'dart:async';
+import 'package:flutter/material.dart';
+
+import '../models/duty_location.dart';
+import '../services/duty_location_service.dart';
+
+class DutyLocationProvider extends ChangeNotifier {
+  DutyLocationProvider({DutyLocationService? service})
+      : _service = service ?? DutyLocationService() {
+    _listenLocations();
+  }
+
+  final DutyLocationService _service;
+
+  StreamSubscription<List<DutyLocation>>? _locationSub;
+
+  List<DutyLocation> _locations = [];
+  bool _isLoading = true;
+  String? _error;
+
+  List<DutyLocation> get locations => _locations;
+  bool get isLoading => _isLoading;
+  String? get error => _error;
+
+  List<DutyLocation> get activeLocations =>
+      _locations.where((location) => location.isActive).toList();
+
+  Future<void> addLocation({required String name, String description = '',}) async {
+    try {
+      _error = null;
+
+      await _service.addLocation(
+        DutyLocation(
+          id: '',
+          name: name,
+          description: description,
+          isActive: true,
+        ),
+      );
+    } catch (err) {
+      _error = err.toString();
+      notifyListeners();
+    }
+  }
+
+  Future<void> updateLocation(DutyLocation location) async {
+    try {
+      _error = null;
+      await _service.updateLocation(location);
+    } catch (err) {
+      _error = err.toString();
+      notifyListeners();
+    }
+  }
+
+  Future<void> deactivateLocation(String id) async {
+    try {
+      _error = null;
+      await _service.updateActiveStatus(id, false,);
+    } catch (err) {
+      _error = err.toString();
+      notifyListeners();
+    }
+  }
+
+  Future<void> activateLocation(String id) async {
+    try {
+      _error = null;
+      await _service.updateActiveStatus(id, true,);
+    } catch (err) {
+      _error = err.toString();
+      notifyListeners();
+    }
+  }
+
+  void _listenLocations() {
+    _locationSub = _service.getLocations().listen(
+      (items) {
+        _locations = items;
+        _isLoading = false;
+        notifyListeners();
+      },
+      onError: (err) {
+        _error = err.toString();
+        _isLoading = false;
+        notifyListeners();
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _locationSub?.cancel();
+    super.dispose();
+  }
+}
+

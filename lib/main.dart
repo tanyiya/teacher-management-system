@@ -7,7 +7,14 @@ import 'app_theme.dart';
 import 'firebase_options.dart';
 import 'routes.dart';
 import 'providers/app_state_provider.dart';
+// Duty Providers
 import 'modules/duty/providers/duty_provider.dart';
+import 'modules/duty/providers/duty_assignment_provider.dart';
+import 'modules/duty/providers/duty_schedule_provider.dart';
+import 'modules/duty/providers/duty_location_provider.dart';
+import 'modules/duty/providers/duty_swap_provider.dart';
+import 'modules/duty/providers/duty_teacher_provider.dart';
+
 import 'modules/performance/providers/performance_provider.dart';
 import 'modules/training/providers/training_provider.dart';
 import 'core/services/database_seeder.dart';
@@ -24,6 +31,11 @@ void main() async {
       providers: [
         ChangeNotifierProvider.value(value: appStateProvider),
         ChangeNotifierProvider(create: (_) => DutyProvider()),
+        ChangeNotifierProvider(create: (_) => DutyAssignmentProvider()),
+        ChangeNotifierProvider(create: (_) => DutyScheduleProvider()),
+        ChangeNotifierProvider(create: (_) => DutyLocationProvider()),
+        ChangeNotifierProvider(create: (_) => DutySwapProvider()),
+        ChangeNotifierProvider(create: (_) => DutyTeacherProvider()),
         ChangeNotifierProvider(create: (_) => PerformanceProvider()),
         ChangeNotifierProvider(create: (_) => TrainingProvider()),
       ],

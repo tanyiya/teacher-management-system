@@ -1,350 +1,199 @@
-import 'dart:typed_data';
-
+import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../models/duty.dart';
+import '../models/duty_task.dart';
+import '../services/duty_service.dart';
+import '../services/duty_task_service.dart';
+import '../services/duty_external_service.dart';
+import '../../teachers/models/teacher.dart';
 
+/// Owns duty *definitions* -- the reusable templates (title, time window,
+/// recurrence, locations, task checklist) that the principal edits.
+///
+/// This is distinct from [DutyAssignmentProvider], which owns the generated
+/// day-to-day assignments. The old code mixed both concerns into a single
+/// `DutyProvider`/`Duty` model; the new schema splits them, so the UI layer
+/// needs both providers side by side.
+///
+/// Also exposes the teacher roster (via [DutyExternalService]) since both
+/// the duty editor and the swap flow need to know who's available.
 class DutyProvider extends ChangeNotifier {
-  String? currentTeacherId;
-  String? currentTeacherName;
-  String? role;
+  DutyProvider({
+    DutyService? dutyService,
+    DutyTaskService? taskService,
+    DutyExternalService? externalService,
+  })  : _dutyService = dutyService ?? DutyService(),
+        _taskService = taskService ?? DutyTaskService(),
+        _externalService = externalService ?? DutyExternalService() {
+    _listenDuties();
+    _listenTasks();
+    _listenTeachers();
+  }
 
-  bool isLoading = false;
-  String? error;
+  final DutyService _dutyService;
+  final DutyTaskService _taskService;
+  final DutyExternalService _externalService;
 
-  void setUser({
-    required String teacherId,
-    required String teacherName,
-    required String role,
-  }) {
-    currentTeacherId = teacherId;
-    currentTeacherName = teacherName;
-    this.role = role;
+  StreamSubscription<List<Duty>>? _dutySub;
+  StreamSubscription<List<DutyTask>>? _taskSub;
+  StreamSubscription<List<TeacherRecord>>? _teacherSub;
+
+  List<Duty> _duties = [];
+  List<DutyTask> _tasks = [];
+  List<TeacherRecord> _teachers = [];
+
+  String? _currentUserId;
+  String _role = 'teacher';
+
+  bool _isLoading = true;
+  String? _error;
+
+  List<Duty> get duties => _duties;
+  List<TeacherRecord> get teachers => _teachers;
+  bool get isLoading => _isLoading;
+  String? get error => _error;
+  String? get currentUserId => _currentUserId;
+  bool get isPrincipal => _role == 'principal' || _role == 'admin';
+
+  List<TeacherRecord> get activeTeachers =>
+      _teachers.where((t) => t.status.toLowerCase() == 'active').toList();
+
+  Duty? dutyById(String id) {
+    for (final duty in _duties) {
+      if (duty.id == id) return duty;
+    }
+    return null;
+  }
+
+  List<DutyTask> tasksForDuty(String dutyId) {
+    final matching = _tasks.where((task) => task.dutyId == dutyId).toList();
+    matching.sort((a, b) => a.sequence.compareTo(b.sequence));
+    return matching;
+  }
+
+  void setUser({required String? userId, required String role}) {
+    if (_currentUserId == userId && _role == role) return;
+    _currentUserId = userId;
+    _role = role;
     notifyListeners();
   }
 
-  Duty? get nextUpcomingDuty => null;
+  void _listenDuties() {
+    _dutySub = _dutyService.getDuties().listen(
+      (items) {
+        _duties = items;
+        _isLoading = false;
+        notifyListeners();
+      },
+      onError: (e) {
+        _error = e.toString();
+        _isLoading = false;
+        notifyListeners();
+      },
+    );
+  }
 
-  bool canCompleteTask(Duty duty) => true;
+  void _listenTasks() {
+    // A single stream of every duty task, grouped locally by dutyId. This
+    // keeps the editor/detail screens from having to manage one
+    // subscription per duty.
+    _taskSub = _taskService.getDutyTasks().listen(
+      (items) {
+        _tasks = items;
+        notifyListeners();
+      },
+      onError: (e) {
+        _error = e.toString();
+        notifyListeners();
+      },
+    );
+  }
 
-  Future<void> completeTask({
-    required Duty duty,
-    required String taskId,
-    required Uint8List imageBytes,
-    required String fileName,
-  }) async {
-    // dummy
-    notifyListeners();
+  void _listenTeachers() {
+    _teacherSub = _externalService.fetchTeachers().listen(
+      (items) {
+        _teachers = items;
+        notifyListeners();
+      },
+      onError: (e) {
+        _error = e.toString();
+        notifyListeners();
+      },
+    );
+  }
+
+  /// Creates a duty definition together with its task checklist.
+  Future<void> createDuty(Duty duty, List<DutyTask> tasks) async {
+    try {
+      _error = null;
+      final dutyId = await _dutyService.addDuty(duty);
+      var sequence = 0;
+      for (final task in tasks) {
+        await _taskService.addDutyTask(
+          task.copyWith(
+            dutyId: dutyId,
+            dutyNameSnapshot: duty.title,
+            sequence: sequence++,
+          ),
+        );
+      }
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+    }
+  }
+
+  /// Updates a duty definition and reconciles its task checklist: existing
+  /// tasks (non-empty id) are updated in place, new ones (empty id) are
+  /// added, and tasks no longer present in [tasks] are deleted.
+  Future<void> updateDuty(Duty duty, List<DutyTask> tasks) async {
+    try {
+      _error = null;
+      await _dutyService.updateDuty(duty);
+
+      final existingIds = tasksForDuty(duty.id).map((t) => t.id).toSet();
+      final keptIds = <String>{};
+      var sequence = 0;
+
+      for (final task in tasks) {
+        final withMeta = task.copyWith(
+          dutyId: duty.id,
+          dutyNameSnapshot: duty.title,
+          sequence: sequence++,
+        );
+        if (task.id.isEmpty) {
+          await _taskService.addDutyTask(withMeta);
+        } else {
+          keptIds.add(task.id);
+          await _taskService.updateDutyTask(withMeta);
+        }
+      }
+
+      for (final removedId in existingIds.difference(keptIds)) {
+        await _taskService.deleteDutyTask(removedId);
+      }
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteDuty(String id) async {
+    try {
+      _error = null;
+      await _dutyService.deleteDuty(id);
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    _dutySub?.cancel();
+    _taskSub?.cancel();
+    _teacherSub?.cancel();
+    super.dispose();
   }
 }
-
-// import 'dart:async';
-
-// import 'package:flutter/material.dart';
-
-// import '../../teachers/models/teacher.dart';
-// import '../models/duty.dart';
-// import '../services/duty_service.dart';
-
-// class DutyProvider extends ChangeNotifier {
-//   DutyProvider({DutyService? dutyService})
-//       : _dutyService = dutyService ?? DutyService() {
-//     loadForSelectedDate();
-//     _listenLocations();
-//     _listenTeachers();
-//   }
-
-//   final DutyService _dutyService;
-//   StreamSubscription<List<Duty>>? _dutySub;
-//   StreamSubscription<List<Duty>>? _upcomingSub;
-//   StreamSubscription<List<DutyLocation>>? _locationSub;
-//   StreamSubscription<List<TeacherRecord>>? _teacherSub;
-
-//   DateTime _selectedDate = DateTime.now();
-//   DutyViewMode _viewMode = DutyViewMode.calendar;
-//   DutyGroupingMode _groupingMode = DutyGroupingMode.location;
-//   DutyUserRole _userRole = DutyUserRole.teacher;
-//   String? _currentTeacherId;
-//   String? _currentTeacherName;
-//   String? _teacherFilterId;
-//   String? _locationFilterId;
-//   List<Duty> _duties = [];
-//   List<Duty> _upcomingDuties = [];
-//   List<DutyLocation> _locations = [];
-//   List<TeacherRecord> _teachers = [];
-//   bool _isLoading = true;
-//   String? _error;
-//   DutySwap? _lastSwap;
-
-//   DateTime get selectedDate => _selectedDate;
-//   DutyViewMode get viewMode => _viewMode;
-//   DutyGroupingMode get groupingMode => _groupingMode;
-//   DutyUserRole get userRole => _userRole;
-//   String? get currentTeacherId => _currentTeacherId;
-//   String? get currentTeacherName => _currentTeacherName;
-//   List<Duty> get duties => _filteredDuties();
-//   List<Duty> get upcomingDuties => _upcomingDuties;
-//   Duty? get nextUpcomingDuty =>
-//       _upcomingDuties.isEmpty ? null : _upcomingDuties.first;
-//   List<DutyLocation> get locations => _locations;
-//   List<TeacherRecord> get teachers => _teachers;
-//   bool get isLoading => _isLoading;
-//   String? get error => _error;
-//   DutySwap? get lastSwap => _lastSwap;
-//   String? get teacherFilterId => _teacherFilterId;
-//   String? get locationFilterId => _locationFilterId;
-//   bool get isPrincipal => _userRole == DutyUserRole.principal;
-
-//   List<Duty> get todoDuties =>
-//       duties.where((duty) => !duty.isCompleted).toList();
-//   List<Duty> get completedDuties =>
-//       duties.where((duty) => duty.isCompleted).toList();
-
-//   void setUser({
-//     required String? teacherId,
-//     required String? teacherName,
-//     required String role,
-//   }) {
-//     final lower = role.toLowerCase();
-//     final nextRole = lower == 'principal' || lower == 'admin'
-//         ? DutyUserRole.principal
-//         : DutyUserRole.teacher;
-//     if (_currentTeacherId == teacherId &&
-//         _currentTeacherName == teacherName &&
-//         _userRole == nextRole) {
-//       return;
-//     }
-//     _currentTeacherId = teacherId;
-//     _currentTeacherName = teacherName;
-//     _userRole = nextRole;
-//     _listenUpcomingDuties();
-//     notifyListeners();
-//   }
-
-//   void setSelectedDate(DateTime date) {
-//     final now = DateTime.now();
-//     final min = DateTime(now.year, now.month, now.day)
-//         .subtract(const Duration(days: 10));
-//     final max =
-//         DateTime(now.year, now.month, now.day).add(const Duration(days: 10));
-//     final onlyDate = DateTime(date.year, date.month, date.day);
-//     if (onlyDate.isBefore(min) || onlyDate.isAfter(max)) return;
-//     _selectedDate = onlyDate;
-//     loadForSelectedDate();
-//   }
-
-//   void toggleViewMode() {
-//     _viewMode = _viewMode == DutyViewMode.calendar
-//         ? DutyViewMode.list
-//         : DutyViewMode.calendar;
-//     notifyListeners();
-//   }
-
-//   void setGroupingMode(DutyGroupingMode mode) {
-//     _groupingMode = mode;
-//     notifyListeners();
-//   }
-
-//   void setTeacherFilter(String? id) {
-//     _teacherFilterId = id;
-//     notifyListeners();
-//   }
-
-//   void setLocationFilter(String? id) {
-//     _locationFilterId = id;
-//     notifyListeners();
-//   }
-
-//   void loadForSelectedDate() {
-//     _isLoading = true;
-//     _error = null;
-//     notifyListeners();
-//     _dutySub?.cancel();
-//     _dutySub = _dutyService.fetchDutiesByDate(_selectedDate).listen((items) {
-//       _duties = items;
-//       _isLoading = false;
-//       notifyListeners();
-//     }, onError: (Object err) {
-//       _error = err.toString();
-//       _isLoading = false;
-//       notifyListeners();
-//     });
-//   }
-
-//   Future<void> createDuty(Duty duty) async {
-//     await _guard(() async {
-//       await _dutyService.createRecurringDuties(duty);
-//     });
-//     loadForSelectedDate();
-//   }
-
-//   Future<void> updateDuty(Duty duty) async {
-//     await _guard(() => _dutyService.updateDuty(duty));
-//     loadForSelectedDate();
-//   }
-
-//   Future<void> deleteDuty(String dutyId) async {
-//     await _guard(() => _dutyService.deleteDuty(dutyId));
-//     loadForSelectedDate();
-//   }
-
-//   Future<DutyLocation?> addLocation(String name) async {
-//     try {
-//       return await _dutyService.addLocation(name);
-//     } catch (err) {
-//       _error = err.toString();
-//       notifyListeners();
-//       return null;
-//     }
-//   }
-
-//   Future<void> completeTask({
-//     required Duty duty,
-//     required String taskId,
-//     required List<int> imageBytes,
-//     required String fileName,
-//   }) async {
-//     final teacherId = _currentTeacherId;
-//     if (teacherId == null) {
-//       _error = 'No signed-in teacher found.';
-//       notifyListeners();
-//       return;
-//     }
-//     await _guard(() => _dutyService.completeTaskWithProof(
-//           duty: duty,
-//           taskId: taskId,
-//           teacherId: teacherId,
-//           imageBytes: imageBytes,
-//           fileName: fileName,
-//         ));
-//   }
-
-//   Future<List<String>> eligibleSwapTeacherIds(Duty duty) {
-//     return _dutyService.findEligibleTeacherIds(duty);
-//   }
-
-//   Future<void> requestSwap(Duty duty, String toTeacherId,
-//       {String? fromTeacherId}) async {
-//     final sourceTeacherId = fromTeacherId ??
-//         (isPrincipal
-//             ? (duty.teacherIds.isEmpty ? null : duty.teacherIds.first)
-//             : _currentTeacherId);
-//     if (sourceTeacherId == null) return;
-//     await _guard(() async {
-//       _lastSwap = await _dutyService.requestSwap(
-//         duty: duty,
-//         fromTeacherId: sourceTeacherId,
-//         toTeacherId: toTeacherId,
-//         requestedBy: _currentTeacherId ?? sourceTeacherId,
-//         requestedByPrincipal: isPrincipal,
-//       );
-//     });
-//   }
-
-//   bool canCompleteTask(Duty duty) => _dutyService.canCompleteTask(duty);
-
-//   bool canRequestSwap(Duty duty) {
-//     if (isPrincipal) return true;
-//     final teacherId = _currentTeacherId;
-//     return teacherId != null &&
-//         duty.teacherIds.contains(teacherId) &&
-//         _dutyService.canRequestSwap(duty);
-//   }
-
-//   Color colorForTeacher(String teacherId) =>
-//       _stableColor(teacherId, _teacherPalette);
-
-//   Color colorForLocation(String locationId) =>
-//       _stableColor(locationId, _locationPalette);
-
-//   void _listenLocations() {
-//     _locationSub = _dutyService.fetchLocations().listen((items) {
-//       _locations = items;
-//       notifyListeners();
-//     });
-//   }
-
-//   void _listenTeachers() {
-//     _teacherSub = _dutyService.fetchTeachers().listen((items) {
-//       _teachers = items;
-//       notifyListeners();
-//     });
-//   }
-
-//   void _listenUpcomingDuties() {
-//     _upcomingSub?.cancel();
-//     final teacherId = _currentTeacherId;
-//     if (teacherId == null) {
-//       _upcomingDuties = [];
-//       return;
-//     }
-//     _upcomingSub =
-//         _dutyService.fetchUpcomingByTeacher(teacherId).listen((items) {
-//       _upcomingDuties = items;
-//       notifyListeners();
-//     });
-//   }
-
-//   List<Duty> _filteredDuties() {
-//     Iterable<Duty> result = _duties;
-//     if (!isPrincipal && _currentTeacherId != null) {
-//       result =
-//           result.where((duty) => duty.teacherIds.contains(_currentTeacherId));
-//     }
-//     if (_teacherFilterId != null && _teacherFilterId!.isNotEmpty) {
-//       result =
-//           result.where((duty) => duty.teacherIds.contains(_teacherFilterId));
-//     }
-//     if (_locationFilterId != null && _locationFilterId!.isNotEmpty) {
-//       result = result.where((duty) =>
-//           duty.locations.any((location) => location.id == _locationFilterId));
-//     }
-//     return result.toList();
-//   }
-
-//   Future<void> _guard(Future<void> Function() action) async {
-//     try {
-//       _error = null;
-//       notifyListeners();
-//       await action();
-//     } catch (err) {
-//       _error = err.toString();
-//       notifyListeners();
-//     }
-//   }
-
-//   Color _stableColor(String id, List<Color> palette) {
-//     if (id.isEmpty) return palette.first;
-//     final hash = id.codeUnits.fold<int>(0, (value, unit) => value + unit);
-//     return palette[hash % palette.length];
-//   }
-
-//   @override
-//   void dispose() {
-//     _dutySub?.cancel();
-//     _upcomingSub?.cancel();
-//     _locationSub?.cancel();
-//     _teacherSub?.cancel();
-//     super.dispose();
-//   }
-// }
-
-// const _teacherPalette = [
-//   Color(0xff2563eb),
-//   Color(0xff059669),
-//   Color(0xffdc2626),
-//   Color(0xff7c3aed),
-//   Color(0xff0891b2),
-//   Color(0xffc2410c),
-//   Color(0xff4f46e5),
-// ];
-
-// const _locationPalette = [
-//   Color(0xff0f766e),
-//   Color(0xffb45309),
-//   Color(0xffbe123c),
-//   Color(0xff4338ca),
-//   Color(0xff047857),
-//   Color(0xff0369a1),
-//   Color(0xffa21caf),
-// ];

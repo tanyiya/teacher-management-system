@@ -22,16 +22,16 @@ class DutyTask {
     this.sequence = 0,
   });
 
-  factory DutyTask.fromMap(String id, Map<String, dynamic> data,) {
+  factory DutyTask.fromMap(String id, Map<String, dynamic> data) {
     return DutyTask(
       id: id,
-      dutyId:  data['dutyId']?.toString() ?? '',
+      dutyId: data['dutyId']?.toString() ?? '',
       dutyNameSnapshot: data['dutyNameSnapshot']?.toString() ?? '',
-      title:data['title']?.toString() ?? '',
+      title: data['title']?.toString() ?? '',
       description: data['description']?.toString(),
       locationId: data['locationId']?.toString(),
       locationNameSnapshot: data['locationNameSnapshot']?.toString(),
-      sequence: data['sequence'] ?? 0,
+      sequence: (data['sequence'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -48,6 +48,9 @@ class DutyTask {
   }
 
   DutyTask copyWith({
+    String? id,
+    String? dutyId,
+    String? dutyNameSnapshot,
     String? title,
     String? description,
     String? locationId,
@@ -55,9 +58,9 @@ class DutyTask {
     int? sequence,
   }) {
     return DutyTask(
-      id: id,
-      dutyId: dutyId,
-      dutyNameSnapshot: dutyNameSnapshot,
+      id: id ?? this.id,
+      dutyId: dutyId ?? this.dutyId,
+      dutyNameSnapshot: dutyNameSnapshot ?? this.dutyNameSnapshot,
       title: title ?? this.title,
       description: description ?? this.description,
       locationId: locationId ?? this.locationId,

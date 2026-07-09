@@ -5,9 +5,11 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:provider/provider.dart';
 
 import '../../app_theme.dart';
-import '../../modules/duty/models/duty.dart';
-import '../../modules/duty/providers/duty_provider.dart';
+import '../../modules/duty/models/duty_assignment.dart';
+import '../../modules/duty/models/duty_task_assignment.dart';
+import '../../modules/duty/providers/duty_assignment_provider.dart';
 import '../../modules/duty/screens/duty_schedule_screen.dart';
+import '../../modules/duty/utils/duty_time_utils.dart';
 import '../../modules/teachers/models/teacher.dart';
 import '../../modules/leave/screens/leave_screen.dart';
 import '../../modules/report/screens/teacher_report_screen.dart';
@@ -18,17 +20,17 @@ class TeacherHomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<DutyProvider>();
-    if (provider.currentTeacherId != user.id) {
+    final provider = context.watch<DutyAssignmentProvider>();
+    if (provider.currentUserId != user.id) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        context.read<DutyProvider>().setUser(
-              teacherId: user.id,
-              teacherName: user.fullName,
+        if (!context.mounted) return;
+        context.read<DutyAssignmentProvider>().setUser(
+              userId: user.id,
               role: user.role,
             );
       });
     }
-    final nextDuty = provider.nextUpcomingDuty;
+    final nextAssignment = provider.nextUpcomingDutyAssignment;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -72,14 +74,14 @@ class TeacherHomeScreen extends StatelessWidget {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-          if (provider.isLoading)
+          if (provider.isLoadingNextDuty)
             const Center(child: CircularProgressIndicator())
           else if (provider.error != null)
             _ErrorCard(message: provider.error!)
-          else if (nextDuty == null)
+          else if (nextAssignment == null)
             const _EmptyCard(message: 'No upcoming duty assigned.')
           else
-            _DutyCard(duty: nextDuty, userId: user.id),
+            _DutyCard(assignment: nextAssignment, userId: user.id),
         ],
       ),
     );
@@ -193,18 +195,23 @@ class _ShortcutCard extends StatelessWidget {
 // ── Duty card ────────────────────────────────────────────────────────────────
 
 class _DutyCard extends StatelessWidget {
-  final Duty duty;
+  final DutyAssignment assignment;
   final String userId;
 
-  const _DutyCard({required this.duty, required this.userId});
+  const _DutyCard({required this.assignment, required this.userId});
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<DutyProvider>();
-    final locationLabel = duty.locations.map((l) => l.name).join(', ');
+    final locationLabel = assignment.locationNameSnapshots.join(', ');
+    final isCompleted = assignment.status == DutyAssignmentStatus.completed;
+    final canUpdate = DutyTimeUtils.isWithinUpdateWindow(
+      assignment.date,
+      assignment.timeStart,
+      assignment.timeEnd,
+    );
 
     return GestureDetector(
-      onTap: () => _showTaskList(context, duty),
+      onTap: () => _showTaskList(context),
       child: Card(
         margin: const EdgeInsets.only(bottom: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -224,17 +231,17 @@ class _DutyCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      duty.title,
+                      assignment.dutyNameSnapshot,
                       style: const TextStyle(
                           fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                   ),
-                  _StatusBadge(isCompleted: false),           //////////////////// Temporary
+                  _StatusBadge(isCompleted: isCompleted),
                 ],
               ),
               const SizedBox(height: 4),
               Text(
-                '$locationLabel  •  ${duty.timeStart} - ${duty.timeEnd}',
+                '$locationLabel  •  ${assignment.timeStart} - ${assignment.timeEnd}',
                 style: const TextStyle(color: Colors.grey, fontSize: 13),
               ),
               const SizedBox(height: 12),
@@ -243,9 +250,7 @@ class _DutyCard extends StatelessWidget {
                   const Icon(Icons.chevron_right, size: 18, color: Colors.grey),
                   const SizedBox(width: 4),
                   Text(
-                    provider.canCompleteTask(duty)
-                        ? 'Open task list'
-                        : 'View task list',
+                    canUpdate ? 'Open task list' : 'View task list',
                     style: const TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                 ],
@@ -257,116 +262,139 @@ class _DutyCard extends StatelessWidget {
     );
   }
 
-  void _showTaskList(BuildContext context, Duty duty) {
-    final provider = context.read<DutyProvider>();
+  void _showTaskList(BuildContext context) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(duty.title, style: Theme.of(context).textTheme.titleLarge),
-            Text(
-                '${duty.timeStart} - ${duty.timeEnd}  •  ${duty.locations.map((l) => l.name).join(', ')}'),
-            const SizedBox(height: 12),
+      builder: (_) => _TaskListSheet(assignment: assignment, userId: userId),
+    );
+  }
+}
+
+// ── Task list sheet ──────────────────────────────────────────────────────────
+
+class _TaskListSheet extends StatelessWidget {
+  const _TaskListSheet({required this.assignment, required this.userId});
+
+  final DutyAssignment assignment;
+  final String userId;
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<DutyAssignmentProvider>();
+    final tasks = provider.tasksForAssignment(assignment.id);
+    final canUpdate = DutyTimeUtils.isWithinUpdateWindow(
+      assignment.date,
+      assignment.timeStart,
+      assignment.timeEnd,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(assignment.dutyNameSnapshot,
+              style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            '${assignment.timeStart} - ${assignment.timeEnd}  •  '
+            '${assignment.locationNameSnapshots.join(', ')}',
+          ),
+          const SizedBox(height: 12),
+          if (tasks.isEmpty)
             const Text(
               'No tasks available',
               style: TextStyle(color: Colors.grey),
+            )
+          else
+            ...tasks.map(
+              (task) => _TaskTile(
+                task: task,
+                userId: userId,
+                canComplete: canUpdate,
+              ),
             ),
-
-            ///////////////// Removed Temporary  /////////////////////////
-            // ...duty.tasks.map(
-            //   (task) => _TaskTile(
-            //     task: task,
-            //     duty: duty,
-            //     canComplete: provider.canCompleteTask(duty),
-            //   ),
-            // ),
-            const SizedBox(height: 20),
-          ],
-        ),
+          const SizedBox(height: 20),
+        ],
       ),
     );
   }
 }
 
 // ── Task tile ────────────────────────────────────────────────────────────────
-/////////////////////////////////////////////////////////////// Remove temporarily
-// class _TaskTile extends StatelessWidget {
-//   final DutyTask task;
-//   final Duty duty;
-//   final bool canComplete;
 
-//   const _TaskTile({
-//     required this.task,
-//     required this.duty,
-//     required this.canComplete,
-//   });
+class _TaskTile extends StatelessWidget {
+  final DutyTaskAssignment task;
+  final String userId;
+  final bool canComplete;
 
+  const _TaskTile({
+    required this.task,
+    required this.userId,
+    required this.canComplete,
+  });
 
-//   // Future<void> _captureProof(BuildContext context) async {
-//   //   final provider = context.read<DutyProvider>();
-//   //   final picker = ImagePicker();
-//   //   final image = await picker.pickImage(
-//   //       source: ImageSource.camera, imageQuality: 78, maxWidth: 1600);
-//   //   if (image == null) return;
-//   //   await provider.completeTask(
-//   //     duty: duty,
-//   //     taskId: task.id,
-//   //     imageBytes: await image.readAsBytes(),
-//   //     fileName: image.name,
-//   //   );
-//   // }
+  Future<void> _captureProof(BuildContext context) async {
+    final provider = context.read<DutyAssignmentProvider>();
+    final picker = ImagePicker();
+    final image = await picker.pickImage(
+        source: ImageSource.camera, imageQuality: 78, maxWidth: 1600);
+    if (image == null) return;
+    // NOTE: `image` still needs to be uploaded to storage; plug the
+    // resulting download URL in as `photoUrl` once that wiring exists.
+    await provider.completeTask(
+      taskAssignmentId: task.id,
+      teacherId: userId,
+    );
+  }
 
-//   @override
-//   Widget build(BuildContext context) {
-//     return ListTile(
-//       contentPadding: EdgeInsets.zero,
-//       leading: task.photoUrl != null
-//           ? ClipRRect(
-//               borderRadius: BorderRadius.circular(6),
-//               child: Image.network(
-//                 task.photoUrl!,
-//                 width: 40,
-//                 height: 40,
-//                 fit: BoxFit.cover,
-//               ),
-//             )
-//           : Icon(
-//               task.isCompleted
-//                   ? Icons.check_circle
-//                   : Icons.radio_button_unchecked,
-//               color: task.isCompleted ? Colors.green : Colors.grey,
-//             ),
-//       title: Text(
-//         task.name,
-//         style: TextStyle(
-//           decoration: task.isCompleted ? TextDecoration.lineThrough : null,
-//           color: task.isCompleted ? Colors.grey : null,
-//         ),
-//       ),
-//       subtitle: task.isCompleted && task.completedAt != null
-//           ? Text(
-//               'Done at ${DateFormat.jm().format(task.completedAt!)}',
-//               style: const TextStyle(fontSize: 12),
-//             )
-//           : const Text(
-//               'Needs camera proof',
-//               style: TextStyle(fontSize: 12, color: Colors.orange),
-//             ),
-//       trailing: !task.isCompleted && canComplete
-//           ? IconButton(
-//               tooltip: 'Capture proof',
-//               icon: const Icon(Icons.photo_camera_outlined),
-//               onPressed: () => _captureProof(context),
-//             )
-//           : null,
-//     );
-//   }
-// }
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: task.photoUrl != null && task.photoUrl!.isNotEmpty
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Image.network(
+                task.photoUrl!,
+                width: 40,
+                height: 40,
+                fit: BoxFit.cover,
+              ),
+            )
+          : Icon(
+              task.isCompleted
+                  ? Icons.check_circle
+                  : Icons.radio_button_unchecked,
+              color: task.isCompleted ? Colors.green : Colors.grey,
+            ),
+      title: Text(
+        task.taskNameSnapshot,
+        style: TextStyle(
+          decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+          color: task.isCompleted ? Colors.grey : null,
+        ),
+      ),
+      subtitle: task.isCompleted && task.completedAt != null
+          ? Text(
+              'Done at ${DateFormat.jm().format(task.completedAt!)}',
+              style: const TextStyle(fontSize: 12),
+            )
+          : const Text(
+              'Needs camera proof',
+              style: TextStyle(fontSize: 12, color: Colors.orange),
+            ),
+      trailing: !task.isCompleted && canComplete
+          ? IconButton(
+              tooltip: 'Capture proof',
+              icon: const Icon(Icons.photo_camera_outlined),
+              onPressed: () => _captureProof(context),
+            )
+          : null,
+    );
+  }
+}
 
 // ── Status badge ─────────────────────────────────────────────────────────────
 
