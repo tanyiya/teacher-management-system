@@ -16,11 +16,31 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class DutyCloudinaryService {
   DutyCloudinaryService._();
 
-  static String get _cloudName => dotenv.env['CLOUDINARY_CLOUD_NAME'] ?? '';
-  static String get _uploadPreset => dotenv.env['CLOUDINARY_UPLOAD_PRESET'] ?? '';
+  // `dotenv.env` throws if `dotenv.load()` hasn't run yet, and that throw
+  // was happening OUTSIDE this class's try/catch (in the emptiness check
+  // below), which propagated all the way up through an un-guarded `await`
+  // in the calling widgets and left their "uploading" spinner stuck
+  // forever since the code that resets it never ran. `dotenv.isInitialized`
+  // lets us check safely instead of relying on the throw.
+  static String get _cloudName {
+    if (!dotenv.isInitialized) return '';
+    return dotenv.env['CLOUDINARY_CLOUD_NAME'] ?? '';
+  }
 
-  static String get apiKey => dotenv.env['CLOUDINARY_API_KEY'] ?? '';
-  static String get apiSecret => dotenv.env['CLOUDINARY_API_SECRET'] ?? '';
+  static String get _uploadPreset {
+    if (!dotenv.isInitialized) return '';
+    return dotenv.env['CLOUDINARY_UPLOAD_PRESET'] ?? '';
+  }
+
+  static String get apiKey {
+    if (!dotenv.isInitialized) return '';
+    return dotenv.env['CLOUDINARY_API_KEY'] ?? '';
+  }
+
+  static String get apiSecret {
+    if (!dotenv.isInitialized) return '';
+    return dotenv.env['CLOUDINARY_API_SECRET'] ?? '';
+  }
 
   /// Uploads a task-completion proof photo and returns its secure URL, or
   /// `null` if the upload failed (including missing `.env` config).
@@ -29,17 +49,19 @@ class DutyCloudinaryService {
     String fileName, {
     String folder = 'duty-task-proofs',
   }) async {
-    if (_cloudName.isEmpty || _uploadPreset.isEmpty) {
-      return null;
-    }
-
     try {
+      final cloudName = _cloudName;
+      final uploadPreset = _uploadPreset;
+      if (cloudName.isEmpty || uploadPreset.isEmpty) {
+        return null;
+      }
+
       final uri = Uri.parse(
-        'https://api.cloudinary.com/v1_1/$_cloudName/auto/upload',
+        'https://api.cloudinary.com/v1_1/$cloudName/auto/upload',
       );
 
       final request = http.MultipartRequest('POST', uri)
-        ..fields['upload_preset'] = _uploadPreset
+        ..fields['upload_preset'] = uploadPreset
         ..fields['folder'] = folder
         ..files.add(
           http.MultipartFile.fromBytes('file', fileBytes, filename: fileName),

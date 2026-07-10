@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../models/duty.dart';
@@ -9,6 +10,7 @@ import '../providers/duty_assignment_provider.dart';
 import '../providers/duty_provider.dart';
 import '../providers/duty_schedule_provider.dart';
 import '../providers/duty_swap_provider.dart';
+import '../services/duty_cloudinary_service.dart';
 import '../utils/duty_time_utils.dart';
 import 'widgets/duty_detail_sheet.dart';
 import 'widgets/duty_editor_dialog.dart';
@@ -224,7 +226,9 @@ class _DutyCard extends StatelessWidget {
                 );
               }
               return Column(
-                children: tasks.map((task) => _TaskTile(task: task)).toList(),
+                children: tasks
+                    .map((task) => _TaskTile(task: task, assignment: assignment))
+                    .toList(),
               );
             },
           ),
@@ -299,25 +303,105 @@ class _CompactIconButton extends StatelessWidget {
   }
 }
 
-class _TaskTile extends StatelessWidget {
-  const _TaskTile({required this.task});
+class _TaskTile extends StatefulWidget {
+  const _TaskTile({required this.task, required this.assignment});
 
   final DutyTaskAssignment task;
+  final DutyAssignment assignment;
+
+  @override
+  State<_TaskTile> createState() => _TaskTileState();
+}
+
+class _TaskTileState extends State<_TaskTile> {
+  final _picker = ImagePicker();
+  bool _uploading = false;
+
+  Future<void> _captureProof(BuildContext context) async {
+    final image = await _picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 78,
+      maxWidth: 1600,
+    );
+    if (image == null) return;
+
+    setState(() => _uploading = true);
+
+    try {
+      final bytes = await image.readAsBytes();
+      final photoUrl = await DutyCloudinaryService.uploadTaskProof(bytes, image.name);
+
+      if (photoUrl == null) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Photo upload failed. Please try again.')),
+          );
+        }
+        return;
+      }
+
+      if (!context.mounted) return;
+      await context.read<DutyAssignmentProvider>().completeTask(
+            taskAssignmentId: widget.task.id,
+            teacherId: context.read<DutyProvider>().currentUserId ?? '',
+            photoUrl: photoUrl,
+          );
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final task = widget.task;
+    final canUpdate = DutyTimeUtils.isWithinUpdateWindow(
+      widget.assignment.date,
+      widget.assignment.timeStart,
+      widget.assignment.timeEnd,
+    );
+
+    Widget? trailing;
+    if (_uploading) {
+      trailing = const SizedBox(
+        width: 20,
+        height: 20,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
+    } else if (canUpdate) {
+      trailing = task.isCompleted
+          ? IconButton(
+              tooltip: 'Reopen',
+              icon: const Icon(Icons.undo, size: 20),
+              onPressed: () =>
+                  context.read<DutyAssignmentProvider>().reopenTask(task.id),
+            )
+          : IconButton(
+              tooltip: 'Capture proof',
+              icon: const Icon(Icons.photo_camera_outlined, size: 20),
+              onPressed: () => _captureProof(context),
+            );
+    }
+
     return ListTile(
       dense: true,
       visualDensity: VisualDensity.compact,
-      leading: Icon(
-        task.isCompleted ? Icons.check_circle : Icons.radio_button_unchecked,
-        color: task.isCompleted ? Colors.green : Colors.grey,
-      ),
+      leading: task.photoUrl != null && task.photoUrl!.isNotEmpty
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Image.network(
+                task.photoUrl!,
+                width: 32,
+                height: 32,
+                fit: BoxFit.cover,
+              ),
+            )
+          : Icon(
+              task.isCompleted ? Icons.check_circle : Icons.radio_button_unchecked,
+              color: task.isCompleted ? Colors.green : Colors.grey,
+            ),
       title: Text(task.taskNameSnapshot),
       subtitle: Text(task.isCompleted ? 'Completed' : 'Pending'),
-      trailing: task.photoUrl != null && task.photoUrl!.isNotEmpty
-          ? const Icon(Icons.image)
-          : null,
+      trailing: trailing,
     );
   }
 }

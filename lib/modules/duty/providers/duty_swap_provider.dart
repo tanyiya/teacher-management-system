@@ -92,10 +92,10 @@ class DutySwapProvider extends ChangeNotifier {
 
   /// Active teachers who are eligible to take over [assignment]: those with
   /// a duty covering the exact same time window, or with no duty at all
-  /// overlapping that window. Now that `DutyAssignment` snapshots its own
-  /// `timeStart`/`timeEnd`, this compares assignments directly and no
-  /// longer needs to look anything up on `Duty`.
-  Future<List<String>> eligibleSwapTeacherIds({
+  /// overlapping that window. Returns each candidate's own duty at that
+  /// time (if any), so the swap dialog can show it -- e.g. "Ahmad Ali —
+  /// also on Cleaning Duty (Dining Area)" vs "Ahmad Ali — free".
+  Future<List<SwapCandidate>> eligibleSwapCandidates({
     required DutyAssignment assignment,
     required DutyProvider dutyProvider,
   }) async {
@@ -106,18 +106,18 @@ class DutySwapProvider extends ChangeNotifier {
         .where((t) => !assignment.teacherIds.contains(t.id))
         .toList();
 
-    final eligible = <String>[];
+    final eligible = <SwapCandidate>[];
     for (final teacher in candidates) {
       final teacherAssignments =
           sameDayAssignments.where((a) => a.teacherIds.contains(teacher.id));
 
-      var hasSimilarHourDuty = false;
+      DutyAssignment? sameHourDuty;
       var hasOverlap = false;
 
       for (final other in teacherAssignments) {
         if (other.timeStart == assignment.timeStart &&
             other.timeEnd == assignment.timeEnd) {
-          hasSimilarHourDuty = true;
+          sameHourDuty = other;
         }
         if (DutyTimeUtils.rangesOverlap(
           assignment.timeStart,
@@ -129,8 +129,12 @@ class DutySwapProvider extends ChangeNotifier {
         }
       }
 
-      if (hasSimilarHourDuty || !hasOverlap) {
-        eligible.add(teacher.id);
+      if (sameHourDuty != null || !hasOverlap) {
+        eligible.add(SwapCandidate(
+          teacherId: teacher.id,
+          teacherName: teacher.fullName,
+          conflictingAssignment: sameHourDuty,
+        ));
       }
     }
     return eligible;
@@ -156,6 +160,10 @@ class DutySwapProvider extends ChangeNotifier {
         id: '',
         dutyAssignmentId: assignment.id,
         dutyNameSnapshot: assignment.dutyNameSnapshot,
+        date: assignment.date,
+        timeStart: assignment.timeStart,
+        timeEnd: assignment.timeEnd,
+        locationNameSnapshot: assignment.locationNameSnapshot,
         currentTeacherId: currentTeacherId,
         currentTeacherNameSnapshot: _nameFor(assignment, currentTeacherId),
         replacementTeacherId: replacementTeacherId,
@@ -220,18 +228,50 @@ class DutySwapProvider extends ChangeNotifier {
     }
   }
 
+  /// Applies a swap on [assignment]: [fromId] steps out, [toId] steps in.
+  ///
+  /// If [toId] already had their own assignment in the exact same time
+  /// slot (the "same-hour duty" eligibility case), this is a genuine
+  /// trade: [fromId] is placed into that assignment in turn, so both
+  /// teachers end up exactly where the other one was instead of [toId]
+  /// ending up double-booked and [fromId] ending up with nothing. If
+  /// [toId] was simply free at the time, there's no assignment to trade
+  /// into -- it's just a one-way handoff.
   Future<void> _applySwap(
     DutyAssignment assignment,
     String fromId,
     String toId,
     String toName,
   ) async {
+    final fromName = _nameFor(assignment, fromId);
+
+    await _swapTeacherOnAssignment(assignment, fromId, toId, toName);
+
+    final sameDayAssignments =
+        await _assignmentService.getAssignmentsByDate(assignment.date).first;
+    final reciprocal = sameDayAssignments.where((a) =>
+        a.id != assignment.id &&
+        a.teacherIds.contains(toId) &&
+        a.timeStart == assignment.timeStart &&
+        a.timeEnd == assignment.timeEnd);
+
+    if (reciprocal.isNotEmpty) {
+      await _swapTeacherOnAssignment(reciprocal.first, toId, fromId, fromName);
+    }
+  }
+
+  Future<void> _swapTeacherOnAssignment(
+    DutyAssignment assignment,
+    String outgoingId,
+    String incomingId,
+    String incomingName,
+  ) async {
     final teacherIds = [...assignment.teacherIds];
     final teacherNames = [...assignment.teacherNameSnapshots];
-    final index = teacherIds.indexOf(fromId);
+    final index = teacherIds.indexOf(outgoingId);
     if (index == -1) return;
-    teacherIds[index] = toId;
-    teacherNames[index] = toName;
+    teacherIds[index] = incomingId;
+    teacherNames[index] = incomingName;
     await _assignmentService.updateAssignment(
       assignment.copyWith(
         teacherIds: teacherIds,
@@ -253,4 +293,19 @@ class DutySwapProvider extends ChangeNotifier {
     _swapSub?.cancel();
     super.dispose();
   }
+}
+
+/// An active teacher who's eligible to take over a swap, plus whichever of
+/// their own assignments conflicts with the target time slot (null = they
+/// were simply free at that time).
+class SwapCandidate {
+  final String teacherId;
+  final String teacherName;
+  final DutyAssignment? conflictingAssignment;
+
+  const SwapCandidate({
+    required this.teacherId,
+    required this.teacherName,
+    this.conflictingAssignment,
+  });
 }

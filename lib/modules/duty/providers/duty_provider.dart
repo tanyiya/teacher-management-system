@@ -252,11 +252,18 @@ class DutyProvider extends ChangeNotifier {
 
       final taskAssignments =
           await _taskAssignmentService.getTasksByAssignment(assignment.id).first;
+      final taskAssignmentByTaskId = {for (final ta in taskAssignments) ta.dutyTaskId: ta};
+
+      // Existing task-assignments: refresh the ones whose task still
+      // exists and changed wording, retire the ones whose task was
+      // removed from the duty entirely.
       for (final ta in taskAssignments) {
         final matchingTask = currentTaskById[ta.dutyTaskId];
-        if (matchingTask == null || matchingTask.title == ta.taskNameSnapshot) {
+        if (matchingTask == null) {
+          await _taskAssignmentService.deleteTaskAssignment(ta.id);
           continue;
         }
+        if (matchingTask.title == ta.taskNameSnapshot) continue;
         await _taskAssignmentService.updateTaskAssignment(
           DutyTaskAssignment(
             id: ta.id,
@@ -269,6 +276,30 @@ class DutyProvider extends ChangeNotifier {
             photoUrl: ta.photoUrl,
             completedAt: ta.completedAt,
             completedByTeacherId: ta.completedByTeacherId,
+          ),
+        );
+      }
+
+      // Tasks added to the duty after this assignment was originally
+      // generated have no task-assignment doc at all yet -- this was the
+      // actual gap: the loop above only ever updated docs that already
+      // existed, so a brand-new task never showed up on any
+      // already-generated future assignment. Create one for each,
+      // inheriting the assignment's current teacher(s).
+      for (final task in currentTasks) {
+        if (taskAssignmentByTaskId.containsKey(task.id)) continue;
+        await _taskAssignmentService.addTaskAssignment(
+          DutyTaskAssignment(
+            id: '',
+            dutyAssignmentId: assignment.id,
+            dutyTaskId: task.id,
+            taskNameSnapshot: task.title,
+            teacherIds: refreshedAssignment.teacherIds,
+            teacherNameSnapshots: refreshedAssignment.teacherNameSnapshots,
+            isCompleted: false,
+            photoUrl: null,
+            completedAt: null,
+            completedByTeacherId: null,
           ),
         );
       }

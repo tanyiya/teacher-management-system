@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../models/duty_swap.dart';
 import '../../providers/duty_swap_provider.dart';
+import '../../utils/duty_time_utils.dart';
 
 /// Shows swaps awaiting this teacher's approval, with Accept/Reject
 /// actions. Renders nothing if there's nothing pending, so it's safe to
@@ -64,7 +65,14 @@ class _SwapRequestCard extends StatelessWidget {
               swap.dutyNameSnapshot,
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
+            Text(
+              '${DutyTimeUtils.weekdayName(swap.date.weekday)}, '
+              '${swap.date.day}/${swap.date.month}/${swap.date.year}  '
+              '${swap.timeStart} - ${swap.timeEnd}  •  ${swap.locationNameSnapshot}',
+              style: const TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+            const SizedBox(height: 6),
             Text(
               '${swap.currentTeacherNameSnapshot} wants to swap this duty with you',
               style: const TextStyle(fontSize: 13, color: Colors.black87),

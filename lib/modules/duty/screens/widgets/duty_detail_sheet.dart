@@ -161,25 +161,32 @@ class _DutyDetailSheetState extends State<DutyDetailSheet> {
 
     setState(() => _uploading = true);
 
-    final bytes = await image.readAsBytes();
-    final photoUrl = await DutyCloudinaryService.uploadTaskProof(bytes, image.name);
+    // try/finally so `_uploading` always resets -- previously any
+    // unexpected exception here (a network error, a read failure, etc.)
+    // would skip straight past the `setState(() => _uploading = false)`
+    // below and leave the capture button stuck showing a spinner forever.
+    try {
+      final bytes = await image.readAsBytes();
+      final photoUrl = await DutyCloudinaryService.uploadTaskProof(bytes, image.name);
 
-    if (!mounted) return;
-    setState(() => _uploading = false);
+      if (photoUrl == null) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Photo upload failed. Please try again.')),
+          );
+        }
+        return;
+      }
 
-    if (photoUrl == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Photo upload failed. Please try again.')),
-      );
-      return;
+      if (!context.mounted) return;
+      await context.read<DutyAssignmentProvider>().completeTask(
+            taskAssignmentId: task.id,
+            teacherId: context.read<DutyProvider>().currentUserId ?? '',
+            photoUrl: photoUrl,
+          );
+    } finally {
+      if (mounted) setState(() => _uploading = false);
     }
-
-    if (!context.mounted) return;
-    await context.read<DutyAssignmentProvider>().completeTask(
-          taskAssignmentId: task.id,
-          teacherId: context.read<DutyProvider>().currentUserId ?? '',
-          photoUrl: photoUrl,
-        );
   }
 }
 
