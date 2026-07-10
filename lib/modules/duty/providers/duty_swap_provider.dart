@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../models/duty_assignment.dart';
@@ -16,28 +17,77 @@ import 'duty_provider.dart';
 ///    teachers without requiring approval.
 ///  - Swaps can only be requested/approved up to 30 minutes before the duty
 ///    starts (see [DutyTimeUtils.canStillSwap]).
+///
+/// Swaps are listened to once here and cached (like the other duty
+/// providers), rather than handing out a fresh `Stream` per call: an
+/// earlier version built a new `.map()` stream on every
+/// `pendingApprovalsFor`/`watchSwapsForAssignment` call, so any time the
+/// widget holding a `StreamBuilder` rebuilt for an unrelated reason (e.g.
+/// its parent screen re-watching another provider), `StreamBuilder` saw a
+/// *different* stream identity, tore down its subscription, and reset to
+/// `ConnectionState.waiting` -- which is why a swap request would appear
+/// and then immediately disappear.
 class DutySwapProvider extends ChangeNotifier {
   DutySwapProvider({
     DutySwapService? swapService,
     DutyAssignmentService? assignmentService,
   })  : _swapService = swapService ?? DutySwapService(),
-        _assignmentService = assignmentService ?? DutyAssignmentService();
+        _assignmentService = assignmentService ?? DutyAssignmentService() {
+    _listenSwaps();
+  }
 
   final DutySwapService _swapService;
   final DutyAssignmentService _assignmentService;
 
+  StreamSubscription<List<DutySwap>>? _swapSub;
+  List<DutySwap> _swaps = [];
+
   String? _error;
   String? get error => _error;
 
+  void _listenSwaps() {
+    _swapSub = _swapService.getSwaps().listen(
+      (items) {
+        _swaps = items;
+        notifyListeners();
+      },
+      onError: (e) {
+        _error = e.toString();
+        notifyListeners();
+      },
+    );
+  }
+
   /// Swaps awaiting this teacher's approval.
-  Stream<List<DutySwap>> pendingApprovalsFor(String teacherId) {
-    return _swapService.getSwapsByTeacher(teacherId).map(
-          (swaps) => swaps
-              .where((s) =>
-                  s.status == DutySwapStatus.pending &&
-                  s.replacementTeacherId == teacherId)
-              .toList(),
-        );
+  List<DutySwap> pendingApprovalsFor(String teacherId) {
+    return _swaps
+        .where((s) =>
+            s.status == DutySwapStatus.pending && s.replacementTeacherId == teacherId)
+        .toList();
+  }
+
+  /// Swaps tied to one specific assignment, so a duty card can show its
+  /// swap status (e.g. "Swap pending approval").
+  List<DutySwap> swapsForAssignment(String assignmentId) {
+    return _swaps.where((s) => s.dutyAssignmentId == assignmentId).toList();
+  }
+
+  /// Convenience for the accept/reject inbox: looks up the swap and its
+  /// assignment by id and applies it, so the UI doesn't need to fetch both
+  /// itself before calling [approveSwap].
+  Future<void> approveSwapById(String swapId) async {
+    try {
+      _error = null;
+      final swap = await _swapService.getSwapById(swapId);
+      if (swap == null) return;
+      final assignment =
+          await _assignmentService.getAssignmentById(swap.dutyAssignmentId);
+      if (assignment == null) return;
+      await approveSwap(swap, assignment);
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+    }
   }
 
   /// Active teachers who are eligible to take over [assignment]: those with
@@ -196,5 +246,11 @@ class DutySwapProvider extends ChangeNotifier {
       return teacherId;
     }
     return assignment.teacherNameSnapshots[index];
+  }
+
+  @override
+  void dispose() {
+    _swapSub?.cancel();
+    super.dispose();
   }
 }

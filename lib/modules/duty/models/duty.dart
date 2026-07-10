@@ -1,4 +1,5 @@
 import 'duty_location.dart';
+import '../utils/duty_time_utils.dart';
 
 enum DutyRecurrence {
   once,
@@ -17,42 +18,71 @@ class Duty {
   final bool isAllDay;
   final DutyRecurrence recurrence;
 
+  /// Which day a `weekly` duty falls on. `1` = Monday ... `7` = Sunday
+  /// (matches `DateTime.weekday`). Null/ignored for other recurrences.
+  final int? recurrenceDayOfWeek;
+
+  /// Which day of the month a `monthly` duty falls on (1-31). Null/ignored
+  /// for other recurrences.
+  final int? recurrenceDayOfMonth;
+
   final List<DutyLocation> locations;
 
   final int minTeachersPerVenue;
+
+  /// Human-readable recurrence, spelling out the day for weekly/monthly
+  /// duties (e.g. "Every Monday", "Every 1st") since just "Weekly" or
+  /// "Monthly" doesn't say which day it actually falls on.
+  String get recurrenceLabel {
+    switch (recurrence) {
+      case DutyRecurrence.once:
+        return 'One-time';
+      case DutyRecurrence.daily:
+        return 'Daily';
+      case DutyRecurrence.weekly:
+        return recurrenceDayOfWeek != null
+            ? 'Every ${DutyTimeUtils.weekdayName(recurrenceDayOfWeek!)}'
+            : 'Weekly';
+      case DutyRecurrence.monthly:
+        return recurrenceDayOfMonth != null
+            ? 'Every ${DutyTimeUtils.ordinal(recurrenceDayOfMonth!)}'
+            : 'Monthly';
+    }
+  }
 
   const Duty({
     required this.id,
     required this.title,
     required this.timeStart,
     required this.timeEnd,
-    this.isAllDay = false,
-    this.recurrence = DutyRecurrence.once,
-    this.locations = const [],
-    this.minTeachersPerVenue = 1,
+    required this.isAllDay,
+    required this.recurrence,
+    this.recurrenceDayOfWeek,
+    this.recurrenceDayOfMonth,
+    required this.locations,
+    required this.minTeachersPerVenue,
   });
 
-  factory Duty.fromMap(String id, Map<String, dynamic> data,) {
+  factory Duty.fromMap(String id, Map<String, dynamic> data) {
     return Duty(
       id: id,
       title: data['title']?.toString() ?? '',
-      timeStart: data['timeStart']?.toString() ?? '',
-      timeEnd: data['timeEnd']?.toString() ?? '',
-      isAllDay: data['isAllDay'] == true,
-
+      timeStart: data['timeStart']?.toString() ?? '00:00',
+      timeEnd: data['timeEnd']?.toString() ?? '00:00',
+      isAllDay: data['isAllDay'] as bool? ?? false,
       recurrence: DutyRecurrence.values.firstWhere(
         (e) => e.name == data['recurrence'],
         orElse: () => DutyRecurrence.once,
       ),
-
-      locations:
-          (data['locations'] as List<dynamic>? ?? [])
-              .map((e) {
-                return DutyLocation.fromMap(e['id'].toString(), e,);
-              })
-              .toList(),
-
-      minTeachersPerVenue: data['minTeachersPerVenue'] ?? 1,
+      recurrenceDayOfWeek: (data['recurrenceDayOfWeek'] as num?)?.toInt(),
+      recurrenceDayOfMonth: (data['recurrenceDayOfMonth'] as num?)?.toInt(),
+      locations: (data['locations'] as List<dynamic>? ?? [])
+          .map((raw) => DutyLocation.fromMap(
+                raw['id']?.toString() ?? '',
+                Map<String, dynamic>.from(raw as Map),
+              ))
+          .toList(),
+      minTeachersPerVenue: (data['minTeachersPerVenue'] as num?)?.toInt() ?? 1,
     );
   }
 
@@ -63,12 +93,9 @@ class Duty {
       'timeEnd': timeEnd,
       'isAllDay': isAllDay,
       'recurrence': recurrence.name,
-
-      'locations': locations.map((location) {
-        return {'id': location.id, ...location.toMap(),
-        };
-      }).toList(),
-
+      'recurrenceDayOfWeek': recurrenceDayOfWeek,
+      'recurrenceDayOfMonth': recurrenceDayOfMonth,
+      'locations': locations.map((l) => {'id': l.id, ...l.toMap()}).toList(),
       'minTeachersPerVenue': minTeachersPerVenue,
     };
   }
@@ -79,23 +106,22 @@ class Duty {
     String? timeEnd,
     bool? isAllDay,
     DutyRecurrence? recurrence,
+    int? recurrenceDayOfWeek,
+    int? recurrenceDayOfMonth,
     List<DutyLocation>? locations,
     int? minTeachersPerVenue,
   }) {
     return Duty(
       id: id,
       title: title ?? this.title,
-
       timeStart: timeStart ?? this.timeStart,
       timeEnd: timeEnd ?? this.timeEnd,
       isAllDay: isAllDay ?? this.isAllDay,
       recurrence: recurrence ?? this.recurrence,
-
+      recurrenceDayOfWeek: recurrenceDayOfWeek ?? this.recurrenceDayOfWeek,
+      recurrenceDayOfMonth: recurrenceDayOfMonth ?? this.recurrenceDayOfMonth,
       locations: locations ?? this.locations,
-
-      minTeachersPerVenue:
-          minTeachersPerVenue ??
-          this.minTeachersPerVenue,
+      minTeachersPerVenue: minTeachersPerVenue ?? this.minTeachersPerVenue,
     );
   }
 }

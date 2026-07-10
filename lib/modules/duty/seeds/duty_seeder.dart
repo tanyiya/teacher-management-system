@@ -192,6 +192,7 @@ class DutySeeder {
       timeStart: '08:00',
       timeEnd: '09:00',
       recurrence: DutyRecurrence.weekly,
+      recurrenceDayOfWeek: DateTime.monday,
       minTeachersPerVenue: 4,
       locationNames: ['Assembly Hall'],
       taskTitles: [
@@ -226,6 +227,7 @@ class DutySeeder {
         timeEnd: seed.timeEnd,
         isAllDay: false,
         recurrence: seed.recurrence,
+        recurrenceDayOfWeek: seed.recurrenceDayOfWeek,
         locations: locations,
         minTeachersPerVenue: seed.minTeachersPerVenue,
       );
@@ -251,6 +253,7 @@ class DutySeeder {
         timeStart: seed.timeStart,
         timeEnd: seed.timeEnd,
         recurrence: seed.recurrence,
+        recurrenceDayOfWeek: seed.recurrenceDayOfWeek,
         minTeachersPerVenue: seed.minTeachersPerVenue,
         locationIds: seed.locationNames.map((n) => locationIds[n]!).toList(),
         locationNames: seed.locationNames,
@@ -278,7 +281,7 @@ class DutySeeder {
     for (final date in dates) {
       for (final duty in duties) {
         if (duty.recurrence == DutyRecurrence.weekly &&
-            date.weekday != DateTime.monday) {
+            date.weekday != duty.recurrenceDayOfWeek) {
           continue;
         }
 
@@ -360,6 +363,7 @@ class _DutySeedDef {
   final String timeStart;
   final String timeEnd;
   final DutyRecurrence recurrence;
+  final int? recurrenceDayOfWeek;
   final int minTeachersPerVenue;
   final List<String> locationNames;
   final List<String> taskTitles;
@@ -369,6 +373,7 @@ class _DutySeedDef {
     required this.timeStart,
     required this.timeEnd,
     required this.recurrence,
+    this.recurrenceDayOfWeek,
     required this.minTeachersPerVenue,
     required this.locationNames,
     required this.taskTitles,
@@ -381,6 +386,7 @@ class _SeededDuty {
   final String timeStart;
   final String timeEnd;
   final DutyRecurrence recurrence;
+  final int? recurrenceDayOfWeek;
   final int minTeachersPerVenue;
   final List<String> locationIds;
   final List<String> locationNames;
@@ -392,6 +398,7 @@ class _SeededDuty {
     required this.timeStart,
     required this.timeEnd,
     required this.recurrence,
+    this.recurrenceDayOfWeek,
     required this.minTeachersPerVenue,
     required this.locationIds,
     required this.locationNames,

@@ -5,6 +5,8 @@ import '../../models/duty.dart';
 import '../../models/duty_task.dart';
 import '../../providers/duty_provider.dart';
 import '../../providers/duty_location_provider.dart';
+import '../../utils/duty_confirm.dart';
+import '../../utils/duty_time_utils.dart';
 
 /// Create/edit dialog for a *duty definition* (title, schedule window,
 /// recurrence, locations, minimum teachers, task checklist). This replaces
@@ -29,6 +31,8 @@ class _DutyEditorDialogState extends State<DutyEditorDialog> {
   late bool _isAllDay;
   late int _minTeachers;
   late DutyRecurrence _recurrence;
+  int? _recurrenceDayOfWeek;
+  int? _recurrenceDayOfMonth;
   late Set<String> _selectedLocations;
 
   @override
@@ -42,6 +46,8 @@ class _DutyEditorDialogState extends State<DutyEditorDialog> {
     _isAllDay = duty?.isAllDay ?? false;
     _minTeachers = duty?.minTeachersPerVenue ?? 1;
     _recurrence = duty?.recurrence ?? DutyRecurrence.once;
+    _recurrenceDayOfWeek = duty?.recurrenceDayOfWeek ?? DateTime.monday;
+    _recurrenceDayOfMonth = duty?.recurrenceDayOfMonth ?? 1;
     _selectedLocations = duty?.locations.map((l) => l.id).toSet() ?? <String>{};
 
     final existingTasks =
@@ -122,6 +128,34 @@ class _DutyEditorDialogState extends State<DutyEditorDialog> {
                 onChanged: (v) =>
                     setState(() => _recurrence = v ?? DutyRecurrence.once),
               ),
+              if (_recurrence == DutyRecurrence.weekly) ...[
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int>(
+                  initialValue: _recurrenceDayOfWeek,
+                  decoration: const InputDecoration(labelText: 'Which day (weekly)'),
+                  items: List.generate(7, (i) => i + 1)
+                      .map((day) => DropdownMenuItem(
+                            value: day,
+                            child: Text(DutyTimeUtils.weekdayName(day)),
+                          ))
+                      .toList(),
+                  onChanged: (v) => setState(() => _recurrenceDayOfWeek = v),
+                ),
+              ],
+              if (_recurrence == DutyRecurrence.monthly) ...[
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int>(
+                  initialValue: _recurrenceDayOfMonth,
+                  decoration: const InputDecoration(labelText: 'Which day (monthly)'),
+                  items: List.generate(31, (i) => i + 1)
+                      .map((day) => DropdownMenuItem(
+                            value: day,
+                            child: Text(DutyTimeUtils.ordinal(day)),
+                          ))
+                      .toList(),
+                  onChanged: (v) => setState(() => _recurrenceDayOfMonth = v),
+                ),
+              ],
               const SizedBox(height: 12),
               Align(
                 alignment: Alignment.centerLeft,
@@ -205,6 +239,18 @@ class _DutyEditorDialogState extends State<DutyEditorDialog> {
         if (duty != null)
           TextButton(
             onPressed: () async {
+              final confirmed = await showDutyConfirmDialog(
+                context,
+                title: 'Delete this duty?',
+                message:
+                    "This removes the duty definition and every upcoming "
+                    "assignment generated from it that hasn't happened yet. "
+                    "This can't be undone.",
+                confirmLabel: 'Delete',
+                danger: true,
+              );
+              if (!confirmed) return;
+              if (!context.mounted) return;
               await dutyProvider.deleteDuty(duty.id);
               if (context.mounted) Navigator.pop(context);
             },
@@ -224,30 +270,54 @@ class _DutyEditorDialogState extends State<DutyEditorDialog> {
     DutyProvider dutyProvider,
     DutyLocationProvider locationProvider,
   ) async {
+    if (widget.duty != null) {
+      final confirmed = await showDutyConfirmDialog(
+        context,
+        title: 'Save changes?',
+        message:
+            "This updates the duty's own definition, and refreshes every "
+            "upcoming assignment generated from it (name, time, and task "
+            "wording) that hasn't happened yet. Assignments that have "
+            "already happened are left as-is.",
+        confirmLabel: 'Save',
+      );
+      if (!confirmed) return;
+    }
+
+    if (!context.mounted) return;
+
     final locations = locationProvider.locations
         .where((l) => _selectedLocations.contains(l.id))
         .toList();
 
-    // Match new checklist lines back to existing tasks by title so we don't
-    // needlessly delete+recreate (and lose completion history on assignments
-    // that already reference the old task id) when the text is unchanged.
+    // Match new checklist lines back to existing tasks BY POSITION, not by
+    // title. Matching by title used to mean editing a task's wording
+    // deleted the old task and created a brand-new one with a new id --
+    // which orphaned any `DutyTaskAssignment` docs still pointing at the
+    // old id (their snapshot never got refreshed) and left the new task
+    // with no assignment-level presence at all. Position-based matching
+    // keeps the same task id across a title edit, so it updates in place
+    // instead. Trade-off: reordering lines (not just editing them) will be
+    // read as renames rather than a reorder, since there's no per-line id
+    // exposed in this plain-text editor.
     final existingTasks =
         widget.duty == null ? <DutyTask>[] : dutyProvider.tasksForDuty(widget.duty!.id);
-    final existingByTitle = {for (final t in existingTasks) t.title: t};
 
-    final tasks = _taskText.text
+    final newTitles = _taskText.text
         .split('\n')
         .map((line) => line.trim())
         .where((line) => line.isNotEmpty)
-        .map((title) {
-      final existing = existingByTitle[title];
-      return DutyTask(
-        id: existing?.id ?? '',
-        dutyId: widget.duty?.id ?? '',
-        dutyNameSnapshot: _title.text.trim(),
-        title: title,
-      );
-    }).toList();
+        .toList();
+
+    final tasks = <DutyTask>[
+      for (var i = 0; i < newTitles.length; i++)
+        DutyTask(
+          id: i < existingTasks.length ? existingTasks[i].id : '',
+          dutyId: widget.duty?.id ?? '',
+          dutyNameSnapshot: _title.text.trim(),
+          title: newTitles[i],
+        ),
+    ];
 
     final duty = Duty(
       id: widget.duty?.id ?? '',
@@ -256,6 +326,8 @@ class _DutyEditorDialogState extends State<DutyEditorDialog> {
       timeEnd: _isAllDay ? '23:59' : _formatTime(_endTime),
       isAllDay: _isAllDay,
       recurrence: _recurrence,
+      recurrenceDayOfWeek: _recurrence == DutyRecurrence.weekly ? _recurrenceDayOfWeek : null,
+      recurrenceDayOfMonth: _recurrence == DutyRecurrence.monthly ? _recurrenceDayOfMonth : null,
       locations: locations,
       minTeachersPerVenue: _minTeachers,
     );

@@ -53,6 +53,27 @@ class DutyAssignmentProvider extends ChangeNotifier {
 
   DateTime get selectedDate => _selectedDate;
 
+  /// One-off lookup (not a live stream) of which dates in [from]..[to] have
+  /// at least one assignment, used to grey out empty days in the date
+  /// picker. There's no range-query on the service, so this pulls the full
+  /// assignment list once and filters client-side -- fine for the picker's
+  /// bounded ~5-week window, but would want a proper indexed range query if
+  /// assignment volume grows a lot.
+  Future<Set<DateTime>> datesWithAssignments({
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final all = await _assignmentService.getAssignments().first;
+    final dates = <DateTime>{};
+    for (final a in all) {
+      final day = DateTime(a.date.year, a.date.month, a.date.day);
+      if (!day.isBefore(from) && !day.isAfter(to)) {
+        dates.add(day);
+      }
+    }
+    return dates;
+  }
+
 
   /// Assignments for the selected date, filtered for who should see them.
   ///

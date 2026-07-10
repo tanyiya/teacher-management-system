@@ -5,6 +5,7 @@ import '../../models/duty_assignment.dart';
 import '../../models/duty_swap.dart';
 import '../../providers/duty_provider.dart';
 import '../../providers/duty_swap_provider.dart';
+import '../../utils/duty_confirm.dart';
 import '../../utils/duty_time_utils.dart';
 
 class DutySwapDialog extends StatefulWidget {
@@ -25,8 +26,17 @@ class _DutySwapDialogState extends State<DutySwapDialog> {
   @override
   void initState() {
     super.initState();
-    _fromTeacherId =
-        widget.assignment.teacherIds.isNotEmpty ? widget.assignment.teacherIds.first : null;
+    final dutyProvider = context.read<DutyProvider>();
+    // Principals can swap out any teacher on this venue; a teacher can only
+    // ever swap themselves out ("teachers can only swap the duties they
+    // own") -- previously this defaulted to `teacherIds.first`, which for a
+    // multi-teacher venue could silently let a teacher swap a colleague's
+    // slot instead of their own.
+    _fromTeacherId = dutyProvider.isPrincipal
+        ? (widget.assignment.teacherIds.isNotEmpty
+            ? widget.assignment.teacherIds.first
+            : null)
+        : dutyProvider.currentUserId;
     _loadEligible();
   }
 
@@ -50,6 +60,8 @@ class _DutySwapDialogState extends State<DutySwapDialog> {
     final dutyProvider = context.watch<DutyProvider>();
     final canSwap =
         DutyTimeUtils.canStillSwap(widget.assignment.date, widget.assignment.timeStart);
+    final ownsThisDuty = dutyProvider.isPrincipal ||
+        widget.assignment.teacherIds.contains(dutyProvider.currentUserId);
 
     return AlertDialog(
       title: const Text('Request swap'),
@@ -69,6 +81,11 @@ class _DutySwapDialogState extends State<DutySwapDialog> {
                   const Text(
                     'Swaps can only be requested up to 30 minutes before '
                     'the duty starts.',
+                    style: TextStyle(color: Colors.red, fontSize: 12),
+                  ),
+                if (!ownsThisDuty)
+                  const Text(
+                    'You can only swap duties assigned to you.',
                     style: TextStyle(color: Colors.red, fontSize: 12),
                   ),
                 if (dutyProvider.isPrincipal)
@@ -107,12 +124,32 @@ class _DutySwapDialogState extends State<DutySwapDialog> {
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
         FilledButton(
-          onPressed: (!canSwap || _selectedTeacherId == null || _fromTeacherId == null)
+          onPressed: (!canSwap ||
+                  !ownsThisDuty ||
+                  _selectedTeacherId == null ||
+                  _fromTeacherId == null)
               ? null
               : () async {
                   final swapProvider = context.read<DutySwapProvider>();
                   final replacement =
                       dutyProvider.teachers.firstWhere((t) => t.id == _selectedTeacherId);
+
+                  if (dutyProvider.isPrincipal) {
+                    final confirmed = await showDutyConfirmDialog(
+                      context,
+                      title: 'Swap now?',
+                      message:
+                          'This applies immediately -- no approval needed. '
+                          '${_nameFor(widget.assignment, _fromTeacherId!)} will be '
+                          'replaced by ${replacement.fullName} for '
+                          '${widget.assignment.dutyNameSnapshot} '
+                          '(${widget.assignment.timeStart} - ${widget.assignment.timeEnd}).',
+                      confirmLabel: 'Swap now',
+                    );
+                    if (!confirmed) return;
+                    if (!context.mounted) return;
+                  }
+
                   await swapProvider.requestSwap(
                     assignment: widget.assignment,
                     currentTeacherId: _fromTeacherId!,

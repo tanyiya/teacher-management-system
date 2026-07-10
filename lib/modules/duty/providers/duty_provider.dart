@@ -3,9 +3,14 @@ import 'package:flutter/material.dart';
 
 import '../models/duty.dart';
 import '../models/duty_task.dart';
+import '../models/duty_assignment.dart';
+import '../models/duty_task_assignment.dart';
 import '../services/duty_service.dart';
 import '../services/duty_task_service.dart';
 import '../services/duty_external_service.dart';
+import '../services/duty_assignment_service.dart';
+import '../services/duty_task_assignment_service.dart';
+import '../utils/duty_time_utils.dart';
 import '../../teachers/models/teacher.dart';
 
 /// Owns duty *definitions* -- the reusable templates (title, time window,
@@ -14,7 +19,10 @@ import '../../teachers/models/teacher.dart';
 /// This is distinct from [DutyAssignmentProvider], which owns the generated
 /// day-to-day assignments. The old code mixed both concerns into a single
 /// `DutyProvider`/`Duty` model; the new schema splits them, so the UI layer
-/// needs both providers side by side.
+/// needs both providers side by side. This provider does reach into the
+/// assignment services on [updateDuty], though: editing a duty needs to
+/// propagate to every assignment generated from it that hasn't happened
+/// yet (see [_propagateToFutureAssignments]).
 ///
 /// Also exposes the teacher roster (via [DutyExternalService]) since both
 /// the duty editor and the swap flow need to know who's available.
@@ -23,9 +31,14 @@ class DutyProvider extends ChangeNotifier {
     DutyService? dutyService,
     DutyTaskService? taskService,
     DutyExternalService? externalService,
+    DutyAssignmentService? assignmentService,
+    DutyTaskAssignmentService? taskAssignmentService,
   })  : _dutyService = dutyService ?? DutyService(),
         _taskService = taskService ?? DutyTaskService(),
-        _externalService = externalService ?? DutyExternalService() {
+        _externalService = externalService ?? DutyExternalService(),
+        _assignmentService = assignmentService ?? DutyAssignmentService(),
+        _taskAssignmentService =
+            taskAssignmentService ?? DutyTaskAssignmentService() {
     _listenDuties();
     _listenTasks();
     _listenTeachers();
@@ -34,6 +47,8 @@ class DutyProvider extends ChangeNotifier {
   final DutyService _dutyService;
   final DutyTaskService _taskService;
   final DutyExternalService _externalService;
+  final DutyAssignmentService _assignmentService;
+  final DutyTaskAssignmentService _taskAssignmentService;
 
   StreamSubscription<List<Duty>>? _dutySub;
   StreamSubscription<List<DutyTask>>? _taskSub;
@@ -147,6 +162,11 @@ class DutyProvider extends ChangeNotifier {
   /// Updates a duty definition and reconciles its task checklist: existing
   /// tasks (non-empty id) are updated in place, new ones (empty id) are
   /// added, and tasks no longer present in [tasks] are deleted.
+  ///
+  /// Also propagates the change to every assignment generated from this
+  /// duty that hasn't happened yet (see [_propagateToFutureAssignments]),
+  /// so editing a duty doesn't leave already-generated future assignments
+  /// showing stale name/time/venue info.
   Future<void> updateDuty(Duty duty, List<DutyTask> tasks) async {
     try {
       _error = null;
@@ -173,15 +193,104 @@ class DutyProvider extends ChangeNotifier {
       for (final removedId in existingIds.difference(keptIds)) {
         await _taskService.deleteDutyTask(removedId);
       }
+
+      await _propagateToFutureAssignments(duty);
     } catch (e) {
       _error = e.toString();
       notifyListeners();
     }
   }
 
+  bool _isStillPending(DutyAssignment assignment, DateTime now) {
+    final alreadyHappened =
+        !DutyTimeUtils.combine(assignment.date, assignment.timeEnd).isAfter(now);
+    final resolved = assignment.status == DutyAssignmentStatus.completed ||
+        assignment.status == DutyAssignmentStatus.cancelled;
+    return !alreadyHappened && !resolved;
+  }
+
+  /// Brings every not-yet-happened assignment generated from [duty] in
+  /// line with its latest definition:
+  ///  - still-current venues get their name/title/time snapshots refreshed
+  ///    (and their task snapshots refreshed to match, where the task still
+  ///    exists on the duty)
+  ///  - venues removed from the duty have their (future, non-completed)
+  ///    assignment retired entirely, since there's nothing left to do there
+  ///
+  /// Deliberately does NOT create assignments for venues newly *added* to
+  /// the duty -- that requires the auto-scheduler (which picks eligible
+  /// teachers, checks leave, avoids overlaps, etc.), not just a data patch.
+  /// Already-completed or already-cancelled assignments are left alone, as
+  /// are ones whose time window has already passed.
+  Future<void> _propagateToFutureAssignments(Duty duty) async {
+    final now = DateTime.now();
+    final assignments =
+        await _assignmentService.getAssignmentsByDuty(duty.id).first;
+    final currentTasks = await _taskService.getTasksByDuty(duty.id).first;
+    final currentTaskById = {for (final t in currentTasks) t.id: t};
+    final currentLocationIds = duty.locations.map((l) => l.id).toSet();
+    final locationNameById = {for (final l in duty.locations) l.id: l.name};
+
+    for (final assignment in assignments) {
+      if (!_isStillPending(assignment, now)) continue;
+
+      if (!currentLocationIds.contains(assignment.locationId)) {
+        // Venue no longer part of this duty -- nothing left to assign here.
+        await _taskAssignmentService.deleteTasksByAssignment(assignment.id);
+        await _assignmentService.deleteAssignment(assignment.id);
+        continue;
+      }
+
+      final refreshedAssignment = assignment.copyWith(
+        dutyNameSnapshot: duty.title,
+        timeStart: duty.timeStart,
+        timeEnd: duty.timeEnd,
+        locationNameSnapshot:
+            locationNameById[assignment.locationId] ?? assignment.locationNameSnapshot,
+      );
+      await _assignmentService.updateAssignment(refreshedAssignment);
+
+      final taskAssignments =
+          await _taskAssignmentService.getTasksByAssignment(assignment.id).first;
+      for (final ta in taskAssignments) {
+        final matchingTask = currentTaskById[ta.dutyTaskId];
+        if (matchingTask == null || matchingTask.title == ta.taskNameSnapshot) {
+          continue;
+        }
+        await _taskAssignmentService.updateTaskAssignment(
+          DutyTaskAssignment(
+            id: ta.id,
+            dutyAssignmentId: ta.dutyAssignmentId,
+            dutyTaskId: ta.dutyTaskId,
+            taskNameSnapshot: matchingTask.title,
+            teacherIds: ta.teacherIds,
+            teacherNameSnapshots: ta.teacherNameSnapshots,
+            isCompleted: ta.isCompleted,
+            photoUrl: ta.photoUrl,
+            completedAt: ta.completedAt,
+            completedByTeacherId: ta.completedByTeacherId,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Deletes the duty definition, its tasks (cascaded by the service
+  /// itself), and every not-yet-happened assignment generated from it
+  /// (which the service does NOT cascade -- assignments are a separate
+  /// collection with no knowledge of duty deletion).
   Future<void> deleteDuty(String id) async {
     try {
       _error = null;
+
+      final now = DateTime.now();
+      final assignments = await _assignmentService.getAssignmentsByDuty(id).first;
+      for (final assignment in assignments) {
+        if (!_isStillPending(assignment, now)) continue;
+        await _taskAssignmentService.deleteTasksByAssignment(assignment.id);
+        await _assignmentService.deleteAssignment(assignment.id);
+      }
+
       await _dutyService.deleteDuty(id);
     } catch (e) {
       _error = e.toString();

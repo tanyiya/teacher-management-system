@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../models/duty.dart';
 import '../models/duty_assignment.dart';
+import '../models/duty_swap.dart';
 import '../models/duty_task_assignment.dart';
 import '../providers/duty_assignment_provider.dart';
 import '../providers/duty_provider.dart';
 import '../providers/duty_schedule_provider.dart';
+import '../providers/duty_swap_provider.dart';
 import '../utils/duty_time_utils.dart';
 import 'widgets/duty_detail_sheet.dart';
 import 'widgets/duty_editor_dialog.dart';
 import 'widgets/duty_swap_dialog.dart';
+import 'widgets/duty_swap_requests_section.dart';
 
 /// Each `DutyAssignment` is now scoped to exactly one venue, so a duty with
 /// multiple venues naturally produces multiple cards here -- one per venue,
@@ -35,9 +39,13 @@ class DutyListScreen extends StatelessWidget {
       locationFilterId: schedule.locationFilterId,
       showAllTeachers: schedule.showAllTeachers,
     );
+
     final todo = visible
         .where((a) => a.status != DutyAssignmentStatus.completed)
-        .toList();
+        .toList()
+      ..sort((a, b) =>
+          DutyTimeUtils.toMinutes(a.timeStart).compareTo(DutyTimeUtils.toMinutes(b.timeStart)));
+
     final completed = visible
         .where((a) => a.status == DutyAssignmentStatus.completed)
         .toList();
@@ -45,6 +53,7 @@ class DutyListScreen extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        DutySwapRequestsSection(teacherId: dutyProvider.currentUserId),
         _DutySection(
           title: 'TODO',
           assignments: todo,
@@ -111,77 +120,84 @@ class _DutyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Duty is only needed for the principal's edit shortcut now -- the
-    // swap cutoff uses the assignment's own time snapshot.
+    // Duty is needed for the principal's edit shortcut, and now also for
+    // the recurrence label (which day, for weekly/monthly duties).
     final duty = dutyProvider.dutyById(assignment.dutyId);
-    final canSwap = DutyTimeUtils.canStillSwap(assignment.date, assignment.timeStart);
+    final ownsThisDuty = assignment.teacherIds.contains(dutyProvider.currentUserId);
+    final canSwap = (dutyProvider.isPrincipal || ownsThisDuty) &&
+        DutyTimeUtils.canStillSwap(assignment.date, assignment.timeStart);
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 8),
       child: ExpansionTile(
-        leading: Icon(
-          assignment.status == DutyAssignmentStatus.completed
-              ? Icons.check_circle
-              : Icons.assignment_outlined,
-          color: assignment.status == DutyAssignmentStatus.completed
-              ? Colors.green
-              : null,
-        ),
+        visualDensity: VisualDensity.compact,
+        tilePadding: const EdgeInsets.only(left: 12, right: 4),
+        childrenPadding: EdgeInsets.zero,
         title: Text(
           assignment.dutyNameSnapshot,
-          style: const TextStyle(fontWeight: FontWeight.w600),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                const Icon(Icons.place_outlined, size: 14, color: Colors.grey),
-                const SizedBox(width: 4),
-                Text(assignment.locationNameSnapshot),
-              ],
-            ),
-            Row(
-              children: [
-                const Icon(Icons.person_outline, size: 14, color: Colors.grey),
-                const SizedBox(width: 4),
-                Expanded(child: Text(assignment.teacherNameSnapshots.join(', '))),
-              ],
-            ),
-            Row(
-              children: [
-                const Icon(Icons.schedule_outlined, size: 14, color: Colors.grey),
-                const SizedBox(width: 4),
-                Text('${assignment.timeStart} - ${assignment.timeEnd}'),
-              ],
-            ),
-          ],
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 3),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _MetaRow(icon: Icons.place_outlined, text: assignment.locationNameSnapshot),
+              const SizedBox(height: 1),
+              _MetaRow(
+                icon: Icons.person_outline,
+                text: assignment.teacherNameSnapshots.join(', '),
+              ),
+              const SizedBox(height: 1),
+              _MetaRow(
+                icon: Icons.schedule_outlined,
+                text: _timeLabel(duty, assignment),
+              ),
+              Builder(builder: (context) {
+                final pending = context
+                    .watch<DutySwapProvider>()
+                    .swapsForAssignment(assignment.id)
+                    .where((s) => s.status == DutySwapStatus.pending)
+                    .toList();
+                if (pending.isEmpty) return const SizedBox.shrink();
+                return const Padding(
+                  padding: EdgeInsets.only(top: 1),
+                  child: _MetaRow(
+                    icon: Icons.swap_horiz,
+                    text: 'Swap pending approval',
+                    color: Colors.orange,
+                  ),
+                );
+              }),
+            ],
+          ),
         ),
-        trailing: Wrap(
-          spacing: 4,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             if (canSwap)
-              IconButton(
+              _CompactIconButton(
+                icon: Icons.swap_horiz,
                 tooltip: 'Swap',
-                icon: const Icon(Icons.swap_horiz),
                 onPressed: () => showDialog(
                   context: context,
                   builder: (_) => DutySwapDialog(assignment: assignment),
                 ),
               ),
             if (dutyProvider.isPrincipal && duty != null)
-              IconButton(
+              _CompactIconButton(
+                icon: Icons.edit_outlined,
                 tooltip: 'Edit',
-                icon: const Icon(Icons.edit_outlined),
                 onPressed: () => showDialog(
                   context: context,
                   builder: (_) => DutyEditorDialog(duty: duty),
                 ),
               ),
-            IconButton(
+            _CompactIconButton(
+              icon: Icons.chevron_right,
               tooltip: 'Details',
-              icon: const Icon(Icons.chevron_right),
               onPressed: () => showModalBottomSheet(
                 context: context,
                 isScrollControlled: true,
@@ -191,10 +207,6 @@ class _DutyCard extends StatelessWidget {
           ],
         ),
         children: [
-          // Same fix as the detail sheet: go straight to the
-          // assignment-scoped task stream instead of the teacher-scoped
-          // cache, so this shows tasks for any assignment, not just the
-          // current signed-in teacher's own.
           StreamBuilder<List<DutyTaskAssignment>>(
             stream: provider.watchTasksForAssignment(assignment.id),
             builder: (context, snapshot) {
@@ -220,6 +232,71 @@ class _DutyCard extends StatelessWidget {
       ),
     );
   }
+
+  String _timeLabel(Duty? duty, DutyAssignment assignment) {
+    final base = '${assignment.timeStart} - ${assignment.timeEnd}';
+    if (duty == null) return base;
+    switch (duty.recurrence) {
+      case DutyRecurrence.weekly:
+      case DutyRecurrence.monthly:
+        return '${duty.recurrenceLabel} • $base';
+      case DutyRecurrence.daily:
+      case DutyRecurrence.once:
+        return base;
+    }
+  }
+}
+
+class _MetaRow extends StatelessWidget {
+  const _MetaRow({required this.icon, required this.text, this.color});
+
+  final IconData icon;
+  final String text;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Icon(icon, size: 12, color: color ?? Colors.grey),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 12, color: color ?? Colors.grey.shade700),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CompactIconButton extends StatelessWidget {
+  const _CompactIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: tooltip,
+      icon: Icon(icon, size: 18),
+      onPressed: onPressed,
+      visualDensity: VisualDensity.compact,
+      padding: const EdgeInsets.all(4),
+      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+      splashRadius: 18,
+    );
+  }
 }
 
 class _TaskTile extends StatelessWidget {
@@ -230,6 +307,8 @@ class _TaskTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
+      dense: true,
+      visualDensity: VisualDensity.compact,
       leading: Icon(
         task.isCompleted ? Icons.check_circle : Icons.radio_button_unchecked,
         color: task.isCompleted ? Colors.green : Colors.grey,

@@ -55,4 +55,29 @@ class DutyTimeUtils {
     return DateTime(date.year, date.month, date.day)
         .add(Duration(minutes: toMinutes(hhmm)));
   }
+
+  static const List<String> _weekdayNames = [
+    'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
+  ];
+
+  /// `1` (Monday) .. `7` (Sunday), matching `DateTime.weekday`, to its name.
+  static String weekdayName(int weekday) {
+    if (weekday < 1 || weekday > 7) return '';
+    return _weekdayNames[weekday - 1];
+  }
+
+  /// `1` -> "1st", `2` -> "2nd", `3` -> "3rd", `11`-`13` -> "11th"-"13th", etc.
+  static String ordinal(int day) {
+    if (day % 100 >= 11 && day % 100 <= 13) return '${day}th';
+    switch (day % 10) {
+      case 1:
+        return '${day}st';
+      case 2:
+        return '${day}nd';
+      case 3:
+        return '${day}rd';
+      default:
+        return '${day}th';
+    }
+  }
 }

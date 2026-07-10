@@ -90,8 +90,10 @@ class DutyAssignment {
   }
 
   DutyAssignment copyWith({
+    String? dutyNameSnapshot,
     String? timeStart,
     String? timeEnd,
+    String? locationNameSnapshot,
     List<String>? teacherIds,
     List<String>? teacherNameSnapshots,
     DutyAssignmentStatus? status,
@@ -99,12 +101,12 @@ class DutyAssignment {
     return DutyAssignment(
       id: id,
       dutyId: dutyId,
-      dutyNameSnapshot: dutyNameSnapshot,
+      dutyNameSnapshot: dutyNameSnapshot ?? this.dutyNameSnapshot,
       date: date,
       timeStart: timeStart ?? this.timeStart,
       timeEnd: timeEnd ?? this.timeEnd,
       locationId: locationId,
-      locationNameSnapshot: locationNameSnapshot,
+      locationNameSnapshot: locationNameSnapshot ?? this.locationNameSnapshot,
       teacherIds: teacherIds ?? this.teacherIds,
       teacherNameSnapshots: teacherNameSnapshots ?? this.teacherNameSnapshots,
       status: status ?? this.status,

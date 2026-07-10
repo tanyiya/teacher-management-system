@@ -9,6 +9,7 @@ import '../../modules/duty/models/duty_assignment.dart';
 import '../../modules/duty/models/duty_task_assignment.dart';
 import '../../modules/duty/providers/duty_assignment_provider.dart';
 import '../../modules/duty/screens/duty_schedule_screen.dart';
+import '../../modules/duty/screens/widgets/duty_swap_requests_section.dart';
 import '../../modules/duty/services/duty_cloudinary_service.dart';
 import '../../modules/duty/utils/duty_time_utils.dart';
 import '../../modules/teachers/models/teacher.dart';
@@ -70,6 +71,7 @@ class TeacherHomeScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 32),
+          DutySwapRequestsSection(teacherId: user.id),
           const Text(
             'Next Duty',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
