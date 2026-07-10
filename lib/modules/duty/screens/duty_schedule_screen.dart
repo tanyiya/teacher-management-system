@@ -10,7 +10,6 @@ import 'duty_list_screen.dart';
 import 'widgets/duty_date_selector.dart';
 import 'widgets/duty_editor_dialog.dart';
 import 'widgets/duty_filters_sheet.dart';
-import '../seeds/duty_seeder.dart';
 
 class DutyScheduleScreen extends StatefulWidget {
   const DutyScheduleScreen({super.key});
@@ -20,6 +19,8 @@ class DutyScheduleScreen extends StatefulWidget {
 }
 
 class _DutyScheduleScreenState extends State<DutyScheduleScreen> {
+  bool _hasCheckedSchedule = false;
+
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AppStateProvider>().currentUser;
@@ -34,6 +35,15 @@ class _DutyScheduleScreenState extends State<DutyScheduleScreen> {
       context
           .read<DutyAssignmentProvider>()
           .setUser(userId: user?.id, role: role);
+
+      // Once per time this screen is opened, not once per rebuild -- the
+      // scheduler itself also throttles to once a day (see
+      // DutyAutoScheduler), this guard just avoids redundant calls within
+      // a single visit.
+      if (!_hasCheckedSchedule) {
+        _hasCheckedSchedule = true;
+        context.read<DutyProvider>().ensureScheduleFilled();
+      }
     });
 
     final schedule = context.watch<DutyScheduleProvider>();
@@ -62,14 +72,6 @@ class _DutyScheduleScreenState extends State<DutyScheduleScreen> {
               builder: (_) => const DutyFiltersSheet(),
             ),
             icon: const Icon(Icons.filter_list),
-          ),
-
-          IconButton(
-            tooltip: 'Seed Duty Data',
-            onPressed: () async {
-              await DutySeeder.seedFirestore();
-            },
-            icon: const Icon(Icons.data_object),
           ),
         ],
       ),

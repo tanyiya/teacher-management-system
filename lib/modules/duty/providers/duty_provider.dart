@@ -10,6 +10,7 @@ import '../services/duty_task_service.dart';
 import '../services/duty_external_service.dart';
 import '../services/duty_assignment_service.dart';
 import '../services/duty_task_assignment_service.dart';
+import '../services/duty_auto_scheduler.dart';
 import '../utils/duty_time_utils.dart';
 import '../../teachers/models/teacher.dart';
 
@@ -22,7 +23,10 @@ import '../../teachers/models/teacher.dart';
 /// needs both providers side by side. This provider does reach into the
 /// assignment services on [updateDuty], though: editing a duty needs to
 /// propagate to every assignment generated from it that hasn't happened
-/// yet (see [_propagateToFutureAssignments]).
+/// yet (see [_propagateToFutureAssignments]), and both [createDuty] and
+/// [updateDuty] force an immediate [DutyAutoScheduler] run afterwards,
+/// since a new duty or a changed time/venue/staffing requirement can leave
+/// a gap or a conflict that shouldn't wait for the next routine check.
 ///
 /// Also exposes the teacher roster (via [DutyExternalService]) since both
 /// the duty editor and the swap flow need to know who's available.
@@ -33,12 +37,14 @@ class DutyProvider extends ChangeNotifier {
     DutyExternalService? externalService,
     DutyAssignmentService? assignmentService,
     DutyTaskAssignmentService? taskAssignmentService,
+    DutyAutoScheduler? scheduler,
   })  : _dutyService = dutyService ?? DutyService(),
         _taskService = taskService ?? DutyTaskService(),
         _externalService = externalService ?? DutyExternalService(),
         _assignmentService = assignmentService ?? DutyAssignmentService(),
         _taskAssignmentService =
-            taskAssignmentService ?? DutyTaskAssignmentService() {
+            taskAssignmentService ?? DutyTaskAssignmentService(),
+        _scheduler = scheduler ?? DutyAutoScheduler() {
     _listenDuties();
     _listenTasks();
     _listenTeachers();
@@ -49,6 +55,7 @@ class DutyProvider extends ChangeNotifier {
   final DutyExternalService _externalService;
   final DutyAssignmentService _assignmentService;
   final DutyTaskAssignmentService _taskAssignmentService;
+  final DutyAutoScheduler _scheduler;
 
   StreamSubscription<List<Duty>>? _dutySub;
   StreamSubscription<List<DutyTask>>? _taskSub;
@@ -93,6 +100,11 @@ class DutyProvider extends ChangeNotifier {
     _role = role;
     notifyListeners();
   }
+
+  /// Called once when the schedule screen opens. Respects the daily
+  /// throttle (see [DutyAutoScheduler.ensureScheduleFilled]) -- cheap to
+  /// call on every open, since it's a no-op once it's already run today.
+  Future<void> ensureScheduleFilled() => _scheduler.ensureScheduleFilled();
 
   void _listenDuties() {
     _dutySub = _dutyService.getDuties().listen(
@@ -153,6 +165,9 @@ class DutyProvider extends ChangeNotifier {
           ),
         );
       }
+      // A brand new duty has no assignments at all yet -- don't make it
+      // wait for tomorrow's routine check to get staffed.
+      await _scheduler.ensureScheduleFilled(force: true);
     } catch (e) {
       _error = e.toString();
       notifyListeners();
@@ -195,6 +210,11 @@ class DutyProvider extends ChangeNotifier {
       }
 
       await _propagateToFutureAssignments(duty);
+
+      // A time/venue/staffing change can introduce a missing assignment or
+      // a teacher overlap right now -- force a fresh check instead of
+      // waiting for the routine once-a-day one.
+      await _scheduler.ensureScheduleFilled(force: true);
     } catch (e) {
       _error = e.toString();
       notifyListeners();
