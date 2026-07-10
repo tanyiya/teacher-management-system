@@ -31,6 +31,7 @@ class PerformanceProvider extends ChangeNotifier {
   bool _teachersLoading = false;
   bool _logsLoading = false;
   bool _cleanupLoading = false;
+  bool _normalizeLoading = false;
   String? _error;
 
   int _monthFilter = 0;
@@ -52,6 +53,7 @@ class PerformanceProvider extends ChangeNotifier {
   // isLoading is true only when we have no teachers yet OR actively loading logs
   bool get isLoading => _teachersLoading || _logsLoading;
   bool get isCleaningUp => _cleanupLoading;
+  bool get isNormalizingScores => _normalizeLoading;
   String? get error => _error;
 
   TeacherRecord? get selectedTeacher {
@@ -380,6 +382,32 @@ class PerformanceProvider extends ChangeNotifier {
       rethrow;
     } finally {
       _cleanupLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// One-time backfill: clamps any teacher currentScore values already
+  /// stored outside the valid range (e.g. 103, left over from before the
+  /// clamp fix was deployed) back into range. Safe to call repeatedly.
+  /// Returns the number of teacher records corrected.
+  Future<int> normalizeAllTeacherScores() async {
+    try {
+      _normalizeLoading = true;
+      _error = null;
+      notifyListeners();
+      final fixedCount = await _performanceService.normalizeAllTeacherScores();
+      // Teacher stream(s) auto-update after the writes commit, but refresh
+      // explicitly in case the currently selected teacher isn't subscribed.
+      if (_selectedTeacherId != null) {
+        _subscribeToTeacherData(_selectedTeacherId!);
+      }
+      return fixedCount;
+    } catch (e) {
+      _error = 'Failed to normalize teacher scores: $e';
+      notifyListeners();
+      rethrow;
+    } finally {
+      _normalizeLoading = false;
       notifyListeners();
     }
   }

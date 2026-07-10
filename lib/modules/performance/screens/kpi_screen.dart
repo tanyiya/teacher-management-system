@@ -572,9 +572,60 @@ class _KpiScreenState extends State<KpiScreen> {
               label: Text('Calculate KPI for $currentYear'),
             ),
           ),
+          const SizedBox(height: 12),
+          const Divider(),
+          const SizedBox(height: 8),
+          const Text(
+            'One-time fix: corrects any teacher scores already stored outside '
+            'the valid range from before score clamping was added (e.g. a '
+            'score showing 103 instead of capping at 100). Safe to run '
+            'again — teachers already in range are left untouched.',
+            style: TextStyle(color: Colors.grey, fontSize: 13),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: provider.isNormalizingScores
+                  ? null
+                  : () => _normalizeScores(context, provider),
+              icon: provider.isNormalizingScores
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(LucideIcons.wrench),
+              label: const Text('Normalize Existing Scores'),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  Future<void> _normalizeScores(
+    BuildContext context,
+    PerformanceProvider provider,
+  ) async {
+    try {
+      final fixedCount = await provider.normalizeAllTeacherScores();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            fixedCount == 0
+                ? 'All teacher scores were already within range.'
+                : 'Corrected $fixedCount teacher score(s) back into range.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
   }
 
   Future<void> _runKpiCalculation(

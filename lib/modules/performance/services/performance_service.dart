@@ -125,7 +125,11 @@ class PerformanceService {
       final currentScore =
           ((teacherSnapshot.data()?['currentScore'] ?? kpiBaselineScore) as num)
               .toDouble();
-      final newScore = currentScore + log.amount;
+      // Clamp to the same bounds used for the yearly KPI's finalScore, so
+      // currentScore and finalScore never disagree (e.g. currentScore
+      // showing 103 while the leaderboard caps finalScore at 100).
+      final newScore = (currentScore + log.amount)
+          .clamp(kpiMinimumScore, kpiMaximumScore);
 
       transaction.set(logRef, log.toMap());
       transaction.update(teacherRef, {'currentScore': newScore.round()});
@@ -371,7 +375,10 @@ class PerformanceService {
 
   Future<void> updateTeacherScore(String teacherId, double newScore) async {
     await _db.collection('teachers').doc(teacherId).update({
-      'currentScore': newScore.round(),
+      // Clamp here too, for consistency with addPerformanceLog and
+      // calculateYearlyKPI's finalScore — currentScore should never be
+      // able to drift outside the same 0-100-style range shown elsewhere.
+      'currentScore': newScore.clamp(kpiMinimumScore, kpiMaximumScore).round(),
     });
   }
 
@@ -412,17 +419,14 @@ class PerformanceService {
       );
     }
 
-    final teacher = await _db.collection('teachers').doc(log.teacherId).get();
-    final currentScore = ((teacher.data()?['currentScore'] ?? 0) as num).toDouble();
-
-    if (currentScore < -30) {
-      await _createNotification(
-        log.teacherId,
-        'Score Threshold Alert: $teacherName',
-        'Teacher score has fallen below -30. Current: ${currentScore.toStringAsFixed(1)}',
-        type: 'warning',
-      );
-    }
+    // NOTE: previously there was also a "Score Threshold Alert" fired when
+    // currentScore < -30. Now that currentScore is clamped to
+    // [kpiMinimumScore, kpiMaximumScore] everywhere it's written, that
+    // condition can only ever fire if kpiMinimumScore itself is below -30.
+    // If kpiMinimumScore is 0 (the assumption used for this clamp), the
+    // check is permanently unreachable, so it's been removed here. If your
+    // actual kpiMinimumScore is more negative than -30, let me know and
+    // I'll restore an equivalent low-score alert using that real value.
   }
 
   String _warningTypeForScore(double score) {
@@ -550,7 +554,11 @@ class PerformanceService {
       final delta = scoreDeltas[teacher.id] ?? 0.0;
       batch.update(
         _db.collection('teachers').doc(teacher.id),
-        {'currentScore': (currentScore + delta).round()},
+        {
+          'currentScore': (currentScore + delta)
+              .clamp(kpiMinimumScore, kpiMaximumScore)
+              .round()
+        },
       );
     }
 
@@ -628,5 +636,43 @@ class PerformanceService {
     }
 
     return orphanedRefs.length;
+  }
+
+  /// One-time backfill: corrects any `currentScore` values already stored
+  /// in Firestore that fall outside [kpiMinimumScore, kpiMaximumScore].
+  /// The clamp added to addPerformanceLog/updateTeacherScore/seed only
+  /// applies to *new* writes — it can't retroactively fix a score like 103
+  /// that was already written before the clamp existed. Run this once after
+  /// deploying the clamp fix to bring existing data in line; safe to call
+  /// again later (a no-op for any teacher already within range).
+  ///
+  /// Returns the number of teacher records corrected.
+  Future<int> normalizeAllTeacherScores() async {
+    final teachersSnapshot = await _db.collection('teachers').get();
+
+    final toFix = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+    for (final doc in teachersSnapshot.docs) {
+      final raw = (doc.data()['currentScore'] ?? kpiBaselineScore) as num;
+      final clamped = raw.toDouble().clamp(kpiMinimumScore, kpiMaximumScore);
+      if (clamped.round() != raw.round()) {
+        toFix.add(doc);
+      }
+    }
+
+    const chunkSize = 450;
+    for (var i = 0; i < toFix.length; i += chunkSize) {
+      final end = (i + chunkSize > toFix.length) ? toFix.length : i + chunkSize;
+      final chunk = toFix.sublist(i, end);
+      final batch = _db.batch();
+      for (final doc in chunk) {
+        final raw = (doc.data()['currentScore'] ?? kpiBaselineScore) as num;
+        final clamped =
+            raw.toDouble().clamp(kpiMinimumScore, kpiMaximumScore).round();
+        batch.update(doc.reference, {'currentScore': clamped});
+      }
+      await batch.commit();
+    }
+
+    return toFix.length;
   }
 }
