@@ -267,7 +267,7 @@ class DutyProvider extends ChangeNotifier {
   /// Already-completed or already-cancelled assignments are left alone, as
   /// are ones whose time window has already passed.
   Future<void> _propagateToFutureAssignments(Duty duty) async {
-    final now = DateTime.now();
+    final now = DutyTimeUtils.now();
     final assignments =
         await _assignmentService.getAssignmentsByDuty(duty.id).first;
     final currentTasks = await _taskService.getTasksByDuty(duty.id).first;
@@ -287,7 +287,7 @@ class DutyProvider extends ChangeNotifier {
             userId: teacherId,
             title: 'Duty cancelled',
             message: '${assignment.dutyNameSnapshot} at ${assignment.locationNameSnapshot} '
-                'on ${_fmtDate(assignment.date)} was removed from your schedule.',
+                'on ${DutyTimeUtils.formatDate(assignment.date)} was removed from your schedule.',
             type: 'duty_assignment',
             relatedId: assignment.id,
           );
@@ -314,8 +314,9 @@ class DutyProvider extends ChangeNotifier {
           await _notificationService.send(
             userId: teacherId,
             title: 'Duty updated',
-            message: '${duty.title} on ${_fmtDate(assignment.date)} is now '
-                '${duty.timeStart}-${duty.timeEnd} at $newLocationName.',
+            message: '${duty.title} is now scheduled for '
+                '${DutyTimeUtils.formatDateTimeRange(assignment.date, duty.timeStart, duty.timeEnd)} '
+                'at $newLocationName.',
             type: 'duty_assignment',
             relatedId: assignment.id,
           );
@@ -386,7 +387,7 @@ class DutyProvider extends ChangeNotifier {
     try {
       _error = null;
 
-      final now = DateTime.now();
+      final now = DutyTimeUtils.now();
       final assignments = await _assignmentService.getAssignmentsByDuty(id).first;
       for (final assignment in assignments) {
         if (!_isStillPending(assignment, now)) continue;
@@ -400,8 +401,6 @@ class DutyProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
-
-  String _fmtDate(DateTime date) => '${date.day}/${date.month}/${date.year}';
 
   @override
   void dispose() {

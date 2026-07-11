@@ -1,9 +1,19 @@
 /// Shared time-window rules that used to live inline in the old
 /// `DutyScheduleScreen` (`_TimeX.toMinutes()` + ad-hoc checks). Pulled out
 /// so both the calendar grid, list screen, detail sheet and swap dialog can
-/// share the exact same "30 minutes before / after" logic.
+/// share the exact same "30 minutes before / after" logic. Also home to
+/// the module's shared "current moment" and date/time formatting, so every
+/// screen and notification message renders dates/times the same way.
 class DutyTimeUtils {
   DutyTimeUtils._();
+
+  /// The module's canonical "now" -- always Malaysia time (UTC+8),
+  /// computed explicitly rather than trusting the device's local
+  /// timezone/clock setting. Used everywhere the duty module needs the
+  /// current moment (update windows, swap cutoffs, "today" for the
+  /// scheduler, timestamps on new records) so behavior doesn't depend on
+  /// whatever timezone a given device happens to be configured for.
+  static DateTime now() => DateTime.now().toUtc().add(const Duration(hours: 8));
 
   /// Parses "HH:mm" into minutes-from-midnight.
   static int toMinutes(String hhmm) {
@@ -32,11 +42,10 @@ class DutyTimeUtils {
     String timeStart,
     String timeEnd,
   ) {
-    final now = DateTime.now();
     final start =
         combine(date, timeStart).subtract(const Duration(minutes: 30));
     final end = combine(date, timeEnd).add(const Duration(minutes: 30));
-    return now.isAfter(start) && now.isBefore(end);
+    return now().isAfter(start) && now().isBefore(end);
   }
 
   /// Swaps must be requested/approved no later than 30 minutes before the
@@ -44,7 +53,7 @@ class DutyTimeUtils {
   static bool canStillSwap(DateTime date, String timeStart) {
     final cutoff =
         combine(date, timeStart).subtract(const Duration(minutes: 30));
-    return DateTime.now().isBefore(cutoff);
+    return now().isBefore(cutoff);
   }
 
   /// Combines a date with an "HH:mm" string into a concrete `DateTime`.
@@ -58,6 +67,11 @@ class DutyTimeUtils {
 
   static const List<String> _weekdayNames = [
     'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
+  ];
+
+  static const List<String> _monthNames = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
   ];
 
   /// `1` (Monday) .. `7` (Sunday), matching `DateTime.weekday`, to its name.
@@ -79,5 +93,51 @@ class DutyTimeUtils {
       default:
         return '${day}th';
     }
+  }
+
+  /// `DateTime(2026, 7, 11)` -> `"11 Jul 2026"`. The module's one date
+  /// format, used everywhere a duty/swap/assignment date is shown.
+  static String formatDate(DateTime date) {
+    return '${date.day} ${_monthNames[date.month - 1]} ${date.year}';
+  }
+
+  /// `"16:30"` -> `"4:30 PM"`. The module's one time format -- 12-hour with
+  /// AM/PM, never bare 24-hour.
+  static String formatTimeOfDay(String hhmm) {
+    final minutes = toMinutes(hhmm);
+    final hour24 = minutes ~/ 60;
+    final minute = minutes % 60;
+    final suffix = hour24 >= 12 ? 'PM' : 'AM';
+    final hour12 = hour24 % 12 == 0 ? 12 : hour24 % 12;
+    return '$hour12:${minute.toString().padLeft(2, '0')} $suffix';
+  }
+
+  /// `"16:30"`, `"17:00"` -> `"4:30 PM - 5:00 PM"`.
+  static String formatTimeRange(String start, String end) {
+    return '${formatTimeOfDay(start)} - ${formatTimeOfDay(end)}';
+  }
+
+  /// `DateTime(2026,7,11)`, `"16:30"` -> `"11 Jul 2026, 4:30 PM"`.
+  static String formatDateTime(DateTime date, String hhmm) {
+    return '${formatDate(date)}, ${formatTimeOfDay(hhmm)}';
+  }
+
+  /// `DateTime(2026,7,11)`, `"16:30"`, `"17:00"` ->
+  /// `"11 Jul 2026, 4:30 PM - 5:00 PM"`.
+  static String formatDateTimeRange(DateTime date, String start, String end) {
+    return '${formatDate(date)}, ${formatTimeRange(start, end)}';
+  }
+
+  /// `DateTime(2026,7,11,16,30)` -> `"4:30 PM"`. For actual `DateTime`
+  /// values (e.g. `completedAt`) rather than the module's "HH:mm" strings.
+  static String formatClockTime(DateTime dt) {
+    return formatTimeOfDay(
+      '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}',
+    );
+  }
+
+  /// `DateTime(2026,7,11,16,30)` -> `"11 Jul 2026, 4:30 PM"`.
+  static String formatDateAndClockTime(DateTime dt) {
+    return '${formatDate(dt)}, ${formatClockTime(dt)}';
   }
 }

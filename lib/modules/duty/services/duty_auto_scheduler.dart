@@ -73,7 +73,7 @@ class DutyAutoScheduler {
   static const int lookaheadDays = 7;
 
   Future<void> ensureScheduleFilled({bool force = false}) async {
-    final now = DateTime.now();
+    final now = DutyTimeUtils.now();
     final today = DateTime(now.year, now.month, now.day);
 
     if (!force) {
@@ -86,8 +86,12 @@ class DutyAutoScheduler {
     }
 
     final duties = await _dutyService.getDuties().first;
+    // Active teachers only, and never the principal/admin -- auto-scheduling
+    // shouldn't ever hand a duty to the person running the school. This is
+    // scoped to the scheduler specifically; swaps are a separate, manual
+    // flow and unaffected by this filter.
     final teachers = (await _externalService.fetchTeachers().first)
-        .where((t) => t.status.toLowerCase() == 'active')
+        .where((t) => t.status.toLowerCase() == 'active' && !_isPrincipalRole(t.role))
         .toList();
     if (teachers.isEmpty || duties.isEmpty) {
       await _metaService.saveState(
@@ -212,7 +216,7 @@ class DutyAutoScheduler {
 
     final addedIds = finalIds.where((id) => !currentIds.contains(id)).toList();
     final removedIds = currentIds.where((id) => !finalIds.contains(id)).toList();
-    final when = '${_fmtDate(date)}, ${duty.timeStart}-${duty.timeEnd}';
+    final when = DutyTimeUtils.formatDateTimeRange(date, duty.timeStart, duty.timeEnd);
     String resultAssignmentId;
 
     if (existing == null) {
@@ -313,6 +317,11 @@ class DutyAutoScheduler {
     return rotationCursor;
   }
 
+  bool _isPrincipalRole(String role) {
+    final normalized = role.toLowerCase();
+    return normalized == 'principal' || normalized == 'admin';
+  }
+
   bool _occursOn(Duty duty, DateTime date) {
     switch (duty.recurrence) {
       case DutyRecurrence.daily:
@@ -328,5 +337,4 @@ class DutyAutoScheduler {
     }
   }
 
-  String _fmtDate(DateTime date) => '${date.day}/${date.month}/${date.year}';
 }

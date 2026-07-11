@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:provider/provider.dart';
 
@@ -244,7 +243,11 @@ class _DutyCard extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                '$locationLabel  •  ${assignment.timeStart} - ${assignment.timeEnd}',
+                '${DutyTimeUtils.formatDate(assignment.date)}  •  $locationLabel',
+                style: const TextStyle(color: Colors.grey, fontSize: 13),
+              ),
+              Text(
+                DutyTimeUtils.formatTimeRange(assignment.timeStart, assignment.timeEnd),
                 style: const TextStyle(color: Colors.grey, fontSize: 13),
               ),
               const SizedBox(height: 12),
@@ -285,7 +288,6 @@ class _TaskListSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<DutyAssignmentProvider>();
-    final tasks = provider.tasksForAssignment(assignment.id);
     final canUpdate = DutyTimeUtils.isWithinUpdateWindow(
       assignment.date,
       assignment.timeStart,
@@ -301,23 +303,47 @@ class _TaskListSheet extends StatelessWidget {
           Text(assignment.dutyNameSnapshot,
               style: Theme.of(context).textTheme.titleLarge),
           Text(
-            '${assignment.timeStart} - ${assignment.timeEnd}  •  '
+            '${DutyTimeUtils.formatDateTimeRange(assignment.date, assignment.timeStart, assignment.timeEnd)}  •  '
             '${assignment.locationNameSnapshot}',
           ),
           const SizedBox(height: 12),
-          if (tasks.isEmpty)
-            const Text(
-              'No tasks available',
-              style: TextStyle(color: Colors.grey),
-            )
-          else
-            ...tasks.map(
-              (task) => _TaskTile(
-                task: task,
-                userId: userId,
-                canComplete: canUpdate,
-              ),
-            ),
+          // Goes straight to the assignment-scoped stream instead of a
+          // teacher-scoped cache -- see the doc comment on
+          // `watchTasksForAssignment` for why that cache was unreliable
+          // even for the signed-in teacher's own duty.
+          StreamBuilder<List<DutyTaskAssignment>>(
+            stream: provider.watchTasksForAssignment(assignment.id),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              final tasks = snapshot.data ?? [];
+              if (tasks.isEmpty) {
+                return const Text(
+                  'No tasks available',
+                  style: TextStyle(color: Colors.grey),
+                );
+              }
+              return Column(
+                children: tasks
+                    .map(
+                      (task) => _TaskTile(
+                        task: task,
+                        userId: userId,
+                        // "Teachers can only update the task assigned to
+                        // the respective teachers" -- time window alone
+                        // isn't enough; whoever's viewing has to actually
+                        // be one of the teachers on THIS task.
+                        canComplete: canUpdate && task.teacherIds.contains(userId),
+                      ),
+                    )
+                    .toList(),
+              );
+            },
+          ),
           const SizedBox(height: 20),
         ],
       ),
@@ -412,7 +438,7 @@ class _TaskTileState extends State<_TaskTile> {
       ),
       subtitle: task.isCompleted && task.completedAt != null
           ? Text(
-              'Done at ${DateFormat.jm().format(task.completedAt!)}',
+              'Done at ${DutyTimeUtils.formatClockTime(task.completedAt!)}',
               style: const TextStyle(fontSize: 12),
             )
           : const Text(

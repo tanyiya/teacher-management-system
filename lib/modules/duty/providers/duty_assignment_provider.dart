@@ -19,7 +19,6 @@ class DutyAssignmentProvider extends ChangeNotifier {
   final DutyTaskAssignmentService _taskService;
 
   StreamSubscription<List<DutyAssignment>>? _assignmentSub;
-  StreamSubscription<List<DutyTaskAssignment>>? _taskSub;
 
   // Separate from `_assignmentSub`, which is scoped to `_selectedDate` for
   // the calendar/list screens. This one is scoped to the current teacher
@@ -30,7 +29,6 @@ class DutyAssignmentProvider extends ChangeNotifier {
   bool _isLoadingMyAssignments = true;
 
   List<DutyAssignment> _assignments = [];
-  List<DutyTaskAssignment> _tasks = [];
 
   String? _currentUserId;
   String? _role;
@@ -42,7 +40,6 @@ class DutyAssignmentProvider extends ChangeNotifier {
 
 
   List<DutyAssignment> get assignments => _assignments;
-  List<DutyTaskAssignment> get tasks => _tasks;
 
   bool get isLoading => _isLoading;
   bool get isLoadingNextDuty => _isLoadingMyAssignments;
@@ -135,7 +132,6 @@ class DutyAssignmentProvider extends ChangeNotifier {
     _role = role;
 
     _listenAssignments();
-    _listenTasks();
     _listenMyAssignments();
 
     notifyListeners();
@@ -170,29 +166,6 @@ class DutyAssignmentProvider extends ChangeNotifier {
   }
 
 
-  void _listenTasks() {
-    _taskSub?.cancel();
-    if (_currentUserId == null) {
-      _tasks = [];
-      return;
-    }
-
-    _taskSub =
-        _taskService
-            .getTasksByTeacher(_currentUserId!)
-            .listen(
-      (items) {
-        _tasks = items;
-        notifyListeners();
-      },
-      onError: (e) {
-        _error = e.toString();
-        notifyListeners();
-
-      },
-    );
-  }
-
   void _listenMyAssignments() {
     _myAssignmentSub?.cancel();
     if (_currentUserId == null) {
@@ -219,23 +192,18 @@ class DutyAssignmentProvider extends ChangeNotifier {
     );
   }
 
-  List<DutyTaskAssignment> tasksForAssignment(
-    String assignmentId,
-  ) {
-    return _tasks
-        .where((task) =>task.dutyAssignmentId == assignmentId,)
-        .toList();
-  }
-
   /// Live tasks for one specific assignment, regardless of who's on it.
   ///
-  /// `tasks`/`tasksForAssignment` above are scoped to the current
-  /// signed-in teacher (`getTasksByTeacher`), which is right for the home
-  /// screen's "my next duty" card but wrong here: opening a duty's details
-  /// from the calendar or list screens needs to show its tasks even when
-  /// viewing someone else's duty (or browsing as principal), so this goes
-  /// straight to the assignment-scoped query instead of the teacher-scoped
-  /// cache.
+  /// This used to have a teacher-scoped sibling (`tasksForAssignment`,
+  /// backed by a `getTasksByTeacher` cache) that the home screen used for
+  /// "my own" tasks on the theory that it would always match. It didn't
+  /// reliably: the home screen's task list would sometimes come back empty
+  /// even for the signed-in teacher's own duty, since it depended on two
+  /// separately-queried caches (`getAssignmentsByTeacher` for which
+  /// assignment to show, `getTasksByTeacher` for its tasks) staying in
+  /// lockstep. Querying directly by `dutyAssignmentId` removes that
+  /// dependency entirely -- this is now the only way tasks are fetched,
+  /// everywhere.
   Stream<List<DutyTaskAssignment>> watchTasksForAssignment(
     String assignmentId,
   ) {
@@ -258,6 +226,7 @@ class DutyAssignmentProvider extends ChangeNotifier {
         photoUrl: photoUrl,
       );
 
+      await _syncAssignmentCompletion(taskAssignmentId);
     } catch (e) {
       _error = e.toString();
       notifyListeners();
@@ -271,11 +240,37 @@ class DutyAssignmentProvider extends ChangeNotifier {
     try {
       _error = null;
       notifyListeners();
-      await _taskService.reopenTask(taskAssignmentId,);
+      await _taskService.reopenTask(taskAssignmentId);
 
+      await _syncAssignmentCompletion(taskAssignmentId);
     } catch (e) {
       _error = e.toString();
       notifyListeners();
+    }
+  }
+
+  /// "Once all tasks under a certain duty are completed, the duty would be
+  /// marked as completed" -- and the reverse: reopening a task on an
+  /// already-`completed` assignment un-completes it, since it's no longer
+  /// true that everything's done.
+  Future<void> _syncAssignmentCompletion(String taskAssignmentId) async {
+    final task = await _taskService.getTaskAssignmentById(taskAssignmentId);
+    if (task == null) return;
+
+    final siblings =
+        await _taskService.getTasksByAssignment(task.dutyAssignmentId).first;
+    if (siblings.isEmpty) return;
+
+    final assignment = await _assignmentService.getAssignmentById(task.dutyAssignmentId);
+    if (assignment == null) return;
+    if (assignment.status == DutyAssignmentStatus.cancelled) return;
+
+    final allCompleted = siblings.every((t) => t.isCompleted);
+
+    if (allCompleted && assignment.status != DutyAssignmentStatus.completed) {
+      await _assignmentService.updateStatus(assignment.id, DutyAssignmentStatus.completed);
+    } else if (!allCompleted && assignment.status == DutyAssignmentStatus.completed) {
+      await _assignmentService.updateStatus(assignment.id, DutyAssignmentStatus.assigned);
     }
   }
 
@@ -284,7 +279,6 @@ class DutyAssignmentProvider extends ChangeNotifier {
   void dispose() {
 
     _assignmentSub?.cancel();
-    _taskSub?.cancel();
     _myAssignmentSub?.cancel();
 
     super.dispose();

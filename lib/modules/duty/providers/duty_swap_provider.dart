@@ -94,7 +94,7 @@ class DutySwapProvider extends ChangeNotifier {
           userId: swap.currentTeacherId,
           title: 'Swap request expired',
           message: 'Your swap request for ${swap.dutyNameSnapshot} '
-              '(${_fmtDate(swap.date)}, ${swap.timeStart}-${swap.timeEnd}) '
+              '(${DutyTimeUtils.formatDateTimeRange(swap.date, swap.timeStart, swap.timeEnd)}) '
               'expired because the duty started before it was approved.',
           type: 'duty_swap',
           relatedId: swap.dutyAssignmentId,
@@ -103,7 +103,7 @@ class DutySwapProvider extends ChangeNotifier {
           userId: swap.replacementTeacherId,
           title: 'Swap request expired',
           message: 'The swap request for ${swap.dutyNameSnapshot} '
-              '(${_fmtDate(swap.date)}, ${swap.timeStart}-${swap.timeEnd}) '
+              '(${DutyTimeUtils.formatDateTimeRange(swap.date, swap.timeStart, swap.timeEnd)}) '
               'expired because the duty started before it was approved.',
           type: 'duty_swap',
           relatedId: swap.dutyAssignmentId,
@@ -236,13 +236,13 @@ class DutySwapProvider extends ChangeNotifier {
         requestedByNameSnapshot: requestedByNameSnapshot,
         requesterType: requesterType,
         status: isAdmin ? DutySwapStatus.approved : DutySwapStatus.pending,
-        createdAt: DateTime.now(),
-        respondedAt: isAdmin ? DateTime.now() : null,
+        createdAt: DutyTimeUtils.now(),
+        respondedAt: isAdmin ? DutyTimeUtils.now() : null,
       );
 
       await _swapService.addSwap(swap);
 
-      final when = '${_fmtDate(assignment.date)}, ${assignment.timeStart}-${assignment.timeEnd}';
+      final when = DutyTimeUtils.formatDateTimeRange(assignment.date, assignment.timeStart, assignment.timeEnd);
 
       if (isAdmin) {
         await _applySwap(
@@ -299,7 +299,7 @@ class DutySwapProvider extends ChangeNotifier {
         userId: swap.requestedById,
         title: 'Swap approved',
         message: '${swap.replacementTeacherNameSnapshot} accepted your swap request for '
-            '${swap.dutyNameSnapshot} (${_fmtDate(swap.date)}, ${swap.timeStart}-${swap.timeEnd}).',
+            '${swap.dutyNameSnapshot} (${DutyTimeUtils.formatDateTimeRange(swap.date, swap.timeStart, swap.timeEnd)}).',
         type: 'duty_swap',
         relatedId: assignment.id,
       );
@@ -319,7 +319,7 @@ class DutySwapProvider extends ChangeNotifier {
           userId: swap.requestedById,
           title: 'Swap declined',
           message: '${swap.replacementTeacherNameSnapshot} declined your swap request for '
-              '${swap.dutyNameSnapshot} (${_fmtDate(swap.date)}, ${swap.timeStart}-${swap.timeEnd}).',
+              '${swap.dutyNameSnapshot} (${DutyTimeUtils.formatDateTimeRange(swap.date, swap.timeStart, swap.timeEnd)}).',
           type: 'duty_swap',
           relatedId: swap.dutyAssignmentId,
         );
@@ -399,8 +399,6 @@ class DutySwapProvider extends ChangeNotifier {
     }
     return assignment.teacherNameSnapshots[index];
   }
-
-  String _fmtDate(DateTime date) => '${date.day}/${date.month}/${date.year}';
 
   @override
   void dispose() {

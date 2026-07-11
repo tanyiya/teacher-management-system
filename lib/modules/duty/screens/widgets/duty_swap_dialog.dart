@@ -77,9 +77,8 @@ class _DutySwapDialogState extends State<DutySwapDialog> {
                     Text(
                       '${widget.assignment.dutyNameSnapshot}\n'
                       '${DutyTimeUtils.weekdayName(widget.assignment.date.weekday)}, '
-                      '${widget.assignment.date.day}/${widget.assignment.date.month}/'
-                      '${widget.assignment.date.year}  '
-                      '${widget.assignment.timeStart} - ${widget.assignment.timeEnd}\n'
+                      '${DutyTimeUtils.formatDate(widget.assignment.date)}\n'
+                      '${DutyTimeUtils.formatTimeRange(widget.assignment.timeStart, widget.assignment.timeEnd)}\n'
                       '${widget.assignment.locationNameSnapshot}',
                     ),
                     const SizedBox(height: 16),
@@ -193,7 +192,7 @@ class _DutySwapDialogState extends State<DutySwapDialog> {
                           '${_nameFor(widget.assignment, _fromTeacherId!)} will be '
                           'replaced by ${replacement.teacherName} for '
                           '${widget.assignment.dutyNameSnapshot} '
-                          '(${widget.assignment.timeStart} - ${widget.assignment.timeEnd})'
+                          '(${DutyTimeUtils.formatTimeRange(widget.assignment.timeStart, widget.assignment.timeEnd)})'
                           '${replacement.conflictingAssignment == null ? '.' : ', and they will trade duties.'}',
                       confirmLabel: 'Swap now',
                     );

@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/duty_assignment.dart';
+import '../../models/duty_swap.dart';
 import '../../models/duty_task_assignment.dart';
 import '../../providers/duty_assignment_provider.dart';
 import '../../providers/duty_provider.dart';
+import '../../providers/duty_swap_provider.dart';
 import '../../services/duty_photo_upload.dart';
 import '../../utils/duty_time_utils.dart';
 import 'duty_editor_dialog.dart';
@@ -70,8 +71,11 @@ class _DutyDetailSheetState extends State<DutyDetailSheet> {
             ],
           ),
           Text(
-            '${DateFormat.yMMMd().format(widget.assignment.date)}'
-            '  ${widget.assignment.timeStart} - ${widget.assignment.timeEnd}',
+            DutyTimeUtils.formatDateTimeRange(
+              widget.assignment.date,
+              widget.assignment.timeStart,
+              widget.assignment.timeEnd,
+            ),
           ),
           if (!withinWindow)
             const Padding(
@@ -93,14 +97,13 @@ class _DutyDetailSheetState extends State<DutyDetailSheet> {
             subtitle: Text(widget.assignment.teacherNameSnapshots.join(', ')),
           ),
           const SizedBox(height: 12),
+          _SwapDetailsSection(assignmentId: widget.assignment.id),
           Text('Tasks', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 6),
-          // Deliberately NOT `assignmentProvider.tasksForAssignment(...)` --
-          // that cache is scoped to the current signed-in teacher's own
-          // tasks (right for the home screen's "my next duty" card), which
-          // meant opening details for anyone else's duty (or as principal)
-          // always showed "no tasks". This goes straight to the
-          // assignment-scoped stream instead.
+          // Queries by dutyAssignmentId directly rather than any
+          // teacher-scoped cache, so this shows tasks for any assignment
+          // regardless of who's viewing (someone else's duty, or as
+          // principal).
           StreamBuilder<List<DutyTaskAssignment>>(
             stream: assignmentProvider.watchTasksForAssignment(widget.assignment.id),
             builder: (context, snapshot) {
@@ -131,7 +134,12 @@ class _DutyDetailSheetState extends State<DutyDetailSheet> {
                     .map(
                       (task) => _TaskRow(
                         task: task,
-                        canUpdate: withinWindow,
+                        // "Teachers can only update the task assigned to
+                        // the respective teachers" -- time window alone
+                        // isn't enough; whoever's viewing has to actually
+                        // be one of the teachers on THIS task.
+                        canUpdate: withinWindow &&
+                            task.teacherIds.contains(dutyProvider.currentUserId),
                         uploading: _uploading,
                         onComplete: () => _completeTask(context, task),
                         onReopen: () => context
@@ -221,7 +229,7 @@ class _TaskRow extends StatelessWidget {
       title: Text(task.taskNameSnapshot),
       subtitle: Text(
         task.isCompleted
-            ? 'Completed${task.completedAt == null ? '' : ' ${DateFormat.jm().format(task.completedAt!)}'}'
+            ? 'Completed${task.completedAt == null ? '' : ' ${DutyTimeUtils.formatClockTime(task.completedAt!)}'}'
             : 'Pending proof photo',
       ),
       trailing: !canUpdate
@@ -244,5 +252,71 @@ class _TaskRow extends StatelessWidget {
                       icon: const Icon(Icons.photo_camera_outlined),
                     ),
     );
+  }
+}
+
+/// Full swap history for a duty's details view -- "for duties that are
+/// still pending on swaps, or swaps already cancelled/accepted/rejected,
+/// keep the status [visible]." Renders nothing if there's never been a
+/// swap for this assignment.
+class _SwapDetailsSection extends StatelessWidget {
+  const _SwapDetailsSection({required this.assignmentId});
+
+  final String assignmentId;
+
+  @override
+  Widget build(BuildContext context) {
+    final swaps = context.watch<DutySwapProvider>().swapsForAssignment(assignmentId);
+    if (swaps.isEmpty) return const SizedBox.shrink();
+
+    final sorted = [...swaps]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Swap history', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 6),
+          ...sorted.map((swap) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.swap_horiz, color: _swapStatusColor(swap.status)),
+                title: Text(
+                  '${swap.currentTeacherNameSnapshot} → ${swap.replacementTeacherNameSnapshot}',
+                ),
+                subtitle: Text(
+                  '${_swapStatusLabel(swap.status)} • requested by '
+                  '${swap.requestedByNameSnapshot} • '
+                  '${DutyTimeUtils.formatDateAndClockTime(swap.createdAt)}',
+                ),
+              )),
+        ],
+      ),
+    );
+  }
+}
+
+String _swapStatusLabel(DutySwapStatus status) {
+  switch (status) {
+    case DutySwapStatus.pending:
+      return 'Pending approval';
+    case DutySwapStatus.approved:
+      return 'Approved';
+    case DutySwapStatus.rejected:
+      return 'Rejected';
+    case DutySwapStatus.cancelled:
+      return 'Cancelled';
+  }
+}
+
+Color _swapStatusColor(DutySwapStatus status) {
+  switch (status) {
+    case DutySwapStatus.pending:
+      return Colors.orange;
+    case DutySwapStatus.approved:
+      return Colors.green;
+    case DutySwapStatus.rejected:
+    case DutySwapStatus.cancelled:
+      return Colors.grey;
   }
 }

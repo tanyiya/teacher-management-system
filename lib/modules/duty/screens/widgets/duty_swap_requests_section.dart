@@ -67,9 +67,8 @@ class _SwapRequestCard extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              '${DutyTimeUtils.weekdayName(swap.date.weekday)}, '
-              '${swap.date.day}/${swap.date.month}/${swap.date.year}  '
-              '${swap.timeStart} - ${swap.timeEnd}  •  ${swap.locationNameSnapshot}',
+              '${DutyTimeUtils.formatDateTimeRange(swap.date, swap.timeStart, swap.timeEnd)}'
+              '  •  ${swap.locationNameSnapshot}',
               style: const TextStyle(fontSize: 12, color: Colors.black54),
             ),
             const SizedBox(height: 6),

@@ -158,18 +158,17 @@ class _DutyCard extends StatelessWidget {
                 text: _timeLabel(duty, assignment),
               ),
               Builder(builder: (context) {
-                final pending = context
-                    .watch<DutySwapProvider>()
-                    .swapsForAssignment(assignment.id)
-                    .where((s) => s.status == DutySwapStatus.pending)
-                    .toList();
-                if (pending.isEmpty) return const SizedBox.shrink();
-                return const Padding(
-                  padding: EdgeInsets.only(top: 1),
+                final swaps = context.watch<DutySwapProvider>().swapsForAssignment(assignment.id);
+                if (swaps.isEmpty) return const SizedBox.shrink();
+                final latest = [...swaps]
+                  ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+                final swap = latest.first;
+                return Padding(
+                  padding: const EdgeInsets.only(top: 1),
                   child: _MetaRow(
                     icon: Icons.swap_horiz,
-                    text: 'Swap pending approval',
-                    color: Colors.orange,
+                    text: 'Swap ${_swapStatusLabel(swap.status)}',
+                    color: _swapStatusColor(swap.status),
                   ),
                 );
               }),
@@ -238,7 +237,7 @@ class _DutyCard extends StatelessWidget {
   }
 
   String _timeLabel(Duty? duty, DutyAssignment assignment) {
-    final base = '${assignment.timeStart} - ${assignment.timeEnd}';
+    final base = DutyTimeUtils.formatTimeRange(assignment.timeStart, assignment.timeEnd);
     if (duty == null) return base;
     switch (duty.recurrence) {
       case DutyRecurrence.weekly:
@@ -248,6 +247,31 @@ class _DutyCard extends StatelessWidget {
       case DutyRecurrence.once:
         return base;
     }
+  }
+}
+
+String _swapStatusLabel(DutySwapStatus status) {
+  switch (status) {
+    case DutySwapStatus.pending:
+      return 'pending approval';
+    case DutySwapStatus.approved:
+      return 'approved';
+    case DutySwapStatus.rejected:
+      return 'rejected';
+    case DutySwapStatus.cancelled:
+      return 'cancelled';
+  }
+}
+
+Color _swapStatusColor(DutySwapStatus status) {
+  switch (status) {
+    case DutySwapStatus.pending:
+      return Colors.orange;
+    case DutySwapStatus.approved:
+      return Colors.green;
+    case DutySwapStatus.rejected:
+    case DutySwapStatus.cancelled:
+      return Colors.grey;
   }
 }
 
@@ -354,11 +378,18 @@ class _TaskTileState extends State<_TaskTile> {
   @override
   Widget build(BuildContext context) {
     final task = widget.task;
-    final canUpdate = DutyTimeUtils.isWithinUpdateWindow(
-      widget.assignment.date,
-      widget.assignment.timeStart,
-      widget.assignment.timeEnd,
-    );
+    final currentUserId = context.watch<DutyProvider>().currentUserId;
+    // "Teachers can only update the task assigned to the respective
+    // teachers" -- time window alone isn't enough; whoever's viewing has
+    // to actually be one of the teachers on THIS task. Without this,
+    // anyone viewing (e.g. principal browsing, or a teacher with "show all
+    // teachers" on) could capture proof for a duty that isn't theirs.
+    final canUpdate = task.teacherIds.contains(currentUserId) &&
+        DutyTimeUtils.isWithinUpdateWindow(
+          widget.assignment.date,
+          widget.assignment.timeStart,
+          widget.assignment.timeEnd,
+        );
 
     Widget? trailing;
     if (_uploading) {

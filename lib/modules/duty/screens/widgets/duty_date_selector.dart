@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/duty_assignment_provider.dart';
+import '../../utils/duty_time_utils.dart';
 
 /// Date control for the schedule screen: chevrons to step a day at a time,
 /// plus a tap on the main body to open a full calendar picker. The picker
@@ -20,7 +21,7 @@ class DutyDateSelector extends StatelessWidget {
   });
 
   DateTime get _today {
-    final now = DateTime.now();
+    final now = DutyTimeUtils.now();
     return DateTime(now.year, now.month, now.day);
   }
 
@@ -88,7 +89,7 @@ class DutyDateSelector extends StatelessWidget {
                   children: [
                     const Icon(Icons.calendar_month, size: 18),
                     const SizedBox(width: 10),
-                    Text('${date.day}/${date.month}/${date.year}'),
+                    Text(DutyTimeUtils.formatDate(date)),
                   ],
                 ),
               ),
