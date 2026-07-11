@@ -7,6 +7,9 @@ import '../services/duty_assignment_service.dart';
 import '../services/duty_swap_service.dart';
 import '../utils/duty_time_utils.dart';
 import 'duty_provider.dart';
+// NOTE: adjust this import to wherever NotificationService actually lives
+// in your project -- assumed here to be lib/core/services/notification_service.dart.
+import '../../../core/services/notification_service.dart';
 
 /// Implements the "Swap duties" requirement:
 ///  - Teachers may only swap with a colleague who either has a duty in the
@@ -16,7 +19,9 @@ import 'duty_provider.dart';
 ///  - A principal-initiated swap applies immediately and notifies both
 ///    teachers without requiring approval.
 ///  - Swaps can only be requested/approved up to 30 minutes before the duty
-///    starts (see [DutyTimeUtils.canStillSwap]).
+///    starts (see [DutyTimeUtils.canStillSwap]). A `pending` swap that
+///    crosses that cutoff without being approved auto-cancels (see
+///    [_expireStaleSwaps]).
 ///
 /// Swaps are listened to once here and cached (like the other duty
 /// providers), rather than handing out a fresh `Stream` per call: an
@@ -31,16 +36,27 @@ class DutySwapProvider extends ChangeNotifier {
   DutySwapProvider({
     DutySwapService? swapService,
     DutyAssignmentService? assignmentService,
+    NotificationService? notificationService,
   })  : _swapService = swapService ?? DutySwapService(),
-        _assignmentService = assignmentService ?? DutyAssignmentService() {
+        _assignmentService = assignmentService ?? DutyAssignmentService(),
+        _notificationService = notificationService ?? NotificationService() {
     _listenSwaps();
+    // Firestore's `snapshots()` only fires on actual document changes, not
+    // on the clock ticking past a cutoff -- so a swap nobody touches would
+    // stay `pending` forever past its 30-minute window without something
+    // actively re-checking elapsed time. A periodic sweep is that
+    // something.
+    _expiryTimer = Timer.periodic(const Duration(minutes: 1), (_) => _expireStaleSwaps());
   }
 
   final DutySwapService _swapService;
   final DutyAssignmentService _assignmentService;
+  final NotificationService _notificationService;
 
   StreamSubscription<List<DutySwap>>? _swapSub;
+  Timer? _expiryTimer;
   List<DutySwap> _swaps = [];
+  final Set<String> _expiringIds = {};
 
   String? _error;
   String? get error => _error;
@@ -50,12 +66,52 @@ class DutySwapProvider extends ChangeNotifier {
       (items) {
         _swaps = items;
         notifyListeners();
+        _expireStaleSwaps();
       },
       onError: (e) {
         _error = e.toString();
         notifyListeners();
       },
     );
+  }
+
+  /// Cancels any `pending` swap whose duty has crossed the 30-minute cutoff
+  /// without being approved, and notifies both parties. Guarded by
+  /// [_expiringIds] so the 1-minute timer and every fresh swap snapshot
+  /// don't both try to cancel (and double-notify about) the same swap
+  /// while the first cancellation is still in flight.
+  Future<void> _expireStaleSwaps() async {
+    final stale = _swaps.where((s) =>
+        s.status == DutySwapStatus.pending &&
+        !_expiringIds.contains(s.id) &&
+        !DutyTimeUtils.canStillSwap(s.date, s.timeStart));
+
+    for (final swap in stale) {
+      _expiringIds.add(swap.id);
+      try {
+        await _swapService.cancelSwap(swap.id);
+        await _notificationService.send(
+          userId: swap.currentTeacherId,
+          title: 'Swap request expired',
+          message: 'Your swap request for ${swap.dutyNameSnapshot} '
+              '(${_fmtDate(swap.date)}, ${swap.timeStart}-${swap.timeEnd}) '
+              'expired because the duty started before it was approved.',
+          type: 'duty_swap',
+          relatedId: swap.dutyAssignmentId,
+        );
+        await _notificationService.send(
+          userId: swap.replacementTeacherId,
+          title: 'Swap request expired',
+          message: 'The swap request for ${swap.dutyNameSnapshot} '
+              '(${_fmtDate(swap.date)}, ${swap.timeStart}-${swap.timeEnd}) '
+              'expired because the duty started before it was approved.',
+          type: 'duty_swap',
+          relatedId: swap.dutyAssignmentId,
+        );
+      } catch (_) {
+        _expiringIds.remove(swap.id); // allow retry on the next sweep
+      }
+    }
   }
 
   /// Swaps awaiting this teacher's approval.
@@ -70,6 +126,13 @@ class DutySwapProvider extends ChangeNotifier {
   /// swap status (e.g. "Swap pending approval").
   List<DutySwap> swapsForAssignment(String assignmentId) {
     return _swaps.where((s) => s.dutyAssignmentId == assignmentId).toList();
+  }
+
+  DutySwap? _findSwap(String id) {
+    for (final s in _swaps) {
+      if (s.id == id) return s;
+    }
+    return null;
   }
 
   /// Convenience for the accept/reject inbox: looks up the swap and its
@@ -155,6 +218,7 @@ class DutySwapProvider extends ChangeNotifier {
     try {
       _error = null;
       final isAdmin = requesterType == DutySwapRequesterType.admin;
+      final currentTeacherNameSnapshot = _nameFor(assignment, currentTeacherId);
 
       final swap = DutySwap(
         id: '',
@@ -165,7 +229,7 @@ class DutySwapProvider extends ChangeNotifier {
         timeEnd: assignment.timeEnd,
         locationNameSnapshot: assignment.locationNameSnapshot,
         currentTeacherId: currentTeacherId,
-        currentTeacherNameSnapshot: _nameFor(assignment, currentTeacherId),
+        currentTeacherNameSnapshot: currentTeacherNameSnapshot,
         replacementTeacherId: replacementTeacherId,
         replacementTeacherNameSnapshot: replacementTeacherNameSnapshot,
         requestedById: requestedById,
@@ -178,12 +242,41 @@ class DutySwapProvider extends ChangeNotifier {
 
       await _swapService.addSwap(swap);
 
+      final when = '${_fmtDate(assignment.date)}, ${assignment.timeStart}-${assignment.timeEnd}';
+
       if (isAdmin) {
         await _applySwap(
           assignment,
           currentTeacherId,
           replacementTeacherId,
           replacementTeacherNameSnapshot,
+        );
+        // "Both the teachers would receive a notification without
+        // requiring approval regarding the duty swap."
+        await _notificationService.send(
+          userId: currentTeacherId,
+          title: 'Duty swapped',
+          message: 'The principal swapped you out of ${assignment.dutyNameSnapshot} '
+              '($when). $replacementTeacherNameSnapshot is now covering it.',
+          type: 'duty_swap',
+          relatedId: assignment.id,
+        );
+        await _notificationService.send(
+          userId: replacementTeacherId,
+          title: 'Duty assigned',
+          message: 'The principal assigned you to ${assignment.dutyNameSnapshot} '
+              '($when) at ${assignment.locationNameSnapshot}.',
+          type: 'duty_swap',
+          relatedId: assignment.id,
+        );
+      } else {
+        await _notificationService.send(
+          userId: replacementTeacherId,
+          title: 'Swap request',
+          message: '$currentTeacherNameSnapshot wants to swap ${assignment.dutyNameSnapshot} '
+              '($when) with you.',
+          type: 'duty_swap',
+          relatedId: assignment.id,
         );
       }
     } catch (e) {
@@ -202,6 +295,14 @@ class DutySwapProvider extends ChangeNotifier {
         swap.replacementTeacherId,
         swap.replacementTeacherNameSnapshot,
       );
+      await _notificationService.send(
+        userId: swap.requestedById,
+        title: 'Swap approved',
+        message: '${swap.replacementTeacherNameSnapshot} accepted your swap request for '
+            '${swap.dutyNameSnapshot} (${_fmtDate(swap.date)}, ${swap.timeStart}-${swap.timeEnd}).',
+        type: 'duty_swap',
+        relatedId: assignment.id,
+      );
     } catch (e) {
       _error = e.toString();
       notifyListeners();
@@ -211,7 +312,18 @@ class DutySwapProvider extends ChangeNotifier {
   Future<void> rejectSwap(String id) async {
     try {
       _error = null;
+      final swap = _findSwap(id);
       await _swapService.rejectSwap(id);
+      if (swap != null) {
+        await _notificationService.send(
+          userId: swap.requestedById,
+          title: 'Swap declined',
+          message: '${swap.replacementTeacherNameSnapshot} declined your swap request for '
+              '${swap.dutyNameSnapshot} (${_fmtDate(swap.date)}, ${swap.timeStart}-${swap.timeEnd}).',
+          type: 'duty_swap',
+          relatedId: swap.dutyAssignmentId,
+        );
+      }
     } catch (e) {
       _error = e.toString();
       notifyListeners();
@@ -288,9 +400,12 @@ class DutySwapProvider extends ChangeNotifier {
     return assignment.teacherNameSnapshots[index];
   }
 
+  String _fmtDate(DateTime date) => '${date.day}/${date.month}/${date.year}';
+
   @override
   void dispose() {
     _swapSub?.cancel();
+    _expiryTimer?.cancel();
     super.dispose();
   }
 }

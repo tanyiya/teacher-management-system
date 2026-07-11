@@ -84,23 +84,53 @@ class _DutyScheduleScreenState extends State<DutyScheduleScreen> {
               child: const Icon(Icons.add),
             )
           : null,
-      body: Column(
+      body: Stack(
         children: [
-          // Shared by both views -- previously only the list screen had a
-          // date control, which is why the calendar view had no way to
-          // change dates at all.
-          DutyDateSelector(
-            date: assignmentProvider.selectedDate,
-            onChanged: (date) =>
-                context.read<DutyAssignmentProvider>().setDate(date),
+          Column(
+            children: [
+              // Shared by both views -- previously only the list screen had
+              // a date control, which is why the calendar view had no way
+              // to change dates at all.
+              DutyDateSelector(
+                date: assignmentProvider.selectedDate,
+                onChanged: (date) =>
+                    context.read<DutyAssignmentProvider>().setDate(date),
+              ),
+              Expanded(
+                child: dutyProvider.error != null
+                    ? Center(child: Text(dutyProvider.error!))
+                    : schedule.viewMode == DutyViewMode.calendar
+                        ? const DutyCalendarScreen()
+                        : const DutyListScreen(),
+              ),
+            ],
           ),
-          Expanded(
-            child: dutyProvider.error != null
-                ? Center(child: Text(dutyProvider.error!))
-                : schedule.viewMode == DutyViewMode.calendar
-                    ? const DutyCalendarScreen()
-                    : const DutyListScreen(),
-          ),
+          // The auto-scheduler is actively writing assignments during this
+          // window -- block interaction rather than let someone act on
+          // data that's mid-update.
+          if (dutyProvider.isCheckingSchedule)
+            Positioned.fill(
+              child: AbsorbPointer(
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.15),
+                  child: const Center(
+                    child: Card(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(height: 12),
+                            Text('Checking today\'s schedule...'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );

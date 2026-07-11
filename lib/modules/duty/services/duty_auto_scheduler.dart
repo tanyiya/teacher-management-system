@@ -11,6 +11,9 @@ import '../services/duty_external_service.dart';
 import '../services/duty_scheduler_meta_service.dart';
 import '../utils/duty_time_utils.dart';
 import '../../teachers/models/teacher.dart';
+// NOTE: adjust this import to wherever NotificationService actually lives
+// in your project -- assumed here to be lib/core/services/notification_service.dart.
+import '../../../core/services/notification_service.dart';
 
 /// Keeps the next 7 days of duty assignments filled in, automatically.
 ///
@@ -49,13 +52,15 @@ class DutyAutoScheduler {
     DutyTaskAssignmentService? taskAssignmentService,
     DutyExternalService? externalService,
     DutySchedulerMetaService? metaService,
+    NotificationService? notificationService,
   })  : _dutyService = dutyService ?? DutyService(),
         _taskService = taskService ?? DutyTaskService(),
         _assignmentService = assignmentService ?? DutyAssignmentService(),
         _taskAssignmentService =
             taskAssignmentService ?? DutyTaskAssignmentService(),
         _externalService = externalService ?? DutyExternalService(),
-        _metaService = metaService ?? DutySchedulerMetaService();
+        _metaService = metaService ?? DutySchedulerMetaService(),
+        _notificationService = notificationService ?? NotificationService();
 
   final DutyService _dutyService;
   final DutyTaskService _taskService;
@@ -63,6 +68,7 @@ class DutyAutoScheduler {
   final DutyTaskAssignmentService _taskAssignmentService;
   final DutyExternalService _externalService;
   final DutySchedulerMetaService _metaService;
+  final NotificationService _notificationService;
 
   static const int lookaheadDays = 7;
 
@@ -204,6 +210,11 @@ class DutyAutoScheduler {
       return rotationCursor;
     }
 
+    final addedIds = finalIds.where((id) => !currentIds.contains(id)).toList();
+    final removedIds = currentIds.where((id) => !finalIds.contains(id)).toList();
+    final when = '${_fmtDate(date)}, ${duty.timeStart}-${duty.timeEnd}';
+    String resultAssignmentId;
+
     if (existing == null) {
       final assignment = DutyAssignment(
         id: '',
@@ -219,6 +230,7 @@ class DutyAutoScheduler {
         status: DutyAssignmentStatus.assigned,
       );
       final assignmentId = await _assignmentService.addAssignment(assignment);
+      resultAssignmentId = assignmentId;
       final saved = DutyAssignment(
         id: assignmentId,
         dutyId: assignment.dutyId,
@@ -253,6 +265,7 @@ class DutyAutoScheduler {
     } else {
       final updated = existing.copyWith(teacherIds: finalIds, teacherNameSnapshots: finalNames);
       await _assignmentService.updateAssignment(updated);
+      resultAssignmentId = existing.id;
 
       final index = dayAssignments.indexWhere((a) => a.id == existing!.id);
       if (index != -1) dayAssignments[index] = updated;
@@ -277,6 +290,26 @@ class DutyAutoScheduler {
       }
     }
 
+    for (final id in addedIds) {
+      await _notificationService.send(
+        userId: id,
+        title: 'New duty assigned',
+        message: 'You have been assigned to ${duty.title} ($when) at ${location.name}.',
+        type: 'duty_assignment',
+        relatedId: resultAssignmentId,
+      );
+    }
+    for (final id in removedIds) {
+      await _notificationService.send(
+        userId: id,
+        title: 'Duty reassigned',
+        message: 'You have been removed from ${duty.title} ($when) due to a '
+            'scheduling conflict with another duty.',
+        type: 'duty_assignment',
+        relatedId: resultAssignmentId,
+      );
+    }
+
     return rotationCursor;
   }
 
@@ -294,4 +327,6 @@ class DutyAutoScheduler {
         return false;
     }
   }
+
+  String _fmtDate(DateTime date) => '${date.day}/${date.month}/${date.year}';
 }

@@ -13,6 +13,9 @@ import '../services/duty_task_assignment_service.dart';
 import '../services/duty_auto_scheduler.dart';
 import '../utils/duty_time_utils.dart';
 import '../../teachers/models/teacher.dart';
+// NOTE: adjust this import to wherever NotificationService actually lives
+// in your project -- assumed here to be lib/core/services/notification_service.dart.
+import '../../../core/services/notification_service.dart';
 
 /// Owns duty *definitions* -- the reusable templates (title, time window,
 /// recurrence, locations, task checklist) that the principal edits.
@@ -38,13 +41,15 @@ class DutyProvider extends ChangeNotifier {
     DutyAssignmentService? assignmentService,
     DutyTaskAssignmentService? taskAssignmentService,
     DutyAutoScheduler? scheduler,
+    NotificationService? notificationService,
   })  : _dutyService = dutyService ?? DutyService(),
         _taskService = taskService ?? DutyTaskService(),
         _externalService = externalService ?? DutyExternalService(),
         _assignmentService = assignmentService ?? DutyAssignmentService(),
         _taskAssignmentService =
             taskAssignmentService ?? DutyTaskAssignmentService(),
-        _scheduler = scheduler ?? DutyAutoScheduler() {
+        _scheduler = scheduler ?? DutyAutoScheduler(),
+        _notificationService = notificationService ?? NotificationService() {
     _listenDuties();
     _listenTasks();
     _listenTeachers();
@@ -56,6 +61,7 @@ class DutyProvider extends ChangeNotifier {
   final DutyAssignmentService _assignmentService;
   final DutyTaskAssignmentService _taskAssignmentService;
   final DutyAutoScheduler _scheduler;
+  final NotificationService _notificationService;
 
   StreamSubscription<List<Duty>>? _dutySub;
   StreamSubscription<List<DutyTask>>? _taskSub;
@@ -69,7 +75,14 @@ class DutyProvider extends ChangeNotifier {
   String _role = 'teacher';
 
   bool _isLoading = true;
+  bool _isCheckingSchedule = false;
   String? _error;
+
+  /// True while [ensureScheduleFilled] is running -- the schedule screen
+  /// shows a blocking spinner during this, since the auto-scheduler is
+  /// actively writing assignments and letting someone interact mid-write
+  /// could show stale or half-updated data.
+  bool get isCheckingSchedule => _isCheckingSchedule;
 
   List<Duty> get duties => _duties;
   List<TeacherRecord> get teachers => _teachers;
@@ -104,7 +117,18 @@ class DutyProvider extends ChangeNotifier {
   /// Called once when the schedule screen opens. Respects the daily
   /// throttle (see [DutyAutoScheduler.ensureScheduleFilled]) -- cheap to
   /// call on every open, since it's a no-op once it's already run today.
-  Future<void> ensureScheduleFilled() => _scheduler.ensureScheduleFilled();
+  /// Toggles [isCheckingSchedule] around the call so the screen can show a
+  /// spinner while it's actively writing assignments.
+  Future<void> ensureScheduleFilled() async {
+    _isCheckingSchedule = true;
+    notifyListeners();
+    try {
+      await _scheduler.ensureScheduleFilled();
+    } finally {
+      _isCheckingSchedule = false;
+      notifyListeners();
+    }
+  }
 
   void _listenDuties() {
     _dutySub = _dutyService.getDuties().listen(
@@ -258,17 +282,45 @@ class DutyProvider extends ChangeNotifier {
         // Venue no longer part of this duty -- nothing left to assign here.
         await _taskAssignmentService.deleteTasksByAssignment(assignment.id);
         await _assignmentService.deleteAssignment(assignment.id);
+        for (final teacherId in assignment.teacherIds) {
+          await _notificationService.send(
+            userId: teacherId,
+            title: 'Duty cancelled',
+            message: '${assignment.dutyNameSnapshot} at ${assignment.locationNameSnapshot} '
+                'on ${_fmtDate(assignment.date)} was removed from your schedule.',
+            type: 'duty_assignment',
+            relatedId: assignment.id,
+          );
+        }
         continue;
       }
+
+      final timeChanged =
+          assignment.timeStart != duty.timeStart || assignment.timeEnd != duty.timeEnd;
+      final newLocationName =
+          locationNameById[assignment.locationId] ?? assignment.locationNameSnapshot;
+      final locationRenamed = newLocationName != assignment.locationNameSnapshot;
 
       final refreshedAssignment = assignment.copyWith(
         dutyNameSnapshot: duty.title,
         timeStart: duty.timeStart,
         timeEnd: duty.timeEnd,
-        locationNameSnapshot:
-            locationNameById[assignment.locationId] ?? assignment.locationNameSnapshot,
+        locationNameSnapshot: newLocationName,
       );
       await _assignmentService.updateAssignment(refreshedAssignment);
+
+      if (timeChanged || locationRenamed) {
+        for (final teacherId in assignment.teacherIds) {
+          await _notificationService.send(
+            userId: teacherId,
+            title: 'Duty updated',
+            message: '${duty.title} on ${_fmtDate(assignment.date)} is now '
+                '${duty.timeStart}-${duty.timeEnd} at $newLocationName.',
+            type: 'duty_assignment',
+            relatedId: assignment.id,
+          );
+        }
+      }
 
       final taskAssignments =
           await _taskAssignmentService.getTasksByAssignment(assignment.id).first;
@@ -348,6 +400,8 @@ class DutyProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  String _fmtDate(DateTime date) => '${date.day}/${date.month}/${date.year}';
 
   @override
   void dispose() {

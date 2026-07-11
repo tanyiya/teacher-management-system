@@ -10,7 +10,7 @@ import '../../modules/duty/models/duty_task_assignment.dart';
 import '../../modules/duty/providers/duty_assignment_provider.dart';
 import '../../modules/duty/screens/duty_schedule_screen.dart';
 import '../../modules/duty/screens/widgets/duty_swap_requests_section.dart';
-import '../../modules/duty/services/duty_cloudinary_service.dart';
+import '../../modules/duty/services/duty_photo_upload.dart';
 import '../../modules/duty/utils/duty_time_utils.dart';
 import '../../modules/teachers/models/teacher.dart';
 import '../../modules/leave/screens/leave_screen.dart';
@@ -360,7 +360,7 @@ class _TaskTileState extends State<_TaskTile> {
     // below and leave the capture button stuck showing a spinner forever.
     try {
       final bytes = await image.readAsBytes();
-      final photoUrl = await DutyCloudinaryService.uploadTaskProof(bytes, image.name);
+      final photoUrl = await uploadDutyProofPhoto(bytes, image.name);
 
       if (photoUrl == null) {
         if (context.mounted) {

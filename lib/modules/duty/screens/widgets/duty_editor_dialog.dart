@@ -34,6 +34,7 @@ class _DutyEditorDialogState extends State<DutyEditorDialog> {
   int? _recurrenceDayOfWeek;
   int? _recurrenceDayOfMonth;
   late Set<String> _selectedLocations;
+  bool _saving = false;
 
   @override
   void initState() {
@@ -238,28 +239,49 @@ class _DutyEditorDialogState extends State<DutyEditorDialog> {
       actions: [
         if (duty != null)
           TextButton(
-            onPressed: () async {
-              final confirmed = await showDutyConfirmDialog(
-                context,
-                title: 'Delete this duty?',
-                message:
-                    "This removes the duty definition and every upcoming "
-                    "assignment generated from it that hasn't happened yet. "
-                    "This can't be undone.",
-                confirmLabel: 'Delete',
-                danger: true,
-              );
-              if (!confirmed) return;
-              if (!context.mounted) return;
-              await dutyProvider.deleteDuty(duty.id);
-              if (context.mounted) Navigator.pop(context);
-            },
+            onPressed: _saving
+                ? null
+                : () async {
+                    final confirmed = await showDutyConfirmDialog(
+                      context,
+                      title: 'Delete this duty?',
+                      message:
+                          "This removes the duty definition and every upcoming "
+                          "assignment generated from it that hasn't happened yet. "
+                          "This can't be undone.",
+                      confirmLabel: 'Delete',
+                      danger: true,
+                    );
+                    if (!confirmed) return;
+                    if (!context.mounted) return;
+
+                    setState(() => _saving = true);
+                    await dutyProvider.deleteDuty(duty.id);
+                    if (!context.mounted) return;
+                    if (dutyProvider.error != null) {
+                      setState(() => _saving = false);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(dutyProvider.error!)),
+                      );
+                      return;
+                    }
+                    Navigator.pop(context);
+                  },
             child: const Text('Delete'),
           ),
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
         FilledButton(
-          onPressed: () => _save(context, dutyProvider, locationProvider),
-          child: const Text('Save'),
+          onPressed: _saving ? null : () => _save(context, dutyProvider, locationProvider),
+          child: _saving
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Save'),
         ),
       ],
     );
@@ -332,12 +354,22 @@ class _DutyEditorDialogState extends State<DutyEditorDialog> {
       minTeachersPerVenue: _minTeachers,
     );
 
+    setState(() => _saving = true);
     if (widget.duty == null) {
       await dutyProvider.createDuty(duty, tasks);
     } else {
       await dutyProvider.updateDuty(duty, tasks);
     }
-    if (context.mounted) Navigator.pop(context);
+
+    if (!context.mounted) return;
+    if (dutyProvider.error != null) {
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(dutyProvider.error!)),
+      );
+      return;
+    }
+    Navigator.pop(context);
   }
 }
 

@@ -10,7 +10,7 @@ import '../providers/duty_assignment_provider.dart';
 import '../providers/duty_provider.dart';
 import '../providers/duty_schedule_provider.dart';
 import '../providers/duty_swap_provider.dart';
-import '../services/duty_cloudinary_service.dart';
+import '../services/duty_photo_upload.dart';
 import '../utils/duty_time_utils.dart';
 import 'widgets/duty_detail_sheet.dart';
 import 'widgets/duty_editor_dialog.dart';
@@ -329,7 +329,7 @@ class _TaskTileState extends State<_TaskTile> {
 
     try {
       final bytes = await image.readAsBytes();
-      final photoUrl = await DutyCloudinaryService.uploadTaskProof(bytes, image.name);
+      final photoUrl = await uploadDutyProofPhoto(bytes, image.name);
 
       if (photoUrl == null) {
         if (context.mounted) {
