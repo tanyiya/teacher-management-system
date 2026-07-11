@@ -6,6 +6,7 @@ import '../services/leave_service.dart';
 import '../../teachers/models/teacher.dart';
 import '../models/leave.dart' hide TeacherRecord; 
 import '../../../core/services/cloudinary_service.dart';
+import '../../../app_theme.dart'; // Make sure this path is correct for your project
 
 class LeaveSpec {
   final String type;
@@ -77,10 +78,9 @@ class _LeaveScreenState extends State<LeaveScreen> {
     final spec = leaveSpecs.firstWhere((s) => s.type == type.dbValue, orElse: () => leaveSpecs[0]);
     final quota = type == LeaveType.halfday ? 2.0 : spec.quota.toDouble();
 
-    // Calculate Taken (Approved)
     double approvedDays = 0.0;
     if (type == LeaveType.halfday) {
-      final currentMonthStr = DateTime.now().toIso8601String().substring(0, 7); // YYYY-MM
+      final currentMonthStr = DateTime.now().toIso8601String().substring(0, 7);
       approvedDays = _leavesList
           .where((l) => l.type == LeaveType.halfday && l.status == 'approved' && l.startDate.substring(0, 7) == currentMonthStr)
           .fold(0.0, (sum, l) => sum + l.duration);
@@ -90,7 +90,6 @@ class _LeaveScreenState extends State<LeaveScreen> {
           .fold(0.0, (sum, l) => sum + l.duration);
     }
 
-    // Calculate Pending
     double pendingDays = 0.0;
     if (type == LeaveType.halfday) {
       final currentMonthStr = DateTime.now().toIso8601String().substring(0, 7);
@@ -118,9 +117,7 @@ class _LeaveScreenState extends State<LeaveScreen> {
       context: context,
       builder: (context) => ApplyLeaveDialog(
         teacher: widget.teacher,
-        onSubmitted: () {
-          // Handled via stream auto-sync
-        },
+        onSubmitted: () {},
         getLeaveBalance: getLeaveBalance,
       ),
     );
@@ -128,46 +125,54 @@ class _LeaveScreenState extends State<LeaveScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context); // Pulling the dynamic theme
+
     return Scaffold(
-      backgroundColor: const Color(0xFFFBFBFB),
+      backgroundColor: AppTheme.canvasBase,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'LEAVE BALANCE & QUOTAS',
-          style: TextStyle(
+          style: theme.appBarTheme.titleTextStyle?.copyWith(
             fontSize: 14,
             fontWeight: FontWeight.w900,
             letterSpacing: 1.5,
-            color: Color(0xFF1E241E),
           ),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.cardBackground,
         elevation: 0.5,
-        iconTheme: const IconThemeData(color: Color(0xFF1E241E)),
+        iconTheme: IconThemeData(color: AppTheme.textCore),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF5A6B5A)))
+          ? Center(child: CircularProgressIndicator(color: theme.primaryColor))
           : SafeArea(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Header Card
+                    // Header Section
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Expanded(
+                        Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 'Employee Leave Quotas',
-                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF2C3E2C)),
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  fontSize: 18, 
+                                  fontWeight: FontWeight.w900,
+                                ),
                               ),
-                              SizedBox(height: 2),
+                              const SizedBox(height: 2),
                               Text(
                                 'APPLY AND TRACK LEAVES AGAINST ALLOCATED QUOTAS',
-                                style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 0.8, color: Color(0xFF8A9A8A)),
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  fontSize: 8, 
+                                  fontWeight: FontWeight.bold, 
+                                  letterSpacing: 0.8,
+                                ),
                               ),
                             ],
                           ),
@@ -177,10 +182,15 @@ class _LeaveScreenState extends State<LeaveScreen> {
                           icon: const Icon(Icons.add, size: 14, color: Colors.white),
                           label: const Text(
                             'APPLY LEAVE',
-                            style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.0, color: Colors.white),
+                            style: TextStyle(
+                              fontSize: 9, 
+                              fontWeight: FontWeight.w900, 
+                              letterSpacing: 1.0, 
+                              color: Colors.white
+                            ),
                           ),
+                          // Retaining slight custom styling just for this specific button shape
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF5A6B5A),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                             elevation: 0,
@@ -190,15 +200,16 @@ class _LeaveScreenState extends State<LeaveScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Quotas Grid
+                    // Quotas Grid matching the tall cards
                     GridView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 2,
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 10,
-                        childAspectRatio: 1.35,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        // ✨ CHANGED: Increased from 0.88 to 1.15 to make the boxes shorter and neater
+                        childAspectRatio: 1.15, 
                       ),
                       itemCount: leaveSpecs.length,
                       itemBuilder: (context, index) {
@@ -208,42 +219,42 @@ class _LeaveScreenState extends State<LeaveScreen> {
 
                         return Container(
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: AppTheme.cardBackground,
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFE9ECE9)),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.02),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2),
-                              )
-                            ],
+                            border: Border.all(color: AppTheme.subtleGrayBoundary),
                           ),
-                          padding: const EdgeInsets.all(12),
+                          // ✨ CHANGED: Reduced padding slightly to fit the tighter box
+                          padding: const EdgeInsets.all(10), 
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Expanded(
                                     child: Text(
                                       spec.name,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFF1E241E)),
+                                      maxLines: 2,
+                                      style: theme.textTheme.titleMedium?.copyWith(
+                                        fontSize: 11, // ✨ CHANGED: Slightly smaller title 
+                                        fontWeight: FontWeight.w800,
+                                      ),
                                     ),
                                   ),
                                   Container(
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFFF5F7F5),
+                                      color: AppTheme.canvasBase,
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                                     child: Text(
                                       spec.docRequired ? 'Doc Required' : 'No Doc',
-                                      style: const TextStyle(fontSize: 7, fontWeight: FontWeight.w900, color: Color(0xFF7A8A7A)),
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        fontSize: 7, 
+                                        fontWeight: FontWeight.w900,
+                                      ),
                                     ),
                                   )
                                 ],
@@ -257,11 +268,18 @@ class _LeaveScreenState extends State<LeaveScreen> {
                                     children: [
                                       Text(
                                         '${balance['remaining']!.toInt()}',
-                                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF5A6B5A)),
+                                        style: theme.textTheme.displayMedium?.copyWith(
+                                          fontSize: 24, // ✨ CHANGED: Reduced number size so it fits perfectly
+                                          fontWeight: FontWeight.w900, 
+                                          color: theme.primaryColor,
+                                        ),
                                       ),
                                       Text(
                                         ' / ${balance['quota']!.toInt()} left',
-                                        style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF8A9A8A)),
+                                        style: theme.textTheme.bodySmall?.copyWith(
+                                          fontSize: 9, 
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -270,8 +288,14 @@ class _LeaveScreenState extends State<LeaveScreen> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text('TAKEN: ${balance['taken']!.toInt()}d', style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: Color(0xFF7A897A))),
-                                  Text('PENDING: ${balance['pending']!.toInt()}d', style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: Color(0xFF7A897A))),
+                                  Text(
+                                    'TAKEN: ${balance['taken']!.toInt()}d', 
+                                    style: theme.textTheme.bodySmall?.copyWith(fontSize: 8, fontWeight: FontWeight.w800),
+                                  ),
+                                  Text(
+                                    'PENDING: ${balance['pending']!.toInt()}d', 
+                                    style: theme.textTheme.bodySmall?.copyWith(fontSize: 8, fontWeight: FontWeight.w800),
+                                  ),
                                 ],
                               )
                             ],
@@ -283,40 +307,42 @@ class _LeaveScreenState extends State<LeaveScreen> {
                     const SizedBox(height: 24),
 
                     // History Section Header
-                    const Row(
+                    Row(
                       children: [
-                        Icon(Icons.notes, size: 16, color: Color(0xFF5A6B5A)),
-                        SizedBox(width: 6),
+                        Icon(Icons.notes, size: 16, color: AppTheme.textCore),
+                        const SizedBox(width: 6),
                         Text(
                           'APPLICATION HISTORY',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.2, color: Color(0xFF1E241E)),
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontSize: 11, 
+                            fontWeight: FontWeight.w900, 
+                            letterSpacing: 1.2,
+                          ),
                         )
                       ],
                     ),
                     const SizedBox(height: 12),
 
-                    // History List
+                    // History List matching the design
                     if (_leavesList.isEmpty)
                       Container(
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF7F8F7),
-                          border: Border.all(color: const Color(0xFFECEEEC), style: BorderStyle.solid),
+                          color: AppTheme.ambientOffWhite,
+                          border: Border.all(color: AppTheme.subtleGrayBoundary),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         padding: const EdgeInsets.symmetric(vertical: 36),
-                        child: const Column(
+                        child: Column(
                           children: [
-                            Icon(Icons.calendar_today_outlined, size: 36, color: Color(0xFFB0BCB0)),
-                            SizedBox(height: 8),
+                            Icon(Icons.calendar_today_outlined, size: 36, color: AppTheme.textMuted),
+                            const SizedBox(height: 8),
                             Text(
                               'NO APPLICATIONS FILED YET',
-                              style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.2, color: Color(0xFF7A8A7A)),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'If you apply for leave, your application status will appear here.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 8, color: Color(0xFF8A9A8A)),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontSize: 9, 
+                                fontWeight: FontWeight.w900, 
+                                letterSpacing: 1.2,
+                              ),
                             ),
                           ],
                         ),
@@ -326,45 +352,52 @@ class _LeaveScreenState extends State<LeaveScreen> {
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         itemCount: _leavesList.length,
-                        separatorBuilder: (context, index) => const SizedBox(height: 10),
+                        separatorBuilder: (context, index) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
                           final leave = _leavesList[index];
-                          final spec = leaveSpecs.firstWhere((s) => s.type == leave.type.dbValue, orElse: () => leaveSpecs[0]);
 
                           Color statusColor;
                           Color statusBg;
                           switch (leave.status) {
                             case 'approved':
-                              statusColor = const Color(0xFF2E7D32);
-                              statusBg = const Color(0xFFE8F5E9);
+                              statusColor = Colors.green.shade700;
+                              statusBg = Colors.green.shade50;
                               break;
                             case 'rejected':
-                              statusColor = const Color(0xFFC62828);
-                              statusBg = const Color(0xFFFFEBEE);
+                              statusColor = Colors.red.shade700;
+                              statusBg = Colors.red.shade50;
                               break;
                             default:
-                              statusColor = const Color(0xFFEF6C00);
-                              statusBg = const Color(0xFFFFF3E0);
+                              statusColor = Colors.orange.shade700;
+                              statusBg = Colors.orange.shade50;
                           }
 
                           return Container(
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: AppTheme.cardBackground,
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFFE9ECE9)),
+                              border: Border.all(color: AppTheme.subtleGrayBoundary),
+                              // Optional slight shadow similar to screenshot
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.02),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                )
+                              ],
                             ),
                             clipBehavior: Clip.antiAlias,
                             child: IntrinsicHeight(
                               child: Row(
                                 children: [
-                                  // Accent color bar
+                                  // Accent color bar on the left
                                   Container(
                                     width: 4,
-                                    color: const Color(0xFF5A6B5A).withValues(alpha: 0.7),
+                                    color: AppTheme.subtleGrayBoundary,
                                   ),
                                   Expanded(
                                     child: Padding(
-                                      padding: const EdgeInsets.all(12),
+                                      padding: const EdgeInsets.all(14),
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
@@ -372,81 +405,114 @@ class _LeaveScreenState extends State<LeaveScreen> {
                                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                             children: [
                                               Text(
-                                                spec.name.toUpperCase(),
-                                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFF5A6B5A)),
+                                                leave.type.name.toUpperCase(),
+                                                style: theme.textTheme.titleMedium?.copyWith(
+                                                  fontSize: 11, 
+                                                  fontWeight: FontWeight.w900,
+                                                ),
                                               ),
                                               Container(
-                                                decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(12)),
-                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                                decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(6)),
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                                 child: Text(
                                                   leave.status.toUpperCase(),
-                                                  style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: statusColor, letterSpacing: 0.5),
+                                                  style: TextStyle(
+                                                    fontSize: 8, 
+                                                    fontWeight: FontWeight.w900, 
+                                                    color: statusColor, 
+                                                    letterSpacing: 0.5,
+                                                  ),
                                                 ),
                                               )
                                             ],
                                           ),
-                                          const SizedBox(height: 6),
-                                          Text(
-                                            'Date Period: ${leave.startDate} ${leave.endDate != leave.startDate ? "to ${leave.endDate}" : ""}',
-                                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1E241E)),
+                                          const SizedBox(height: 8),
+                                          RichText(
+                                            text: TextSpan(
+                                              style: theme.textTheme.bodyMedium?.copyWith(fontSize: 11),
+                                              children: [
+                                                const TextSpan(text: 'Date Period: ', style: TextStyle(fontWeight: FontWeight.w800)),
+                                                TextSpan(text: '${leave.startDate} ${leave.endDate != leave.startDate ? "to ${leave.endDate}" : ""}'),
+                                              ],
+                                            ),
                                           ),
                                           const SizedBox(height: 2),
                                           Text(
                                             'Duration: ${leave.duration == 0.5 ? "0.5 days (Half Day)" : "${leave.duration.toInt()} day(s)"}',
-                                            style: const TextStyle(fontSize: 10, color: Color(0xFF5A6B5A)),
+                                            style: theme.textTheme.bodySmall?.copyWith(fontSize: 10),
                                           ),
+                                          
+                                          // Remarks Grey Box
                                           if (leave.remarks != null && leave.remarks!.isNotEmpty) ...[
-                                            const SizedBox(height: 6),
+                                            const SizedBox(height: 10),
                                             Container(
                                               decoration: BoxDecoration(
-                                                color: const Color(0xFFF7F8F7),
+                                                color: AppTheme.ambientOffWhite,
                                                 borderRadius: BorderRadius.circular(6),
-                                                border: Border.all(color: const Color(0xFFECEEEC)),
+                                                border: Border.all(color: AppTheme.subtleGrayBoundary, width: 0.5),
                                               ),
-                                              padding: const EdgeInsets.all(8),
+                                              padding: const EdgeInsets.all(10),
                                               width: double.infinity,
                                               child: Text(
                                                 '“${leave.remarks}”',
-                                                style: const TextStyle(fontSize: 9, fontStyle: FontStyle.italic, color: Color(0xFF5A5A5A)),
+                                                style: theme.textTheme.bodySmall?.copyWith(
+                                                  fontSize: 10, 
+                                                  fontStyle: FontStyle.italic,
+                                                ),
                                               ),
                                             )
                                           ],
+
+                                          // Attachment Pill
                                           if (leave.documentUrl != null && leave.documentUrl!.isNotEmpty) ...[
-                                            const SizedBox(height: 8),
+                                            const SizedBox(height: 10),
                                             Container(
                                               decoration: BoxDecoration(
-                                                color: const Color(0xFF5A6B5A).withValues(alpha: 0.05),
-                                                borderRadius: BorderRadius.circular(6),
+                                                color: AppTheme.canvasBase,
+                                                borderRadius: BorderRadius.circular(20),
                                               ),
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                               child: Row(
                                                 mainAxisSize: MainAxisSize.min,
                                                 children: [
-                                                  const Icon(Icons.cloud_done, size: 10, color: Color(0xFF5A6B5A)),
-                                                  const SizedBox(width: 4),
+                                                  Icon(Icons.cloud_download, size: 12, color: AppTheme.textMuted),
+                                                  const SizedBox(width: 6),
                                                   Flexible(
                                                     child: Text(
                                                       leave.documentName ?? 'Attached File',
                                                       overflow: TextOverflow.ellipsis,
-                                                      style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Color(0xFF5A6B5A), decoration: TextDecoration.underline),
+                                                      style: theme.textTheme.bodySmall?.copyWith(
+                                                        fontSize: 9, 
+                                                        fontWeight: FontWeight.bold, 
+                                                        decoration: TextDecoration.underline,
+                                                      ),
                                                     ),
                                                   )
                                                 ],
                                               ),
                                             )
                                           ],
+
                                           if (leave.principalNotes != null && leave.principalNotes!.isNotEmpty) ...[
-                                            const SizedBox(height: 10),
-                                            const Divider(height: 1, color: Color(0xFFECEEEC)),
-                                            const SizedBox(height: 6),
-                                            const Text(
+                                            const SizedBox(height: 12),
+                                            const Divider(height: 1),
+                                            const SizedBox(height: 8),
+                                            Text(
                                               'PRINCIPAL FEEDBACK',
-                                              style: TextStyle(fontSize: 7, fontWeight: FontWeight.w900, letterSpacing: 0.8, color: Color(0xFF904060)),
+                                              style: theme.textTheme.bodySmall?.copyWith(
+                                                fontSize: 8, 
+                                                fontWeight: FontWeight.w900, 
+                                                letterSpacing: 0.8, 
+                                                color: theme.colorScheme.error,
+                                              ),
                                             ),
                                             const SizedBox(height: 2),
                                             Text(
                                               '“${leave.principalNotes}”',
-                                              style: const TextStyle(fontSize: 9, fontStyle: FontStyle.italic, color: Color(0xFF7A7A7A)),
+                                              style: theme.textTheme.bodySmall?.copyWith(
+                                                fontSize: 10, 
+                                                fontStyle: FontStyle.italic,
+                                              ),
                                             )
                                           ]
                                         ],
@@ -492,7 +558,6 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
   DateTime _startDate = DateTime.now();
   DateTime _endDate = DateTime.now();
   
-  // Variables for native file picking
   Uint8List? _fileBytes;
   String? _documentName;
   String? _errorMessage;
@@ -509,7 +574,6 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
       if (result != null) {
         setState(() {
           _documentName = result.files.single.name;
-          
           if (result.files.single.bytes != null) {
             _fileBytes = result.files.single.bytes;
           } else if (result.files.single.path != null) {
@@ -532,7 +596,6 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
 
     final spec = leaveSpecs.firstWhere((s) => s.type == _selectedType.dbValue, orElse: () => leaveSpecs.first);
     
-    // Duration
     double duration = 1.0;
     if (_selectedType != LeaveType.halfday) {
       if (_startDate.isAfter(_endDate)) {
@@ -547,7 +610,6 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
       duration = 0.5;
     }
 
-    // Balance check
     final balance = widget.getLeaveBalance(_selectedType);
     if (duration > (balance['remaining'] ?? 0.0)) {
       setState(() {
@@ -556,7 +618,6 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
       return;
     }
 
-    // Document validation
     if (spec.docRequired && (_documentName == null || _fileBytes == null)) {
       setState(() {
         _errorMessage = 'Supporting document is mandatory for ${spec.name}. Please browse and attach a file.';
@@ -571,7 +632,6 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
     try {
       String? finalDocumentUrl;
       
-      // Upload file to Cloudinary if one is selected
       if (_fileBytes != null && _documentName != null) {
         finalDocumentUrl = await CloudinaryService.uploadFile(
           _fileBytes!, 
@@ -617,20 +677,29 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final spec = leaveSpecs.firstWhere((s) => s.type == _selectedType.dbValue, orElse: () => leaveSpecs.first);
 
     return AlertDialog(
-      title: const Column(
+      title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'APPLY FOR LEAVE',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1.0, color: Color(0xFF1E241E)),
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontSize: 14, 
+              fontWeight: FontWeight.w900, 
+              letterSpacing: 1.0,
+            ),
           ),
-          SizedBox(height: 2),
+          const SizedBox(height: 2),
           Text(
             'FILL OUT SECURE LEAVE RECORD FORM',
-            style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: Color(0xFF8A9A8A)),
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontSize: 8, 
+              fontWeight: FontWeight.bold, 
+              letterSpacing: 0.5,
+            ),
           )
         ],
       ),
@@ -643,24 +712,23 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
             children: [
               if (_errorMessage != null)
                 Container(
-                  decoration: BoxDecoration(color: const Color(0xFFFFEBEE), borderRadius: BorderRadius.circular(8)),
+                  decoration: BoxDecoration(color: theme.colorScheme.errorContainer, borderRadius: BorderRadius.circular(8)),
                   padding: const EdgeInsets.all(10),
                   margin: const EdgeInsets.only(bottom: 14),
                   child: Text(
                     _errorMessage!,
-                    style: const TextStyle(fontSize: 9, color: Color(0xFFC62828), fontWeight: FontWeight.bold),
+                    style: TextStyle(fontSize: 9, color: theme.colorScheme.error, fontWeight: FontWeight.bold),
                   ),
                 ),
 
-              // Type Selector
               DropdownButtonFormField<LeaveType>(
-                initialValue: _selectedType,
-                decoration: const InputDecoration(
+                value: _selectedType,
+                decoration: InputDecoration(
                   labelText: 'LEAVE TYPE',
-                  labelStyle: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFF7A8A7A)),
-                  border: OutlineInputBorder(),
+                  labelStyle: theme.textTheme.bodySmall?.copyWith(fontSize: 9, fontWeight: FontWeight.w900),
+                  border: const OutlineInputBorder(),
                 ),
-                style: const TextStyle(fontSize: 11, color: Color(0xFF1E241E), fontWeight: FontWeight.bold),
+                style: theme.textTheme.bodyMedium?.copyWith(fontSize: 11, fontWeight: FontWeight.bold),
                 items: leaveSpecs.map((s) {
                   final type = LeaveTypeExtension.fromDbValue(s.type);
                   final bal = widget.getLeaveBalance(type);
@@ -681,15 +749,14 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
               ),
               const SizedBox(height: 14),
 
-              // Start Date Selector
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('START DATE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFF7A8A7A))),
+                title: Text('START DATE', style: theme.textTheme.bodySmall?.copyWith(fontSize: 9, fontWeight: FontWeight.w900)),
                 subtitle: Text(
                   '${_startDate.year}-${_startDate.month.toString().padLeft(2, '0')}-${_startDate.day.toString().padLeft(2, '0')}',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1E241E)),
+                  style: theme.textTheme.bodyMedium?.copyWith(fontSize: 12, fontWeight: FontWeight.bold),
                 ),
-                trailing: const Icon(Icons.calendar_month, color: Color(0xFF5A6B5A)),
+                trailing: Icon(Icons.calendar_month, color: theme.primaryColor),
                 onTap: () async {
                   final selected = await showDatePicker(
                     context: context,
@@ -708,17 +775,16 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
                 },
               ),
 
-              // End Date Selector (Omit for Half Day)
               if (_selectedType != LeaveType.halfday) ...[
                 const Divider(),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('END DATE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFF7A8A7A))),
+                  title: Text('END DATE', style: theme.textTheme.bodySmall?.copyWith(fontSize: 9, fontWeight: FontWeight.w900)),
                   subtitle: Text(
                     '${_endDate.year}-${_endDate.month.toString().padLeft(2, '0')}-${_endDate.day.toString().padLeft(2, '0')}',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1E241E)),
+                    style: theme.textTheme.bodyMedium?.copyWith(fontSize: 12, fontWeight: FontWeight.bold),
                   ),
-                  trailing: const Icon(Icons.calendar_month, color: Color(0xFF5A6B5A)),
+                  trailing: Icon(Icons.calendar_month, color: theme.primaryColor),
                   onTap: () async {
                     final selected = await showDatePicker(
                       context: context,
@@ -736,42 +802,44 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
               ],
               const Divider(),
 
-              // Remarks
               TextFormField(
                 controller: _remarksController,
                 maxLines: 2,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'REMARKS (OPTIONAL)',
-                  labelStyle: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFF7A8A7A)),
-                  border: OutlineInputBorder(),
+                  labelStyle: theme.textTheme.bodySmall?.copyWith(fontSize: 9, fontWeight: FontWeight.w900),
+                  border: const OutlineInputBorder(),
                   alignLabelWithHint: true,
                 ),
-                style: const TextStyle(fontSize: 11),
+                style: theme.textTheme.bodyMedium?.copyWith(fontSize: 11),
               ),
               const SizedBox(height: 14),
 
-              // Mandatory Documentation Check
               if (spec.docRequired) ...[
-                const Text(
+                Text(
                   'SUPPORTING DOCUMENT REQUIREMENT',
-                  style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Color(0xFF904060)),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontSize: 8, 
+                    fontWeight: FontWeight.w900, 
+                    color: theme.colorScheme.error,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   spec.docLabel,
-                  style: const TextStyle(fontSize: 8, color: Color(0xFF8A9A8A)),
+                  style: theme.textTheme.bodySmall?.copyWith(fontSize: 8),
                 ),
                 const SizedBox(height: 8),
 
                 if (_documentName != null)
                   Container(
-                    decoration: BoxDecoration(color: const Color(0xFF5A6B5A).withValues(alpha: 0.05), borderRadius: BorderRadius.circular(6)),
+                    decoration: BoxDecoration(color: AppTheme.canvasBase, borderRadius: BorderRadius.circular(6)),
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                     child: Row(
                       children: [
                         const Icon(Icons.check_circle, size: 14, color: Colors.green),
                         const SizedBox(width: 6),
-                        Expanded(child: Text(_documentName!, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold))),
+                        Expanded(child: Text(_documentName!, style: theme.textTheme.bodyMedium?.copyWith(fontSize: 9, fontWeight: FontWeight.bold) ?? const TextStyle())),
                         IconButton(
                           icon: const Icon(Icons.delete, size: 14, color: Colors.red),
                           onPressed: () {
@@ -788,10 +856,8 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
                   OutlinedButton.icon(
                     onPressed: _pickDocument,
                     icon: const Icon(Icons.upload_file, size: 14),
-                    label: const Text('BROWSE / ATTACH SUPPORTING DOCUMENT', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900)),
+                    label: const Text('BROWSE / ATTACH', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900)),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF5A6B5A),
-                      side: const BorderSide(color: Color(0xFF5A6B5A)),
                       padding: const EdgeInsets.symmetric(vertical: 10),
                     ),
                   )
@@ -803,11 +869,10 @@ class _ApplyLeaveDialogState extends State<ApplyLeaveDialog> {
       actions: [
         TextButton(
           onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
-          child: const Text('CANCEL', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF7A8A7A))),
+          child: Text('CANCEL', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppTheme.textMuted)),
         ),
         ElevatedButton(
           onPressed: _isSubmitting ? null : _submit,
-          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF5A6B5A), elevation: 0),
           child: _isSubmitting
               ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
               : const Text('SUBMIT APPLICATION', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white)),
