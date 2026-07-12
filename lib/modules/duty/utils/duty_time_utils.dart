@@ -7,13 +7,21 @@
 class DutyTimeUtils {
   DutyTimeUtils._();
 
-  /// The module's canonical "now" -- always Malaysia time (UTC+8),
-  /// computed explicitly rather than trusting the device's local
-  /// timezone/clock setting. Used everywhere the duty module needs the
-  /// current moment (update windows, swap cutoffs, "today" for the
-  /// scheduler, timestamps on new records) so behavior doesn't depend on
-  /// whatever timezone a given device happens to be configured for.
-  static DateTime now() => DateTime.now().toUtc().add(const Duration(hours: 8));
+  /// The module's canonical "now". Plain device-local time -- an earlier
+  /// version of this tried to force Malaysia (UTC+8) time explicitly via
+  /// `DateTime.now().toUtc().add(Duration(hours: 8))`, but that doesn't
+  /// just relabel the current moment: `.add()` shifts the actual instant
+  /// 8 hours into the future, full stop, regardless of the device's own
+  /// timezone. `combine()` below (and every `DateTime` read back from
+  /// Firestore via `Timestamp.toDate()`) stays in plain device-local time,
+  /// so comparing that against this artificially-shifted "now" put every
+  /// duty's update window 8 hours out of sync -- which is why the camera
+  /// icon disappeared for duties that were genuinely within their window.
+  /// Getting *real* device-timezone-independent Malaysia time right would
+  /// need a proper timezone database (the `timezone` package), not simple
+  /// arithmetic; for now this assumes devices are correctly set to
+  /// Malaysia time, which holds for actual phones used in Malaysia.
+  static DateTime now() => DateTime.now();
 
   /// Parses "HH:mm" into minutes-from-midnight.
   static int toMinutes(String hhmm) {

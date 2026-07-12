@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 
 import '../models/duty_assignment.dart';
 import '../models/duty_swap.dart';
+import '../models/duty_task_assignment.dart';
 import '../services/duty_assignment_service.dart';
 import '../services/duty_swap_service.dart';
+import '../services/duty_task_assignment_service.dart';
 import '../utils/duty_time_utils.dart';
 import 'duty_provider.dart';
 // NOTE: adjust this import to wherever NotificationService actually lives
@@ -36,9 +38,11 @@ class DutySwapProvider extends ChangeNotifier {
   DutySwapProvider({
     DutySwapService? swapService,
     DutyAssignmentService? assignmentService,
+    DutyTaskAssignmentService? taskAssignmentService,
     NotificationService? notificationService,
   })  : _swapService = swapService ?? DutySwapService(),
         _assignmentService = assignmentService ?? DutyAssignmentService(),
+        _taskAssignmentService = taskAssignmentService ?? DutyTaskAssignmentService(),
         _notificationService = notificationService ?? NotificationService() {
     _listenSwaps();
     // Firestore's `snapshots()` only fires on actual document changes, not
@@ -51,6 +55,7 @@ class DutySwapProvider extends ChangeNotifier {
 
   final DutySwapService _swapService;
   final DutyAssignmentService _assignmentService;
+  final DutyTaskAssignmentService _taskAssignmentService;
   final NotificationService _notificationService;
 
   StreamSubscription<List<DutySwap>>? _swapSub;
@@ -390,6 +395,38 @@ class DutySwapProvider extends ChangeNotifier {
         teacherNameSnapshots: teacherNames,
       ),
     );
+
+    // Task-assignments carry their own copy of teacherIds (so the
+    // detail/list/home screens can check "is the viewer actually on THIS
+    // task" without a second lookup) -- swapping the parent assignment's
+    // teacher without also updating these left the incoming teacher
+    // completely absent from `task.teacherIds`, so they'd never see the
+    // capture-proof button at all. This is what was actually behind "the
+    // camera icon isn't showing up" after a swap.
+    final tasks =
+        await _taskAssignmentService.getTasksByAssignment(assignment.id).first;
+    for (final task in tasks) {
+      final taskTeacherIds = [...task.teacherIds];
+      final taskTeacherNames = [...task.teacherNameSnapshots];
+      final taskIndex = taskTeacherIds.indexOf(outgoingId);
+      if (taskIndex == -1) continue;
+      taskTeacherIds[taskIndex] = incomingId;
+      taskTeacherNames[taskIndex] = incomingName;
+      await _taskAssignmentService.updateTaskAssignment(
+        DutyTaskAssignment(
+          id: task.id,
+          dutyAssignmentId: task.dutyAssignmentId,
+          dutyTaskId: task.dutyTaskId,
+          taskNameSnapshot: task.taskNameSnapshot,
+          teacherIds: taskTeacherIds,
+          teacherNameSnapshots: taskTeacherNames,
+          isCompleted: task.isCompleted,
+          photoUrl: task.photoUrl,
+          completedAt: task.completedAt,
+          completedByTeacherId: task.completedByTeacherId,
+        ),
+      );
+    }
   }
 
   String _nameFor(DutyAssignment assignment, String teacherId) {

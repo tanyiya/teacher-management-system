@@ -215,7 +215,8 @@ class _NotifTile extends StatelessWidget {
       case 'broadcast':
         return LucideIcons.bookOpen;
       case 'duty':
-      case 'swap_request':
+      case 'duty_assignment':
+      case 'duty_swap':
       case 'swap_approved':
         return LucideIcons.calendarDays;
       case 'kpi':
@@ -251,7 +252,8 @@ class _NotifTile extends StatelessWidget {
       case 'broadcast':
         return Colors.indigo;
       case 'duty':
-      case 'swap_request':
+      case 'duty_assignment':
+      case 'duty_swap':
       case 'swap_approved':
         return Colors.teal;
       case 'kpi':

@@ -39,9 +39,6 @@ import '../../../core/services/notification_service.dart';
 ///    has already passed, are left alone.
 ///
 /// Deliberately out of scope for this pass:
-///  - `DutyRecurrence.once` duties aren't generated at all -- the `Duty`
-///    model has no field for "which specific date", so there's nothing to
-///    schedule against yet.
 ///  - Teacher leave/unavailability isn't checked -- every `active` teacher
 ///    is treated as available. Noted as a known follow-up.
 class DutyAutoScheduler {
@@ -331,9 +328,11 @@ class DutyAutoScheduler {
       case DutyRecurrence.monthly:
         return date.day == duty.recurrenceDayOfMonth;
       case DutyRecurrence.once:
-        // No specific-date field on `Duty` yet, so there's nothing to
-        // schedule this against -- skipped until that's added.
-        return false;
+        final specific = duty.specificDate;
+        if (specific == null) return false; // no date picked, nothing to schedule
+        return date.year == specific.year &&
+            date.month == specific.month &&
+            date.day == specific.day;
     }
   }
 

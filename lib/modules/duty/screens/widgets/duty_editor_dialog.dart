@@ -33,6 +33,7 @@ class _DutyEditorDialogState extends State<DutyEditorDialog> {
   late DutyRecurrence _recurrence;
   int? _recurrenceDayOfWeek;
   int? _recurrenceDayOfMonth;
+  late DateTime _specificDate;
   late Set<String> _selectedLocations;
   bool _saving = false;
 
@@ -49,6 +50,7 @@ class _DutyEditorDialogState extends State<DutyEditorDialog> {
     _recurrence = duty?.recurrence ?? DutyRecurrence.once;
     _recurrenceDayOfWeek = duty?.recurrenceDayOfWeek ?? DateTime.monday;
     _recurrenceDayOfMonth = duty?.recurrenceDayOfMonth ?? 1;
+    _specificDate = duty?.specificDate ?? DutyTimeUtils.now();
     _selectedLocations = duty?.locations.map((l) => l.id).toSet() ?? <String>{};
 
     final existingTasks =
@@ -129,6 +131,32 @@ class _DutyEditorDialogState extends State<DutyEditorDialog> {
                 onChanged: (v) =>
                     setState(() => _recurrence = v ?? DutyRecurrence.once),
               ),
+              if (_recurrence == DutyRecurrence.once) ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _specificDate,
+                      firstDate: DutyTimeUtils.now(),
+                      lastDate: DutyTimeUtils.now().add(const Duration(days: 365)),
+                    );
+                    if (picked != null) setState(() => _specificDate = picked);
+                  },
+                  icon: const Icon(Icons.event_outlined),
+                  label: Text('Date: ${DutyTimeUtils.formatDate(_specificDate)}'),
+                ),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: Text(
+                      'For an ad hoc, one-off task -- e.g. a special event day.',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ),
+                ),
+              ],
               if (_recurrence == DutyRecurrence.weekly) ...[
                 const SizedBox(height: 12),
                 DropdownButtonFormField<int>(
@@ -350,6 +378,7 @@ class _DutyEditorDialogState extends State<DutyEditorDialog> {
       recurrence: _recurrence,
       recurrenceDayOfWeek: _recurrence == DutyRecurrence.weekly ? _recurrenceDayOfWeek : null,
       recurrenceDayOfMonth: _recurrence == DutyRecurrence.monthly ? _recurrenceDayOfMonth : null,
+      specificDate: _recurrence == DutyRecurrence.once ? _specificDate : null,
       locations: locations,
       minTeachersPerVenue: _minTeachers,
     );

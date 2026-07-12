@@ -240,11 +240,11 @@ class _DutyCard extends StatelessWidget {
     final base = DutyTimeUtils.formatTimeRange(assignment.timeStart, assignment.timeEnd);
     if (duty == null) return base;
     switch (duty.recurrence) {
+      case DutyRecurrence.once:
       case DutyRecurrence.weekly:
       case DutyRecurrence.monthly:
         return '${duty.recurrenceLabel} • $base';
       case DutyRecurrence.daily:
-      case DutyRecurrence.once:
         return base;
     }
   }

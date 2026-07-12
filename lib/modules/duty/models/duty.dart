@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'duty_location.dart';
 import '../utils/duty_time_utils.dart';
 
@@ -26,17 +28,26 @@ class Duty {
   /// for other recurrences.
   final int? recurrenceDayOfMonth;
 
+  /// Which calendar date a `once` duty falls on -- lets the principal key
+  /// in an ad hoc, one-off task for a specific day (e.g. a special event)
+  /// rather than only ever being able to create recurring duties.
+  /// Null/ignored for other recurrences.
+  final DateTime? specificDate;
+
   final List<DutyLocation> locations;
 
   final int minTeachersPerVenue;
 
   /// Human-readable recurrence, spelling out the day for weekly/monthly
-  /// duties (e.g. "Every Monday", "Every 1st") since just "Weekly" or
-  /// "Monthly" doesn't say which day it actually falls on.
+  /// duties (e.g. "Every Monday", "Every 1st") and the actual date for a
+  /// one-time duty, since just "Weekly"/"Monthly"/"One-time" doesn't say
+  /// which day it actually falls on.
   String get recurrenceLabel {
     switch (recurrence) {
       case DutyRecurrence.once:
-        return 'One-time';
+        return specificDate != null
+            ? DutyTimeUtils.formatDate(specificDate!)
+            : 'One-time';
       case DutyRecurrence.daily:
         return 'Daily';
       case DutyRecurrence.weekly:
@@ -59,6 +70,7 @@ class Duty {
     required this.recurrence,
     this.recurrenceDayOfWeek,
     this.recurrenceDayOfMonth,
+    this.specificDate,
     required this.locations,
     required this.minTeachersPerVenue,
   });
@@ -76,6 +88,7 @@ class Duty {
       ),
       recurrenceDayOfWeek: (data['recurrenceDayOfWeek'] as num?)?.toInt(),
       recurrenceDayOfMonth: (data['recurrenceDayOfMonth'] as num?)?.toInt(),
+      specificDate: (data['specificDate'] as Timestamp?)?.toDate(),
       locations: (data['locations'] as List<dynamic>? ?? [])
           .map((raw) => DutyLocation.fromMap(
                 raw['id']?.toString() ?? '',
@@ -95,6 +108,7 @@ class Duty {
       'recurrence': recurrence.name,
       'recurrenceDayOfWeek': recurrenceDayOfWeek,
       'recurrenceDayOfMonth': recurrenceDayOfMonth,
+      'specificDate': specificDate == null ? null : Timestamp.fromDate(specificDate!),
       'locations': locations.map((l) => {'id': l.id, ...l.toMap()}).toList(),
       'minTeachersPerVenue': minTeachersPerVenue,
     };
@@ -108,6 +122,7 @@ class Duty {
     DutyRecurrence? recurrence,
     int? recurrenceDayOfWeek,
     int? recurrenceDayOfMonth,
+    DateTime? specificDate,
     List<DutyLocation>? locations,
     int? minTeachersPerVenue,
   }) {
@@ -120,6 +135,7 @@ class Duty {
       recurrence: recurrence ?? this.recurrence,
       recurrenceDayOfWeek: recurrenceDayOfWeek ?? this.recurrenceDayOfWeek,
       recurrenceDayOfMonth: recurrenceDayOfMonth ?? this.recurrenceDayOfMonth,
+      specificDate: specificDate ?? this.specificDate,
       locations: locations ?? this.locations,
       minTeachersPerVenue: minTeachersPerVenue ?? this.minTeachersPerVenue,
     );
